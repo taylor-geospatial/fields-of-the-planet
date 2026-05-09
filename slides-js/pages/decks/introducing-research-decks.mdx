@@ -1,0 +1,154 @@
+export const meta = {
+  title: 'Taylor Geospatial — Slide Template',
+}
+
+<TitleSlide
+  title="Presentation Title"
+  subtitle="Subtitle or event name goes here"
+  author="Isaac Corley"
+  date="April 2026"
+/>
+
+---
+
+<Columns cols={2} gap={5} align="center">
+<div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+
+<img
+  src="/images/headshot.webp"
+  alt="Isaac Corley"
+  style={{ width: 280, height: 320, borderRadius: 8, objectFit: 'cover', objectPosition: 'center top' }}
+/>
+
+</div>
+<div>
+
+## Isaac Corley
+
+**Director of AI/ML Research** — Taylor Geospatial
+
+- Core maintainer of TorchGeo & SMP
+- Ph.D. Electrical Engineering — ML, CV, remote sensing
+
+</div>
+</Columns>
+
+---
+
+# Agenda
+
+- **Topic One** — Brief description of the first section
+- **Topic Two** — Brief description of the second section
+- **Topic Three** — Brief description of the third section
+- **Summary & Next Steps**
+
+<SpeakerNotes>
+Use this slide to set expectations for the audience.
+Keep the agenda to 3-5 items max.
+</SpeakerNotes>
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-1.jpg" kicker="Section 01">
+
+## Topic One
+
+</SectionSlide>
+
+---
+
+# Content Slide
+
+This is a standard content slide with body text and bullet points.
+
+- First point with supporting detail
+- Second point with supporting detail
+- Third point with supporting detail
+
+> Blockquotes work well for callouts or key takeaways.
+
+<SpeakerNotes>
+Add speaker notes here — toggle visibility with the N key.
+</SpeakerNotes>
+
+---
+
+<Columns cols={2}>
+<div>
+
+## Left Column
+
+Content on the left side of a two-column layout.
+
+- Bullet points
+- Work here too
+- As expected
+
+</div>
+<div>
+
+## Right Column
+
+Content on the right side.
+
+| Key | Value |
+|-----|-------|
+| Metric A | 1,234 |
+| Metric B | 5,678 |
+| Metric C | 9,012 |
+
+</div>
+</Columns>
+
+---
+
+# Code Example
+
+```python
+import rasterio
+import numpy as np
+
+def load_tile(path: str, bands: list[int]) -> np.ndarray:
+    """Load specific bands from a raster tile."""
+    with rasterio.open(path) as src:
+        data = src.read(bands)
+    return data.astype(np.float32)
+
+tiles = [load_tile(f"scene_{i}.tif", [4, 3, 2]) for i in range(10)]
+mosaic = np.concatenate(tiles, axis=0)
+```
+
+<SpeakerNotes>
+Code blocks use shiki with a custom TG-branded syntax theme.
+Python, SQL, TypeScript, and more are supported out of the box.
+</SpeakerNotes>
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-3.jpg" kicker="Section 02">
+
+## Key Takeaways
+
+</SectionSlide>
+
+---
+
+# Summary & Next Steps
+
+1. **Takeaway one** — what the audience should remember
+2. **Takeaway two** — what the audience should remember
+3. **Takeaway three** — what the audience should remember
+
+### Next Steps
+
+- Action item with owner and deadline
+- Action item with owner and deadline
+
+---
+
+<TitleSlide
+  title="Thank You"
+  subtitle="Questions?"
+  author="Isaac Corley"
+  date="April 2026"
+/>

@@ -1,0 +1,994 @@
+export const meta = {
+  title: 'Geospatial Deep Learning with TorchGeo',
+}
+
+<TitleSlide
+  title="Geospatial Deep Learning with TorchGeo"
+  subtitle="GeoAI Talk"
+  author="Isaac Corley"
+  date="April 2026"
+/>
+
+---
+
+<Columns cols={2} gap={5} align="center">
+<div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+
+<Img
+  src="/images/headshot.jpg"
+  alt="Isaac Corley"
+  style={{ width: 280, height: 320, borderRadius: 8, objectFit: 'cover', objectPosition: 'center top' }}
+/>
+
+</div>
+<div>
+
+## Isaac Corley
+
+**Director of AI/ML Research** — Taylor Geospatial Institute
+
+- Core maintainer of **TorchGeo**
+- Ph.D. Electrical Engineering — UTSA
+- Research: geospatial foundation models, remote sensing, Earth observation AI
+
+</div>
+</Columns>
+
+<SpeakerNotes>
+Quick intro before diving in. TGI is a multi-university consortium —
+we build open-source infrastructure so the broader community can do
+geospatial AI without reinventing the wheel.
+</SpeakerNotes>
+
+---
+
+# Run Overhead Imagery Models at Scale
+
+<Columns cols={2} align="center">
+<div>
+
+### Pipeline
+- **T1 Join** against spatial database
+- Query path geometries
+- Chip and mosaic NAIP tiles
+- Run TorchGeo model inference
+
+### Outputs
+- Raster predictions (GeoTIFF / Zarr)
+- Vectorized geometries (GeoParquet)
+- Stored back to spatial database
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide02_img25.png"
+  alt="Overhead imagery model inference pipeline"
+  style={{ width: '100%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Deep Learning Stack
+
+<Columns cols={2} align="center">
+<div>
+
+### PyTorch → TorchVision
+- Core autograd + GPU engine
+- Data loaders for MNIST, ImageNet, COCO
+- Transforms: crop, rotate, normalize
+- Pre-trained ResNet, ViT, Mask R-CNN
+
+### Limitations with Geospatial Data
+- No geospatial metadata — latitude, longitude, CRS
+- No multispectral support — assumes PIL / RGB only
+- Pre-trained weights assume **RGB-only** inputs
+
+</div>
+<div>
+
+<Img
+  src="/images/torchgeo-logo-color.svg"
+  alt="TorchGeo"
+  style={{ width: '90%', borderRadius: '8px', display: 'block', margin: '0 auto' }}
+/>
+
+</div>
+</Columns>
+
+<SpeakerNotes>
+TorchVision was built for natural image computer vision.
+Geospatial remote sensing breaks nearly every assumption it makes.
+</SpeakerNotes>
+
+---
+
+# Remote Sensing — Spectral Complexity
+
+<Columns cols={2} align="center">
+<div>
+
+In computer vision, images are RGB. In remote sensing, sensors vary dramatically:
+
+- **Spectral bands** — Landsat 8: 11 bands, Hyperion: 242 bands
+- **Wavelengths** — optical: 0.4–15 µm, SAR: 7.5 mm–1 m
+- **Spatial resolution** — GOES: 4 km/px → drone: 7 mm/px
+- **Temporal frequency** — continuous to annual
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide04_img03.png"
+  alt="Comparison of Landsat 7, Landsat 8, and Sentinel-2 spectral bands"
+  style={{ width: '100%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Remote Sensing — Projections & CRS
+
+**Projection** and **CRS** determine how 3D Earth maps to 2D. Every dataset may use a different one.
+
+<Columns cols={2} align="center">
+<div>
+
+<div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+<Img src="/images/geoai/slide05_img05.png" alt="Mollweide projection" style={{ width: '100%', maxHeight: '220px', objectFit: 'contain' }} />
+<div style={{ fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', marginTop: '0.4rem' }}>Mollweide</div>
+</div>
+
+<div style={{ textAlign: 'center' }}>
+<Img src="/images/geoai/slide05_img07.png" alt="Albers Equal Area projection" style={{ width: '100%', maxHeight: '220px', objectFit: 'contain' }} />
+<div style={{ fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', marginTop: '0.4rem' }}>Albers Equal Area</div>
+</div>
+
+</div>
+<div>
+
+<div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+<Img src="/images/geoai/slide05_img06.png" alt="Mercator projection" style={{ width: '100%', maxHeight: '220px', objectFit: 'contain' }} />
+<div style={{ fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', marginTop: '0.4rem' }}>Mercator</div>
+</div>
+
+<div style={{ textAlign: 'center' }}>
+<Img src="/images/geoai/slide05_img08.png" alt="Interrupted Goode Homolosine projection" style={{ width: '100%', maxHeight: '220px', objectFit: 'contain' }} />
+<div style={{ fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', marginTop: '0.4rem' }}>Goode Homolosine</div>
+</div>
+
+</div>
+</Columns>
+
+---
+
+# Objective
+
+A **production-quality** PyTorch domain library for geospatial imagery.
+
+<Columns cols={2} align="start">
+<div>
+
+### Library
+- Data loaders for 100+ benchmark datasets
+- Samplers for uncurated raster/vector layers
+- Transforms for multispectral data
+- Pre-trained models per satellite/sensor
+
+</div>
+<div>
+
+### Who It's For
+- **ML experts** working with geospatial data
+- **Remote sensing experts** applying machine learning
+
+</div>
+</Columns>
+
+---
+
+# Applications
+
+<Columns cols={2} align="center">
+<div>
+
+- **Agriculture & Ecology** — crop mapping, yield prediction, deforestation, invasive species
+- **Climate & Weather** — sea level rise, glaciology, hurricane tracking, wildfire
+- **Government & Urban** — population estimation, building & road mapping
+- **Military & Security** — object detection, terrain mapping
+- **Natural Disasters** — damage assessment, flood monitoring, early warning
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide07_img05.jpg"
+  alt="10 cm ground deformation at Kilauea Volcano captured by InSAR"
+  style={{ width: '90%', maxHeight: '52vh', objectFit: 'contain', borderRadius: '8px' }}
+/>
+<div style={{ textAlign: 'center', fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', marginTop: '0.25rem' }}>
+  InSAR at Kilauea Volcano — each ring = 1.5 cm deformation
+</div>
+
+</div>
+</Columns>
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-1.jpg">
+
+## Design
+
+</SectionSlide>
+
+<SpeakerNotes>
+Four core design challenges: combining datasets, geospatial sampling,
+automatic reprojection, and transfer learning.
+</SpeakerNotes>
+
+---
+
+# Combining Datasets
+
+Many use cases require composing 2+ raw datasets simultaneously.
+
+<Columns cols={2} align="center">
+<div>
+
+**Common scenarios:**
+- Images + labels (Landsat + CDL)
+- Multiple sensors (Landsat 7 + 8, Landsat + Sentinel)
+- Disparate locations (Chesapeake Bay NY + PA)
+
+Datasets may differ in **extent**, **resolution**, **CRS**, and **projection** — TorchGeo handles it automatically.
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide09_img03.png"
+  alt="Combining Landsat scene with Cropland Data Layer"
+  style={{ width: '100%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Automatic Reprojection
+
+TorchGeo automatically reprojects and resamples datasets on the fly — no preprocessing required.
+
+<Img
+  src="/images/geoai/slide10_img02.png"
+  alt="Datasets before and after automatic reprojection and resampling"
+  style={{ width: '85%', margin: '0 auto', display: 'block', borderRadius: '8px' }}
+/>
+
+<SpeakerNotes>
+Top row: four datasets with different projections and spatial resolutions.
+Bottom row: same datasets after automatic reprojection and resampling into a shared CRS.
+</SpeakerNotes>
+
+---
+
+# Geospatial Sampling
+
+<Columns cols={2} align="center">
+<div>
+
+**TorchVision datasets** are simple:
+- Fixed length, indexed by integer
+
+**Geospatial datasets** are harder:
+- Raster scenes are too large to load at once
+- Vector files have no pixels, don't align with rasters
+
+**Solution:** index by **(x₁, x₂, y₁, y₂, t₁, t₂)** spatiotemporal bounding box
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide11_img06.png"
+  alt="3D spatiotemporal bounding box indexing"
+  style={{ width: '90%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Abstract Base Classes
+
+<Columns cols={2} align="start">
+<div>
+
+### GeoDataset
+- Backed by an **R-tree** for spatiotemporal indexing
+- Supports spatial + temporal queries
+- `__and__` → IntersectionDataset
+- `__or__` → UnionDataset
+
+### NonGeoDataset
+- Standard integer-indexed dataset
+- Used for curated benchmark datasets
+- Compatible with `torch.utils.data.DataLoader`
+
+</div>
+<div>
+
+```python
+# GeoDataset — spatiotemporal R-tree index
+landsat = Landsat8(paths="...")
+cdl     = CDL(paths="...")
+dataset = landsat & cdl  # IntersectionDataset
+dataset = landsat | cdl  # UnionDataset
+
+# NonGeoDataset — integer index
+dataset = RESISC45(root="...", split="train")
+sample  = dataset[42]
+# {'image': Tensor[C,H,W], 'label': int}
+```
+
+</div>
+</Columns>
+
+---
+
+# Transfer Learning
+
+<Columns cols={2} align="center">
+<div>
+
+**Problem:**
+- Neural networks require large labeled datasets
+- Large labeled datasets exist for only a handful of satellite/task combinations
+
+**Solution:**
+- Pre-train with **self-supervised learning** on raw imagery
+- Fine-tune on a smaller supervised dataset
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide13_img06.png"
+  alt="Transfer learning diagram: source model to target model"
+  style={{ width: '100%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-2.jpg">
+
+## Implementation
+
+</SectionSlide>
+
+<SpeakerNotes>
+Datasets, Samplers, Models, Trainers.
+</SpeakerNotes>
+
+---
+
+# Benchmark Datasets (100)
+
+Curated image + label pairs. Covers the full remote sensing task taxonomy.
+
+<Columns cols={3} align="start">
+<div>
+
+**Classification**
+EuroSAT · RESISC45 · PatternNet · So2Sat · UC Merced
+
+**Regression**
+NASA Tropical Cyclone Wind Speed
+
+</div>
+<div>
+
+**Semantic Segmentation**
+LandCover.ai · SEN12MS · GID-15 · ETCI Flood · CV4A Kenya
+
+**Change Detection**
+LEVIR-CD+ · OSCD
+
+</div>
+<div>
+
+**Object Detection**
+NWPU VHR-10 · DOTA
+
+**Instance Segmentation**
+SpaceNet · ZueriCrop
+
+</div>
+</Columns>
+
+---
+
+# Raw Datasets (30)
+
+Imagery or label-only layers. Typically `GeoDataset` with spatiotemporal indexing.
+
+<Columns cols={2} align="center">
+<div>
+
+- ASTER Global DEM — imagery
+- Canadian Building Footprints — labels
+- Chesapeake Bay Land Cover — labels
+- Cropland Data Layer (CDL) — labels
+- Landsat — imagery
+- National Agriculture Imagery Program — imagery
+- Open Buildings — labels
+- Sentinel — imagery
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide16_img04.png"
+  alt="USGS EarthExplorer dataset catalog"
+  style={{ width: '100%', maxHeight: '55vh', objectFit: 'contain', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Combining Datasets — Code
+
+```python
+from torch.utils.data import DataLoader
+from torchgeo.datasets import CDL, Landsat7, Landsat8, stack_samples
+from torchgeo.samplers import RandomGeoSampler
+
+# v0.9+: band names use full filename prefix (SR_B*)
+landsat7 = Landsat7(paths="...", bands=["SR_B1","SR_B2","SR_B3","SR_B4","SR_B5","SR_B7"])
+landsat8 = Landsat8(paths="...", bands=["SR_B2","SR_B3","SR_B4","SR_B5","SR_B6","SR_B7"])
+cdl      = CDL(paths="...")
+
+dataset  = (landsat7 | landsat8) & cdl  # union then intersection
+
+sampler  = RandomGeoSampler(dataset, size=256, length=10_000)
+loader   = DataLoader(dataset, batch_size=128, sampler=sampler, collate_fn=stack_samples)
+
+for batch in loader:
+    ...  # image: Tensor[B,C,H,W]   label: Tensor[B,H,W]
+```
+
+---
+
+# Pre-trained Models
+
+Each satellite has a **unique set of spectral bands**. TorchGeo ships the first library of models pre-trained on **multispectral imagery**.
+
+```python
+from torchgeo.models import resnet50, ResNet50_Weights, unet, Unet_Weights
+
+# ResNet50 pre-trained on all Sentinel-2 bands via MoCo
+model = resnet50(weights=ResNet50_Weights.SENTINEL2_ALL_MOCO)
+
+# U-Net pre-trained for 3-class field boundary segmentation (FTW)
+model = unet(weights=Unet_Weights.SENTINEL2_3CLASS_FTW)
+```
+
+**Available backbones:** ResNet · ViT · Swin · Change Star · CROMA · DoFA · FarSeg · Scale-MAE · Copernicus-FM · Panopticon · OlmoEarth · Tessera · Presto · and more
+
+---
+
+# Lightning Integration — Trainers
+
+`DataModules` and `Trainers` make it trivially easy to train and evaluate models.
+
+```python
+from lightning.pytorch import Trainer
+from torchgeo.datamodules import TropicalCycloneDataModule
+from torchgeo.trainers import RegressionTask
+
+datamodule = TropicalCycloneDataModule(root="...", batch_size=64)
+model = RegressionTask(model="resnet18", learning_rate=0.1)
+trainer = Trainer(min_epochs=20, max_epochs=100)
+
+trainer.fit(model=model, datamodule=datamodule)
+trainer.test(model=model, datamodule=datamodule)
+```
+
+Supports classification, regression, semantic segmentation, change detection, and instance segmentation out of the box.
+
+---
+
+# Lightning Integration — CLI
+
+All settings controllable via CLI or YAML config. Based on `LightningCLI`.
+
+<Columns cols={2} align="start">
+<div>
+
+```bash
+torchgeo fit --config config.yaml
+
+# Explore options
+torchgeo fit --model.help SemanticSegmentationTask
+torchgeo fit --data.help Sentinel2CDLDataModule
+
+# Override any arg inline
+torchgeo fit --config config.yaml \
+  --model.init_args.backbone resnet50 \
+  --trainer.max_epochs 100
+```
+
+</div>
+<div>
+
+<CodeBlock className="language-yaml" fontSize={0}>{`trainer:
+  max_epochs: 50
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val_loss
+
+model:
+  class_path: SemanticSegmentationTask
+  init_args:
+    model: unet
+    backbone: resnet50
+    in_channels: 6
+    num_classes: 134
+
+data:
+  class_path: Sentinel2CDLDataModule
+  init_args:
+    batch_size: 32
+    patch_size: 256
+
+optimizer:
+  class_path: torch.optim.AdamW
+  init_args:
+    lr: 1.0e-3`}</CodeBlock>
+
+</div>
+</Columns>
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-3.jpg">
+
+## Experiments
+
+</SectionSlide>
+
+---
+
+# Benchmarking Results
+
+<Columns template="1fr 2fr" align="center">
+<div>
+
+Competitive or state-of-the-art performance across RGB, SAR, and multispectral imagery for classification, regression, and semantic segmentation.
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide22_img06.png"
+  alt="Benchmark results table across RESISC45, So2Sat, LandCover.ai, Chesapeake Bay, ETCI 2021, EuroSAT, UC Merced"
+  style={{ width: '75%', borderRadius: '8px', display: 'block', margin: '0 auto' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Example Results — Building Segmentation
+
+**Inria Aerial Image Labeling Dataset**
+
+<Columns template="1fr 2fr" align="center">
+<div>
+
+- Building segmentation from aerial imagery
+- 5,000 × 5,000 px at **0.3 m resolution** (RGB)
+- Prediction patches stitched into full-scene map
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide23_img03.png"
+  alt="Inria Aerial Image Labeling: aerial RGB image and binary building segmentation mask"
+  style={{ width: '100%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Example Results — Object Detection
+
+**NWPU VHR-10 Dataset**
+
+<Columns cols={2} align="center">
+<div>
+
+- 10 object classes in Google Earth RGB imagery
+- Object detection (bounding boxes) + instance segmentation (masks)
+- **mAP: 0.642** (bbox) / **0.651** (segmentation)
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide24_img03.png"
+  alt="NWPU VHR-10: instance segmentation of sports courts from aerial imagery"
+  style={{ width: '100%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+# Example Results — Wind Speed Regression
+
+**NASA Tropical Cyclone Dataset**
+
+<Columns cols={2} align="center">
+<div>
+
+- Regress wind speed from **GOES satellite imagery**
+- Radiant Earth ML competition dataset
+- ResNet18 pre-trained on multispectral imagery via transfer learning
+
+> Key insight: models pre-trained on satellite imagery outperform ImageNet-initialized weights on remote sensing tasks with limited labels.
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide25_img07.png"
+  alt="Tropical cyclone wind speed regression results"
+  style={{ width: '100%', borderRadius: '8px' }}
+/>
+
+</div>
+</Columns>
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-1.jpg">
+
+## Use Case
+
+</SectionSlide>
+
+---
+
+# Fields of the World (FTW)
+
+<Columns cols={2} align="center">
+<div>
+
+<div style={{ background: 'white', borderRadius: '8px', padding: '0.5rem' }}>
+<Img
+  src="/images/geoai/slide28_img06.png"
+  alt="U-Net model: 2x Sentinel-2 RGBN input to 3-class field boundary prediction"
+  style={{ width: '100%', maxHeight: '46vh', objectFit: 'contain', display: 'block' }}
+/>
+</div>
+<div style={{ textAlign: 'center', fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', marginTop: '0.5rem' }}>
+  U-Net · 2× Sentinel-2 RGBN (planting + harvest)
+</div>
+
+</div>
+<div>
+
+<Img
+  src="/images/geoai/slide28_img05.png"
+  alt="FTW dataset samples from Brazil, Belgium, Rwanda, Cambodia"
+  style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '8px' }}
+/>
+<div style={{ textAlign: 'center', fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', marginTop: '0.5rem' }}>
+  Training data: Brazil · Belgium · Rwanda · Cambodia
+</div>
+
+</div>
+</Columns>
+
+---
+
+# FTW CONUS 2024 — Mosaic & Predictions
+
+<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+
+<Img
+  src="/images/geoai/slide29_img04.png"
+  alt="FTW field boundary predictions across the contiguous United States"
+  style={{ width: '97%', maxHeight: '68vh', objectFit: 'contain' }}
+/>
+
+<div style={{ display: 'flex', justifyContent: 'center', gap: '3rem', fontSize: '0.9em', color: 'var(--theme-ui-colors-textSecondary)' }}>
+<span>Sentinel-2 mosaic — <strong>Zarr (2+ TB)</strong></span>
+<span>Predictions — <strong>Zarr (2+ TB)</strong></span>
+<span>Polygons — <strong>GeoParquet (9 GB)</strong></span>
+<span>Tiles — <strong>PMTiles (1 TB)</strong></span>
+</div>
+
+</div>
+
+---
+
+# FTW Inference App
+
+<Embed src="https://fieldsofthe.world/ftw-inference-app/" />
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-2.jpg">
+
+## Conclusion
+
+</SectionSlide>
+
+---
+
+# Impact
+
+<Columns cols={2} align="start">
+<div>
+
+### Growing Library
+- **100** curated benchmark datasets
+- **30** uncurated raw raster/vector layers
+- **110** pre-trained models
+- PyTorch Lightning integration
+
+### Adoption
+- **4K ⭐**, 532 forks, 116 contributors
+- **304K** PyPI downloads last month
+- Researchers across government, academia, and industry
+- Forming a **Technical Steering Committee**
+
+</div>
+<div>
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem' }}>
+{[
+  { src: '/images/geoai/slide31_img05.png', alt: 'Stanford University' },
+  { src: '/images/geoai/slide31_img04.png', alt: 'UC Berkeley' },
+  { src: '/images/geoai/slide31_img19.png', alt: 'MIT' },
+  { src: '/images/geoai/slide31_img17.png', alt: 'University of Oxford' },
+  { src: '/images/geoai/slide31_img18.png', alt: 'University of Cambridge' },
+  { src: '/images/geoai/slide31_img06.png', alt: 'EPFL' },
+  { src: '/images/geoai/slide31_img09.png', alt: 'ETH Zurich' },
+  { src: '/images/geoai/slide31_img07.png', alt: 'TU Munich' },
+  { src: '/images/geoai/slide31_img08.png', alt: 'Carnegie Mellon University' },
+  { src: '/images/geoai/slide31_img11.png', alt: 'University of Washington' },
+  { src: '/images/geoai/slide31_img13.png', alt: 'Microsoft' },
+  { src: '/images/geoai/slide31_img12.png', alt: 'Meta' },
+  { src: '/images/geoai/slide31_img14.png', alt: 'IBM' },
+  { src: '/images/geoai/slide31_img15.png', alt: 'AWS' },
+  { src: '/images/geoai/slide31_img16.png', alt: 'Intel' },
+].map(({ src, alt }) => (
+  <div key={alt} style={{ background: 'rgba(255,255,255,0.93)', borderRadius: '8px', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', aspectRatio: '2 / 1' }}>
+    <Img src={src} alt={alt} style={{ maxHeight: '44px', maxWidth: '100%', objectFit: 'contain' }} />
+  </div>
+))}
+</div>
+
+</div>
+</Columns>
+
+---
+
+<SectionSlide backgroundImage="/images/landsat-brown-3.jpg">
+
+## Earth Embeddings
+
+</SectionSlide>
+
+---
+
+# What is an Earth Embedding?
+
+A **foundation model** reads a satellite image and outputs a compact list of numbers — a fingerprint that captures what that place looks like.
+
+<Img
+  src="/images/embedding.png"
+  alt="Satellite image → Image Model → Embedding → Task"
+  style={{ width: '90%', display: 'block', margin: '1.5rem auto 0.75rem' }}
+/>
+
+<div style={{ textAlign: 'center', fontSize: '1em', color: 'var(--theme-ui-colors-textMuted)' }}>
+  Run this over the entire Earth — you have a <strong>searchable fingerprint of every place on the planet</strong>.
+</div>
+
+---
+
+# The Storage Problem
+
+Running a model over the whole Earth at 10 m resolution produces a staggering amount of embedding data.
+
+<Columns cols={2} align="center">
+<div>
+
+Think of it like this: if the satellite imagery is a **filing cabinet**, the embeddings are a **warehouse**.
+
+- 1.5 trillion image patches per year (global 10 m)
+- Each embedding: 1,024 numbers × 4 bytes = **4 KB per patch**
+- Total: **6 petabytes — $1.7M/yr just in cloud storage**
+
+> The fingerprints cost more to store than the photos.
+
+</div>
+<div>
+
+<div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.95em' }}>
+  {[
+    { label: 'float32 (raw)', width: '100%', color: 'var(--theme-ui-colors-primary)', cost: '$1.7M / yr' },
+    { label: 'int8 (4× smaller)', width: '25%', color: 'var(--theme-ui-colors-accent)', cost: '$424K / yr' },
+    { label: 'binary (32× smaller)', width: '6%', color: '#4ade80', cost: '$52K / yr' },
+  ].map(({ label, width, color, cost }) => (
+    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div style={{ width: '8rem', textAlign: 'right', color: 'var(--theme-ui-colors-textMuted)', fontSize: '0.85em', flexShrink: 0 }}>{label}</div>
+      <div style={{ flex: 1, background: 'var(--theme-ui-colors-surface)', borderRadius: 6, height: '1.6rem', position: 'relative' }}>
+        <div style={{ width, height: '100%', background: color, borderRadius: 6, opacity: 0.85 }}/>
+      </div>
+      <div style={{ width: '5rem', fontWeight: 'bold', color, fontSize: '0.85em' }}>{cost}</div>
+    </div>
+  ))}
+</div>
+
+</div>
+</Columns>
+
+---
+
+# Why Does Compression Work So Well?
+
+Embeddings look like 1,024 numbers, but most of that is **redundant**.
+
+<Columns cols={2} align="center">
+<div>
+
+**Analogy: JPEG compression**
+
+A raw photo is millions of pixels — but neighboring pixels are correlated. JPEG exploits that redundancy and throws away what your eye won't miss. Same idea here.
+
+<br/>
+
+**Earth embeddings are the same:**
+- DINOv3 has 1,024 dimensions
+- But only **13–17 dimensions carry real information**
+- The rest is noise
+
+</div>
+<div>
+
+<div style={{ textAlign: 'center' }}>
+<div style={{ fontSize: '3.5rem', fontWeight: 'bold', color: 'var(--theme-ui-colors-primary)', lineHeight: 1.1 }}>1,024</div>
+<div style={{ fontSize: '1em', color: 'var(--theme-ui-colors-textMuted)', marginBottom: '1.2rem' }}>stored dimensions</div>
+<div style={{ fontSize: '1.4rem', color: 'var(--theme-ui-colors-textMuted)' }}>↓</div>
+<div style={{ fontSize: '3.5rem', fontWeight: 'bold', color: '#4ade80', lineHeight: 1.1 }}>~15</div>
+<div style={{ fontSize: '1em', color: 'var(--theme-ui-colors-textMuted)' }}>dimensions that actually matter</div>
+<div style={{ marginTop: '1rem', fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', fontStyle: 'italic' }}>So we can compress aggressively without losing meaning.</div>
+</div>
+
+</div>
+</Columns>
+
+---
+
+# What is Retrieval?
+
+**Given one satellite image, find all similar-looking places across the planet.**
+
+<Columns cols={2} align="center">
+<div>
+
+Think of it like **reverse image search** — but for the Earth.
+
+1. Draw a region (e.g., agricultural fields in Iowa)
+2. Compute its embedding fingerprint
+3. Compare against 50 million other fingerprints
+4. Return the most similar locations — anywhere on Earth
+
+**Why is this useful?**
+- Find crop fields that look like yours in other countries
+- Spot deforestation patterns matching known examples
+- Identify similar terrain for military or disaster response
+
+</div>
+<div>
+
+<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.2rem', fontSize: '1.2em' }}>
+  <div style={{ background: 'var(--theme-ui-colors-surface)', border: '2px solid var(--theme-ui-colors-primary)', borderRadius: 10, padding: '1rem 2rem', textAlign: 'center' }}>
+    🛰️ Query tile<br/><span style={{ fontSize: '0.85em', color: 'var(--theme-ui-colors-textMuted)' }}>your chosen region</span>
+  </div>
+  <div style={{ fontSize: '1.6rem', color: 'var(--theme-ui-colors-textMuted)' }}>↓ embedding ↓ compare</div>
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem' }}>
+    {['Match 1','Match 2','Match 3','Match 4','Match 5','Match 6'].map(m => (
+      <div key={m} style={{ background: 'var(--theme-ui-colors-surface)', border: '1px solid var(--theme-ui-colors-accent)', borderRadius: 8, padding: '0.7rem 1rem', textAlign: 'center', fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)' }}>{m}</div>
+    ))}
+  </div>
+  <div style={{ fontSize: '0.9em', color: 'var(--theme-ui-colors-textMuted)', fontStyle: 'italic' }}>Top results from 50M tiles across CONUS</div>
+</div>
+
+</div>
+</Columns>
+
+---
+
+# TerraBit — Planetary Retrieval in the Browser
+
+**49.8M embeddings over CONUS. No server. Runs entirely in your browser.**
+
+<Columns cols={2} align="center">
+<div>
+
+**The data:**
+- Clay v1.5 foundation model embeddings
+- Compressed from **183 GB → 11 GB** (16× smaller) using binary quantization
+
+**How it works:**
+- Draw a region on the map
+- Your browser computes the similarity against all 49.8M tiles
+- Returns ranked results in under a second
+
+</div>
+<div>
+
+**What you can do:**
+- Rectangle or freehand polygon queries
+- Combine multiple examples with **AND / OR / NOT**
+- Export results as **GeoParquet**
+- No cloud infrastructure needed
+
+</div>
+</Columns>
+
+---
+
+# TerraBit
+
+<div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', width: '100%' }}>
+  <video autoPlay muted loop playsInline style={{ width: '33%', borderRadius: '8px' }}>
+    <source src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/videos/terrabit-demo.mp4`} type="video/mp4" />
+  </video>
+  <video autoPlay muted loop playsInline style={{ width: '33%', borderRadius: '8px' }}>
+    <source src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/videos/terrabit-places.mp4`} type="video/mp4" />
+  </video>
+  <video autoPlay muted loop playsInline style={{ width: '33%', borderRadius: '8px' }}>
+    <source src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/videos/terrabit-across-the-world-demo.mp4`} type="video/mp4" />
+  </video>
+</div>
+
+---
+
+# TerraBit Demo
+
+<Embed src="https://isaac.earth/terrabit/" />
+
+---
+
+<TitleSlide
+  title="Join Us!"
+  subtitle="github.com/torchgeo/torchgeo"
+  author="Isaac Corley"
+  date="April 2026"
+/>
