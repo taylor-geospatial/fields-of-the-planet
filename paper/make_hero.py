@@ -42,6 +42,18 @@ def parse_args():
     )
     p.add_argument("--out", type=Path, default=Path("hero.pdf"))
     p.add_argument("--n", type=int, default=12, help="Number of triplets to include.")
+    p.add_argument(
+        "--min-field-pct",
+        type=float,
+        default=0.40,
+        help="Minimum fraction of patch pixels that are field interior (class 1).",
+    )
+    p.add_argument(
+        "--max-check",
+        type=int,
+        default=2000,
+        help="Max candidates to score by field-fraction before stopping.",
+    )
     p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
 
@@ -125,6 +137,39 @@ def _candidate_patches(args: argparse.Namespace) -> list[tuple[str, str, str]]:
     return out
 
 
+def _label_field_fraction(planet_root: Path, country: str, pid: str, window: str) -> float:
+    """Return the fraction of label pixels that are class 1 (field interior)."""
+    p = planet_root / country / f"{pid}_{window}_label.tif"
+    try:
+        with rasterio.open(p) as src:
+            lbl = src.read(1)
+        return float((lbl == 1).sum()) / lbl.size
+    except Exception:
+        return 0.0
+
+
+def _filter_field_dense(
+    cands: list[tuple[str, str, str]],
+    planet_root: Path,
+    min_field_pct: float,
+    max_check: int,
+    seed: int,
+) -> list[tuple[str, str, str]]:
+    """Sample candidates and keep those with field coverage above threshold."""
+    rng = random.Random(seed)
+    rng.shuffle(cands)
+    kept: list[tuple[float, tuple[str, str, str]]] = []
+    for i, (c, pid, w) in enumerate(cands):
+        if i >= max_check:
+            break
+        frac = _label_field_fraction(planet_root, c, pid, w)
+        if frac >= min_field_pct:
+            kept.append((frac, (c, pid, w)))
+    # Return high-coverage first.
+    kept.sort(key=lambda x: x[0], reverse=True)
+    return [t for _, t in kept]
+
+
 def _pick_diverse(
     candidates: list[tuple[str, str, str]], n: int, seed: int
 ) -> list[tuple[str, str, str]]:
@@ -151,7 +196,12 @@ def main() -> int:
     args = parse_args()
     cands = _candidate_patches(args)
     print(f"{len(cands)} candidate patches with clear>=0.99 and all files present")
-    picks = _pick_diverse(cands, args.n, args.seed)
+    dense = _filter_field_dense(
+        cands, args.planet_root, args.min_field_pct, args.max_check, args.seed
+    )
+    print(f"{len(dense)} candidates with field coverage >= {args.min_field_pct:.0%} "
+          f"(checked up to {args.max_check} samples)")
+    picks = _pick_diverse(dense, args.n, args.seed)
     print(f"selected {len(picks)} triplets:")
     for c, pid, w in picks:
         print(f"  {c:14s} {pid}_{w}")
