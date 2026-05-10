@@ -144,6 +144,18 @@ ENV/
 env.bak/
 venv.bak/
 
+# project data + outputs
+data/
+outputs/
+logs/
+.agent/
+
+# LaTeX auxiliary
+paper/main.fdb_latexmk
+paper/main.fls
+paper/main.out
+paper/main.synctex.gz
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -229,7 +241,7 @@ __marimo__/
 *.ind
 *.nlo
 *.nls
-paper/*.pdf
+paper/main.pdf
 slides/*.pdf
 
 # Claude Code

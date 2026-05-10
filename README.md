@@ -1,60 +1,35 @@
-# research-repo-template
+# ftw-planet
 
-A Python research repository template using [uv](https://docs.astral.sh/uv/), [ruff](https://docs.astral.sh/ruff/), [ty](https://github.com/astral-sh/ty), [pre-commit](https://pre-commit.com/), and GitHub Actions CI/CD.
+Higher-resolution field boundary segmentation by pairing the **Fields of the World** (FTW) benchmark with **PlanetScope** imagery.
 
-## Features
+FTW labels are 10 m Sentinel-2 patches with two timestamps (`window_a` planting, `window_b` harvest) and a field-boundary mask. This repo finds the nearest cloud-free PlanetScope (~3 m) scene for each patch's window, crops it to the patch bounds, and saves it as a drop-in higher-resolution replacement for the S2 imagery — so we can train segmentation models that produce ~3 m field boundaries.
 
-- 📦 **[uv](https://docs.astral.sh/uv/)** — fast Python package manager and build tool
-- 🔍 **[ruff](https://docs.astral.sh/ruff/)** — fast Python linter and formatter
-- 🔎 **[ty](https://github.com/astral-sh/ty)** — fast Python type checker
-- 🪝 **[pre-commit](https://pre-commit.com/)** — git hooks for code quality
-- ✅ **GitHub Actions CI** — automated tests and style/type checks on push/PR
-- 🚀 **Automatic PyPI releases** — publish to PyPI on version tag creation
+## Setup
 
-## Getting Started
+```bash
+make install                 # uv sync --all-extras
+cp .env.example .env         # then add your PL_API_KEY
+```
 
-1. **Clone and rename** the template:
+## Pipeline
 
-    - Replace `mypackage` with your package name throughout the repo
-    - Update `pyproject.toml` with your project metadata
+```bash
+# 1. Download a country's FTW patches + build a per-patch index (bounds, dates).
+uv run scripts/download_ftw.py --country rwanda --root data/ftw
 
-1. **Install dependencies** with uv:
+# 2. For each patch, search Planet, pick nearest cloud-free PSScene, crop to patch bounds.
+uv run scripts/match_planet.py \
+    --ftw-root data/ftw \
+    --country rwanda \
+    --out data/planet \
+    --search-days 14 \
+    --max-cloud-cover 0.1
+```
 
-    ```bash
-    uv sync --all-groups
-    ```
+Outputs land in `data/planet/<country>/<patch_id>_{a,b}.tif`, georeferenced and aligned to the FTW patch grid (resampled to PlanetScope's native ~3 m).
 
-1. **Install pre-commit hooks**:
+## Stack
 
-    ```bash
-    uv run pre-commit install
-    ```
-
-1. **Run tests**:
-
-    ```bash
-    uv run pytest -vvv --cov=src
-    ```
-
-1. **Run linting and formatting**:
-
-    ```bash
-    uv run ruff check .
-    uv run ruff format .
-    ```
-
-1. **Run type checking**:
-
-    ```bash
-    uv run ty check
-    ```
-
-## Releasing to PyPI
-
-1. Set up a [PyPI Trusted Publisher](https://docs.pypi.org/trusted-publishers/) for your repository with environment name `pypi`.
-1. Create and push a version tag:
-    ```bash
-    git tag v0.1.0
-    git push origin v0.1.0
-    ```
-    The GitHub Actions release workflow will automatically build and publish to PyPI.
+- Python ≥ 3.13, [uv](https://docs.astral.sh/uv/) for dep management
+- ruff + ty + pre-commit for lint/format/types
+- pytest for tests

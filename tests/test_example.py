@@ -1,5 +1,5 @@
-import mypackage
+import ftw_planet
 
 
 def test_import() -> None:
-    assert mypackage is not None
+    assert ftw_planet is not None

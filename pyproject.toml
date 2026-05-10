@@ -3,13 +3,16 @@ build-backend = "uv_build"
 requires = [ "uv-build>=0.9.3,<1" ]
 
 [project]
-name = "mypackage"
+name = "ftw-planet"
 version = "0.1.0"
-description = "A research Python package."
+description = """\
+  Higher-resolution field boundary segmentation by pairing Fields of the World (FTW) Sentinel-2 patches with \
+  PlanetScope imagery.\
+  """
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
-  { name = "Your Name", email = "your.email@example.com" },
+  { name = "Isaac Corley", email = "isaac.corley@taylorgeospatial.org" },
 ]
 requires-python = ">=3.13"
 classifiers = [
@@ -19,15 +22,23 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+  "ftw-tools>=2.0.0b5",
+  "geopandas",
   "hydra-core",
   "lightning",
   "numpy",
   "omegaconf",
+  "planet>=2",
+  "pyarrow>=19",
+  "python-dotenv",
+  "rasterio",
   "rich",
+  "shapely",
   "timm",
   "torch",
   "torchmetrics",
   "torchvision",
+  "tqdm",
   "wandb",
 ]
 
@@ -93,9 +104,19 @@ lint.ignore = [
   # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
   "W191",
 ]
+lint.extend-per-file-ignores."paper/**" = [
+  "ANN001",
+  "ANN201",
+  "RUF001",
+]
 lint.extend-per-file-ignores."scripts/**" = [
   "ANN001",
   "ANN201",
+  "PERF401",
+  "SIM113",
+]
+lint.extend-per-file-ignores."src/ftw_planet/**" = [
+  "PERF401",
 ]
 lint.extend-per-file-ignores."tests/**" = [
   "ANN001",
@@ -104,7 +125,7 @@ lint.extend-per-file-ignores."tests/**" = [
   "SIM117",
   "SIM300",
 ]
-lint.isort.known-first-party = [ "mypackage" ]
+lint.isort.known-first-party = [ "ftw_planet" ]
 
 [tool.pytest]
 ini_options.testpaths = [ "tests" ]

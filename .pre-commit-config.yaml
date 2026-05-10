@@ -16,7 +16,7 @@ repos:
         exclude: ^slides-js/
       - id: debug-statements
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: ['--maxkb=2000']
       - id: check-merge-conflict
       - id: trailing-whitespace
       - id: requirements-txt-fixer
