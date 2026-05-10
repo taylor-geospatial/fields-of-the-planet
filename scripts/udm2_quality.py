@@ -114,7 +114,9 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
     rows: list[dict] = []
-    with ProcessPoolExecutor(max_workers=args.workers) as ex, args.out.open("a") as fout:
+    # Overwrite mode: this script computes a *current* snapshot per UDM2 tif on
+    # disk. Appending across runs creates stale duplicates; we don't want that.
+    with ProcessPoolExecutor(max_workers=args.workers) as ex, args.out.open("w") as fout:
         futs = {ex.submit(_stat_one, t, args.clear_threshold): t for t in all_tifs}
         done = 0
         for fut in as_completed(futs):

@@ -128,16 +128,62 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def _load_bad_patches(args: argparse.Namespace) -> list[dict]:
-    """Filter UDM2 quality rows to patches failing ANY quality band."""
-    rows = _read_jsonl(args.planet_root / "_global" / "udm2_quality.jsonl")
+    """Build a unified bad-patch list from UDM2 stats AND extract logs.
+
+    Two populations need re-sampling:
+      1. **Quality-bad** — has imagery, but UDM2 fails one of our band ceilings.
+      2. **Extract-bad** — has a search result but no usable Planet imagery
+         (status no_url / open_failed / extract_failed in extract shards).
+         These patches need an alternative scene because the original scene's
+         asset is dead / never produced a working URL.
+    """
     bad: list[dict] = []
-    for r in rows:
+    seen: set[tuple[str, str, str]] = set()
+
+    # 1. Quality-bad from UDM2 stats.
+    for r in _read_jsonl(args.planet_root / "_global" / "udm2_quality.jsonl"):
         if "clear" not in r:
             continue
         is_bad, reasons = _is_bad(r, args)
         if is_bad:
             r["_reasons"] = reasons
+            r["_source"] = "udm2"
+            key = (r["country"], r["id"], r["window"])
+            seen.add(key)
             bad.append(r)
+
+    # 2. Extract-bad: walk all extract shards, take latest status per (c, id, w);
+    #    if no_url/open_failed/extract_failed/scene_failed, mark for resample.
+    latest_extract: dict[tuple[str, str, str], dict] = {}
+    extract_dir = args.planet_root / "_global" / "extract"
+    for shard in sorted(extract_dir.glob("shard_*.jsonl")):
+        for r in _read_jsonl(shard):
+            key = (str(r.get("country", "")), str(r.get("id", "")), str(r.get("window", "")))
+            latest_extract[key] = r
+
+    fail_statuses = {"no_url", "open_failed", "extract_failed", "scene_failed"}
+    for key, r in latest_extract.items():
+        if key in seen:
+            continue  # already on the list as quality-bad
+        if r.get("status") not in fail_statuses:
+            continue
+        bad.append(
+            {
+                "country": key[0],
+                "id": key[1],
+                "window": key[2],
+                "_reasons": [f"extract_status={r.get('status')}"],
+                "_source": "extract",
+                # No UDM2 stats since extraction never succeeded.
+                "clear": 0.0,
+                "cloud": 0.0,
+                "shadow": 0.0,
+                "light_haze": 0.0,
+                "heavy_haze": 0.0,
+                "snow": 0.0,
+                "unusable": 1.0,  # treat as fully unusable for "previous quality" logging
+            }
+        )
     return bad
 
 
