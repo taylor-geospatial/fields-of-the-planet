@@ -199,8 +199,10 @@ def main() -> int:
     dense = _filter_field_dense(
         cands, args.planet_root, args.min_field_pct, args.max_check, args.seed
     )
-    print(f"{len(dense)} candidates with field coverage >= {args.min_field_pct:.0%} "
-          f"(checked up to {args.max_check} samples)")
+    print(
+        f"{len(dense)} candidates with field coverage >= {args.min_field_pct:.0%} "
+        f"(checked up to {args.max_check} samples)"
+    )
     picks = _pick_diverse(dense, args.n, args.seed)
     print(f"selected {len(picks)} triplets:")
     for c, pid, w in picks:

@@ -1,26 +1,26 @@
-"""Fill UDM2 masks for PlanetScope SR tifs that lack a companion ``_udm2.tif``.
+"""3-phase UDM2 fill — search/activate/extract pattern from the main pipeline.
 
-Designed to run in parallel with the SR-only resample, since UDM2
-activation is ~3x slower than SR. By polling for SR-only patches and
-activating UDM2 as soon as their scenes are known, we overlap UDM2
-thawing with SR extraction instead of doing it serially after.
+For every SR tif on disk lacking its ``_udm2.tif`` partner, run three
+resumable phases:
 
-Workflow per pass:
-  1. Walk ``data/planet/<country>/*_<a|b>.tif`` that have no matching
-     ``*_<a|b>_udm2.tif`` partner.
-  2. Resolve each (country, id, window) -> item_id by reading
-     ``_global/resample_log.jsonl`` and ``_global/extract/shard_*.jsonl``
-     (last-write-wins).
-  3. Group by item_id, bulk-activate UDM2 with high concurrency, range-read
-     each requesting patch from the warm URL, write ``*_udm2.tif`` next
-     to the SR.
-  4. Sleep ``--poll-seconds`` and repeat until ``--idle-checks`` passes
-     find nothing to do.
+  1. **Plan** — index (country, id, window) -> item_id from extract +
+     resample logs; group missing patches by item_id; write
+     ``_global/udm2_fill/plan.jsonl`` (one row per unique item_id with
+     member patch list).
 
-Idempotent: skips any patch whose UDM2 already exists.
+  2. **Activate** — for each item_id without a cached URL, call Planet
+     ``:activate`` for UDM2 with high concurrency; write
+     ``_global/udm2_fill/activations.jsonl``.
+
+  3. **Extract** — for each scene group, range-read every requesting
+     patch's window from the warm UDM2 URL; write
+     ``<country>/<id>_<window>_udm2.tif`` and append per-patch result to
+     ``_global/udm2_fill/extracts.jsonl``.
+
+Each phase is idempotent and resumable from its JSONL cache.
 
 Example:
-    uv run scripts/udm2_fill.py --concurrency 64 --poll-seconds 120 --idle-checks 3
+    uv run scripts/udm2_fill_v2.py --phase all --concurrency 64
 """
 
 import argparse
@@ -46,26 +46,14 @@ from ftw_planet.planet import (
     require_api_key,
 )
 
-log = logging.getLogger("ftw_planet.udm2_fill")
+log = logging.getLogger("ftw_planet.udm2_fill_v2")
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--planet-root", type=Path, default=Path("data/planet"))
+    p.add_argument("--phase", choices=("all", "plan", "activate", "extract"), default="all")
     p.add_argument("--concurrency", type=int, default=64)
-    p.add_argument("--poll-seconds", type=int, default=120)
-    p.add_argument(
-        "--idle-checks",
-        type=int,
-        default=3,
-        help="Stop after this many consecutive passes with no SR-only patches found.",
-    )
-    p.add_argument(
-        "--max-passes",
-        type=int,
-        default=0,
-        help="Hard cap on pass count (0 = unlimited).",
-    )
     return p.parse_args()
 
 
@@ -86,12 +74,12 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def _index_item_ids(planet_root: Path) -> dict[tuple[str, str, str], str]:
-    """Map (country, id, window) -> latest item_id from resample_log + extract shards."""
     out: dict[tuple[str, str, str], str] = {}
-    for source in sorted((planet_root / "_global" / "extract").glob("shard_*.jsonl")) + [
-        planet_root / "_global" / "resample_log.jsonl"
-    ]:
-        for r in _read_jsonl(source):
+    sources = sorted((planet_root / "_global" / "extract").glob("shard_*.jsonl"))
+    sources += [planet_root / "_global" / "resample_log.jsonl"]
+    sources += [planet_root / "_global" / "restore_log.jsonl"]
+    for src in sources:
+        for r in _read_jsonl(src):
             if r.get("status") not in ("matched", "skipped_existing"):
                 continue
             iid = r.get("item_id")
@@ -109,36 +97,116 @@ def _index_geometries(planet_root: Path) -> dict[tuple[str, str, str], dict]:
     return out
 
 
-def _find_sr_without_udm2(planet_root: Path) -> list[tuple[str, str, str, Path]]:
-    """Walk per-country dirs; return SR tifs missing their UDM2 partner."""
-    todo: list[tuple[str, str, str, Path]] = []
+def _find_sr_without_udm2(planet_root: Path) -> list[tuple[str, str, str]]:
+    todo: list[tuple[str, str, str]] = []
     for d in sorted(planet_root.iterdir()):
         if not d.is_dir() or d.name == "_global":
             continue
         country = d.name
-        for sr in d.glob("*_a.tif"):
-            if "_udm2" in sr.name or "_label" in sr.name:
+        for tif in d.iterdir():
+            if "_udm2" in tif.name or "_label" in tif.name:
                 continue
-            stem = sr.stem  # e.g. 1592589_a
+            if not tif.name.endswith(".tif"):
+                continue
+            stem = tif.stem
+            pid, _, win = stem.rpartition("_")
+            if win not in ("a", "b"):
+                continue
             udm2 = d / f"{stem}_udm2.tif"
             if udm2.exists():
                 continue
-            pid, _, win = stem.rpartition("_")
-            todo.append((country, pid, win, sr))
-        for sr in d.glob("*_b.tif"):
-            if "_udm2" in sr.name or "_label" in sr.name:
-                continue
-            stem = sr.stem
-            udm2 = d / f"{stem}_udm2.tif"
-            if udm2.exists():
-                continue
-            pid, _, win = stem.rpartition("_")
-            todo.append((country, pid, win, sr))
+            todo.append((country, pid, win))
     return todo
 
 
-def _read_udm2_window_and_write(udm2_url: str, geom: dict, out_path: Path) -> None:
-    """Range-read patch AOI from UDM2 COG, write local uint8 8-band tif."""
+# ---------------------------------------------------------------------------
+# Phase 1 — plan
+# ---------------------------------------------------------------------------
+
+
+def phase_plan(args: argparse.Namespace) -> None:
+    g = args.planet_root / "_global" / "udm2_fill"
+    g.mkdir(parents=True, exist_ok=True)
+    out_path = g / "plan.jsonl"
+
+    item_ids = _index_item_ids(args.planet_root)
+    geoms = _index_geometries(args.planet_root)
+    todo = _find_sr_without_udm2(args.planet_root)
+    log.info("found %d SR tifs lacking UDM2", len(todo))
+
+    by_scene: dict[str, list[dict]] = {}
+    skipped = 0
+    for country, pid, win in todo:
+        key = (country, pid, win)
+        iid = item_ids.get(key)
+        geom = geoms.get(key)
+        if not iid or not geom:
+            skipped += 1
+            continue
+        by_scene.setdefault(iid, []).append(
+            {"country": country, "id": pid, "window": win, "geometry_4326": geom}
+        )
+    log.info(
+        "plan: %d unique scenes; %d patches; %d skipped (no item_id/geom)",
+        len(by_scene),
+        sum(len(v) for v in by_scene.values()),
+        skipped,
+    )
+    with out_path.open("w") as f:
+        for iid, members in sorted(by_scene.items()):
+            f.write(json.dumps({"item_id": iid, "members": members}) + "\n")
+    log.info("wrote %s", out_path)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — activate
+# ---------------------------------------------------------------------------
+
+
+async def _activate_one(sess: Session, iid: str) -> dict:
+    row: dict[str, Any] = {"item_id": iid}
+    t = time.perf_counter()
+    try:
+        row["udm2_url"] = await activate_asset_url(sess, iid, ASSET_UDM2)
+    except Exception as e:
+        row["udm2_url"] = None
+        row["udm2_error"] = str(e)
+    row["activate_s"] = round(time.perf_counter() - t, 3)
+    return row
+
+
+async def phase_activate(args: argparse.Namespace) -> None:
+    require_api_key()
+    g = args.planet_root / "_global" / "udm2_fill"
+    plan = _read_jsonl(g / "plan.jsonl")
+    acts_path = g / "activations.jsonl"
+    done = {r["item_id"]: r for r in _read_jsonl(acts_path)}
+    todo = [r["item_id"] for r in plan if r["item_id"] not in done]
+    log.info("activate: %d cached, %d to activate", len(done), len(todo))
+    if not todo:
+        return
+
+    sem = asyncio.Semaphore(args.concurrency)
+
+    async def _wrapped(iid: str) -> dict:
+        async with sem:
+            return await _activate_one(sess, iid)
+
+    async with Session() as sess:
+        coros = [_wrapped(iid) for iid in todo]
+        with acts_path.open("a") as f:
+            for fut in asyncio.as_completed(coros):
+                row = await fut
+                f.write(json.dumps(row) + "\n")
+                f.flush()
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — extract
+# ---------------------------------------------------------------------------
+
+
+def _read_and_write_udm2(udm2_url: str, geom: dict, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with cog_env(), rasterio.open(udm2_url) as src:
         src_crs = src.crs.to_string()
@@ -174,121 +242,83 @@ def _read_udm2_window_and_write(udm2_url: str, geom: dict, out_path: Path) -> No
                 dst.descriptions = src.descriptions
 
 
-async def _process_pass(sess: Session, args: argparse.Namespace, log_path: Path) -> int:
-    """Return number of UDM2 tifs successfully written in this pass."""
-    item_ids = _index_item_ids(args.planet_root)
-    geoms = _index_geometries(args.planet_root)
-    todo = _find_sr_without_udm2(args.planet_root)
-    if not todo:
-        return 0
-
-    # Build {item_id: [(country, pid, win, geom)]}
-    by_scene: dict[str, list[tuple[str, str, str, dict]]] = {}
-    skipped_missing = 0
-    for country, pid, win, _sr in todo:
-        key = (country, pid, win)
-        iid = item_ids.get(key)
-        geom = geoms.get(key)
-        if not iid or not geom:
-            skipped_missing += 1
-            continue
-        by_scene.setdefault(iid, []).append((country, pid, win, geom))
-    log.info(
-        "pass: %d SR-only patches; %d unique scenes; %d skipped (no item_id or geom)",
-        len(todo),
-        len(by_scene),
-        skipped_missing,
-    )
-
-    if not by_scene:
-        return 0
+async def phase_extract(args: argparse.Namespace) -> None:
+    g = args.planet_root / "_global" / "udm2_fill"
+    plan = _read_jsonl(g / "plan.jsonl")
+    urls = {r["item_id"]: r.get("udm2_url") for r in _read_jsonl(g / "activations.jsonl")}
+    log_path = g / "extracts.jsonl"
+    done = {
+        (r["country"], r["id"], r["window"])
+        for r in _read_jsonl(log_path)
+        if r.get("status") == "filled"
+    }
 
     sem = asyncio.Semaphore(args.concurrency)
-    written = 0
 
-    async def _do_scene(iid: str, members: list[tuple[str, str, str, dict]]) -> int:
+    async def _do_scene(iid: str, members: list[dict]) -> int:
+        udm2_url = urls.get(iid)
+        if not udm2_url:
+            return 0
         async with sem:
-            t = time.perf_counter()
-            try:
-                udm2_url = await activate_asset_url(sess, iid, ASSET_UDM2)
-            except Exception as e:
-                _append(
-                    log_path, {"item_id": iid, "status": "udm2_activate_failed", "error": str(e)}
-                )
-                return 0
-            n_ok = 0
-            for country, pid, win, geom in members:
-                out_path = args.planet_root / country / f"{pid}_{win}_udm2.tif"
+            n = 0
+            for m in members:
+                key = (m["country"], m["id"], m["window"])
+                if key in done:
+                    continue
+                out_path = args.planet_root / m["country"] / f"{m['id']}_{m['window']}_udm2.tif"
                 if out_path.exists():
+                    n += 1
+                    with log_path.open("a") as f:
+                        f.write(
+                            json.dumps(
+                                {
+                                    "country": m["country"],
+                                    "id": m["id"],
+                                    "window": m["window"],
+                                    "item_id": iid,
+                                    "status": "skipped_existing",
+                                }
+                            )
+                            + "\n"
+                        )
                     continue
                 try:
-                    await asyncio.to_thread(_read_udm2_window_and_write, udm2_url, geom, out_path)
-                    n_ok += 1
-                    _append(
-                        log_path,
-                        {
-                            "item_id": iid,
-                            "country": country,
-                            "id": pid,
-                            "window": win,
-                            "status": "filled",
-                        },
+                    await asyncio.to_thread(
+                        _read_and_write_udm2, udm2_url, m["geometry_4326"], out_path
                     )
+                    n += 1
+                    status = "filled"
+                    err = None
                 except Exception as e:
-                    _append(
-                        log_path,
-                        {
-                            "item_id": iid,
-                            "country": country,
-                            "id": pid,
-                            "window": win,
-                            "status": "fill_failed",
-                            "error": str(e),
-                        },
-                    )
-            log.info(
-                "scene %s -> %d/%d UDM2 written (wall %.1fs)",
-                iid,
-                n_ok,
-                len(members),
-                time.perf_counter() - t,
-            )
-            return n_ok
+                    status = "fill_failed"
+                    err = str(e)
+                row: dict[str, Any] = {
+                    "country": m["country"],
+                    "id": m["id"],
+                    "window": m["window"],
+                    "item_id": iid,
+                    "status": status,
+                }
+                if err:
+                    row["error"] = err
+                with log_path.open("a") as f:
+                    f.write(json.dumps(row) + "\n")
+            return n
 
-    coros = [_do_scene(iid, members) for iid, members in by_scene.items()]
+    coros = [_do_scene(r["item_id"], r["members"]) for r in plan]
+    total = 0
     for fut in asyncio.as_completed(coros):
-        written += await fut
-    return written
-
-
-def _append(path: Path, row: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as f:
-        f.write(json.dumps(row) + "\n")
+        total += await fut
+    log.info("extract: %d UDM2 written", total)
 
 
 async def _run(args: argparse.Namespace) -> None:
-    require_api_key()
-    log_path = args.planet_root / "_global" / "udm2_fill_log.jsonl"
-    idle = 0
-    passes = 0
-    async with Session() as sess:
-        while True:
-            passes += 1
-            n_written = await _process_pass(sess, args, log_path)
-            log.info("pass %d: wrote %d UDM2 tifs", passes, n_written)
-            if n_written == 0:
-                idle += 1
-                if idle >= args.idle_checks:
-                    log.info("idle for %d consecutive passes — stopping", idle)
-                    break
-            else:
-                idle = 0
-            if args.max_passes and passes >= args.max_passes:
-                log.info("hit max-passes=%d — stopping", args.max_passes)
-                break
-            log.info("sleeping %ds before next pass", args.poll_seconds)
-            await asyncio.sleep(args.poll_seconds)
+    if args.phase in ("all", "plan"):
+        phase_plan(args)
+    if args.phase in ("all", "activate"):
+        await phase_activate(args)
+    if args.phase in ("all", "extract"):
+        await phase_extract(args)
 
 
 def main() -> int:
