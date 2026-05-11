@@ -1,17 +1,25 @@
-"""Reprocess every GeoTIFF under ``data/planet/<country>/`` in place.
+"""Reprocess SR and label GeoTIFFs under ``data/planet/<country>/`` in place.
 
 Rewrites each tif with maximum-compression ZSTD (level 22), a single-strip
 (non-tiled) layout suited to whole-patch reads, drops overviews, and
 embeds rich provenance tags pulled from the pipeline's JSONL logs.
 
+Also embeds per-patch UDM2 quality stats (from
+``data/planet/_global/udm2_quality.jsonl``) into the SR tif's tags and
+then deletes the matching ``*_udm2.tif`` file. UDM2 stats are only used
+for per-patch filtering downstream, so the pixel mask is no longer
+needed once the summary stats live on the SR tif.
+
 Per-asset settings:
 
 * uint16 SR (``*_a.tif`` / ``*_b.tif`` excluding ``_udm2`` and ``_label``):
-  ``predictor=2`` (horizontal differencing).
-* uint8 UDM2 (``*_udm2.tif``): ``predictor=2``.
+  ``predictor=2`` (horizontal differencing). UDM2 stats embedded as tags;
+  matching ``_udm2.tif`` deleted after successful SR rewrite.
 * uint8 labels (``*_label.tif``): ``predictor=1`` (categorical).
+* ``*_udm2.tif`` are NOT reprocessed — they're deleted as part of SR processing.
 
 Idempotent: skips any tif that already advertises ``PROCESSING_VERSION``.
+A matching UDM2 file is still deleted in that case (if it still exists).
 
 Example:
     uv run scripts/reprocess_tifs.py --country rwanda --dry-run --workers 4
@@ -150,6 +158,17 @@ def _index_resample_scene(planet_root: Path) -> dict[str, dict]:
     return out
 
 
+def _index_udm2_quality(
+    planet_root: Path,
+) -> dict[tuple[str, str, str], dict[str, Any]]:
+    """Map (country, id, window) -> per-patch UDM2 quality stats row."""
+    out: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for r in _read_jsonl(planet_root / "_global" / "udm2_quality.jsonl"):
+        k = (str(r.get("country", "")), str(r.get("id", "")), str(r.get("window", "")))
+        out[k] = r
+    return out
+
+
 def _index_manifest(
     planet_root: Path,
 ) -> dict[tuple[str, str, str], dict[str, Any]]:
@@ -202,6 +221,7 @@ def _build_tags(
     provenance: dict[str, Any] | None,
     search_meta: dict | None,
     manifest_meta: dict | None,
+    udm2_stats: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     tags: dict[str, str] = {
         "COUNTRY": country,
@@ -230,7 +250,37 @@ def _build_tags(
             tags["FTW_SEASON_START"] = str(manifest_meta["season_start"])
         if manifest_meta.get("season_end"):
             tags["FTW_SEASON_END"] = str(manifest_meta["season_end"])
+
+    # UDM2 per-patch quality stats (SR only).
+    if asset == "SR":
+        if udm2_stats:
+            tags["UDM2_AVAILABLE"] = "true"
+            for key, tag in (
+                ("clear", "UDM2_CLEAR"),
+                ("cloud", "UDM2_CLOUD"),
+                ("shadow", "UDM2_SHADOW"),
+                ("light_haze", "UDM2_LIGHT_HAZE"),
+                ("heavy_haze", "UDM2_HEAVY_HAZE"),
+                ("snow", "UDM2_SNOW"),
+                ("unusable", "UDM2_UNUSABLE"),
+                ("confidence", "UDM2_CONFIDENCE_MEAN"),
+            ):
+                v = udm2_stats.get(key)
+                if v is not None:
+                    tags[tag] = str(v)
+            uf = udm2_stats.get("usable_flag")
+            if uf is not None:
+                tags["UDM2_USABLE_FLAG"] = "true" if bool(uf) else "false"
+        else:
+            tags["UDM2_AVAILABLE"] = "false"
     return tags
+
+
+def _udm2_partner(path: Path, asset: str) -> Path | None:
+    """Return the matching ``*_udm2.tif`` path for an SR tif, else None."""
+    if asset != "SR":
+        return None
+    return path.with_name(f"{path.stem}_udm2.tif")
 
 
 def _reprocess_one(
@@ -242,11 +292,26 @@ def _reprocess_one(
 ) -> dict[str, Any]:
     path = Path(path_str)
     t0 = time.perf_counter()
+    udm2_path = _udm2_partner(path, asset)
+    udm2_existed = bool(udm2_path and udm2_path.exists())
+    udm2_size_before = udm2_path.stat().st_size if udm2_existed else 0
+    udm2_embedded = (
+        asset == "SR" and tags.get("UDM2_AVAILABLE") == "true"
+    )
     try:
         size_before = path.stat().st_size
         with rasterio.open(path) as src:
             existing = dict(src.tags() or {})
             if existing.get("PROCESSING_VERSION") == PROCESSING_VERSION and not dry_run:
+                # Already reprocessed previously. Still ensure the UDM2 partner
+                # is cleaned up (it may have survived a prior crash).
+                udm2_deleted = False
+                if udm2_existed and udm2_path is not None:
+                    try:
+                        udm2_path.unlink(missing_ok=True)
+                        udm2_deleted = True
+                    except OSError:
+                        udm2_deleted = False
                 return {
                     "path": str(path),
                     "country": country,
@@ -254,6 +319,9 @@ def _reprocess_one(
                     "status": "skipped_already_done",
                     "size_before": size_before,
                     "size_after": size_before,
+                    "udm2_deleted": udm2_deleted,
+                    "udm2_size_before": udm2_size_before if udm2_deleted else 0,
+                    "udm2_embedded_in_sr": False,
                     "elapsed_s": round(time.perf_counter() - t0, 3),
                 }
             profile = dict(src.profile)
@@ -296,6 +364,10 @@ def _reprocess_one(
                 "status": "dry_run",
                 "size_before": size_before,
                 "tags": tags,
+                "udm2_deleted": False,
+                "udm2_would_delete": udm2_existed,
+                "udm2_size_before": udm2_size_before,
+                "udm2_embedded_in_sr": udm2_embedded,
                 "elapsed_s": round(time.perf_counter() - t0, 3),
             }
 
@@ -312,6 +384,16 @@ def _reprocess_one(
             raise
 
         size_after = path.stat().st_size
+
+        # Atomic SR rename succeeded -> safe to drop the UDM2 partner.
+        udm2_deleted = False
+        if udm2_path is not None and udm2_existed:
+            try:
+                udm2_path.unlink(missing_ok=True)
+                udm2_deleted = True
+            except OSError:
+                udm2_deleted = False
+
         return {
             "path": str(path),
             "country": country,
@@ -320,6 +402,9 @@ def _reprocess_one(
             "size_before": size_before,
             "size_after": size_after,
             "ratio": round(size_after / size_before, 4) if size_before else None,
+            "udm2_deleted": udm2_deleted,
+            "udm2_size_before": udm2_size_before if udm2_deleted else 0,
+            "udm2_embedded_in_sr": udm2_embedded,
             "elapsed_s": round(time.perf_counter() - t0, 3),
         }
     except Exception as e:
@@ -329,6 +414,9 @@ def _reprocess_one(
             "asset": asset,
             "status": "failed",
             "error": str(e),
+            "udm2_deleted": False,
+            "udm2_size_before": 0,
+            "udm2_embedded_in_sr": False,
             "elapsed_s": round(time.perf_counter() - t0, 3),
         }
 
@@ -346,7 +434,13 @@ def _iter_tifs(planet_root: Path, country: str) -> list[Path]:
         dirs = [d] if d.is_dir() else []
     tifs: list[Path] = []
     for d in dirs:
-        tifs.extend(sorted(p for p in d.iterdir() if p.name.endswith(".tif")))
+        tifs.extend(
+            sorted(
+                p
+                for p in d.iterdir()
+                if p.name.endswith(".tif") and not p.stem.endswith("_udm2")
+            )
+        )
     return tifs
 
 
@@ -365,12 +459,15 @@ def main() -> int:
     search = _index_search(args.planet_root)
     resample_scene = _index_resample_scene(args.planet_root)
     manifest = _index_manifest(args.planet_root)
+    udm2_quality = _index_udm2_quality(args.planet_root)
     log.info(
-        "indexed: %d patch->item_id, %d search rows, %d resample scenes, %d manifest rows",
+        "indexed: %d patch->item_id, %d search rows, %d resample scenes, "
+        "%d manifest rows, %d udm2 quality rows",
         len(prov),
         len(search),
         len(resample_scene),
         len(manifest),
+        len(udm2_quality),
     )
 
     tifs = _iter_tifs(args.planet_root, args.country)
@@ -380,12 +477,17 @@ def main() -> int:
 
     # Build per-tif task list (path, country, tags, asset).
     tasks: list[tuple[str, str, dict[str, str], str]] = []
+    udm2_sr_total = 0
+    udm2_sr_hits = 0
     for tif in tifs:
         country = tif.parent.name
         cls = _classify(tif)
         if cls is None:
             continue
         pid, win, asset = cls
+        # UDM2 tifs are skipped at the walk level; defense in depth.
+        if asset == "UDM2":
+            continue
         key = (country, pid, win)
         provenance = prov.get(key)
         search_meta: dict | None = None
@@ -396,8 +498,23 @@ def main() -> int:
             if not search_meta.get("scene_date") and iid in resample_scene:
                 search_meta["scene_date"] = resample_scene[iid].get("scene_date")
         manifest_meta = manifest.get(key)
-        tags = _build_tags(country, pid, win, asset, provenance, search_meta, manifest_meta)
+        udm2_stats = udm2_quality.get(key) if asset == "SR" else None
+        if asset == "SR":
+            udm2_sr_total += 1
+            if udm2_stats:
+                udm2_sr_hits += 1
+        tags = _build_tags(
+            country, pid, win, asset, provenance, search_meta, manifest_meta, udm2_stats
+        )
         tasks.append((str(tif), country, tags, asset))
+
+    if udm2_sr_total:
+        log.info(
+            "udm2 stats lookup: %d/%d SR tifs matched (%.2f%%)",
+            udm2_sr_hits,
+            udm2_sr_total,
+            100.0 * udm2_sr_hits / udm2_sr_total,
+        )
 
     log.info("dispatching %d reprocess tasks across %d workers", len(tasks), args.workers)
 
@@ -407,6 +524,9 @@ def main() -> int:
     stats: dict[str, int] = {}
     total_before = 0
     total_after = 0
+    udm2_delete_count = 0
+    udm2_bytes_freed = 0
+    udm2_embedded_count = 0
     done = 0
 
     with (
@@ -422,6 +542,16 @@ def main() -> int:
                 total_before += row["size_before"]
             if row.get("size_after"):
                 total_after += row["size_after"]
+            if args.dry_run:
+                if row.get("udm2_would_delete"):
+                    udm2_delete_count += 1
+                    udm2_bytes_freed += int(row.get("udm2_size_before") or 0)
+            else:
+                if row.get("udm2_deleted"):
+                    udm2_delete_count += 1
+                    udm2_bytes_freed += int(row.get("udm2_size_before") or 0)
+            if row.get("udm2_embedded_in_sr"):
+                udm2_embedded_count += 1
             done += 1
             if done % 500 == 0:
                 log.info("  %d/%d done; statuses=%s", done, len(tasks), stats)
@@ -429,7 +559,7 @@ def main() -> int:
     log.info("statuses: %s", stats)
     if total_before:
         if args.dry_run:
-            log.info("dry-run: %.2f GiB of input scanned", total_before / 2**30)
+            log.info("dry-run: %.2f GiB of SR/label input scanned", total_before / 2**30)
         else:
             log.info(
                 "size: before=%.2f GiB after=%.2f GiB ratio=%.3f",
@@ -437,6 +567,28 @@ def main() -> int:
                 total_after / 2**30,
                 total_after / total_before if total_before else 0,
             )
+    if args.dry_run:
+        log.info(
+            "dry-run UDM2: would delete %d files (%.2f MiB freed); "
+            "would embed UDM2 stats in %d SR tifs",
+            udm2_delete_count,
+            udm2_bytes_freed / 2**20,
+            udm2_embedded_count,
+        )
+        if udm2_sr_total:
+            log.info(
+                "dry-run UDM2 lookup hit-rate: %d/%d (%.4f%%) SR tifs have stats",
+                udm2_sr_hits,
+                udm2_sr_total,
+                100.0 * udm2_sr_hits / udm2_sr_total,
+            )
+    else:
+        log.info(
+            "UDM2: deleted %d files (%.2f MiB freed); embedded stats in %d SR tifs",
+            udm2_delete_count,
+            udm2_bytes_freed / 2**20,
+            udm2_embedded_count,
+        )
     return 0
 
 

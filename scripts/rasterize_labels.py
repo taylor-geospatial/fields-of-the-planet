@@ -103,19 +103,23 @@ def _rasterize_one(
             n_field = int((interior == 1).sum())
             n_bound = int((boundary == 1).sum())
 
+        # NBITS=2 packs 4 pixels/byte before compression — labels use 3 values
+        # (0/1/2) so 2 bits is plenty. Stripped layout (no tiling) since these
+        # are small patches read whole at training time.
         profile = {
             "driver": "GTiff",
             "height": height,
             "width": width,
             "count": 1,
             "dtype": "uint8",
+            "nbits": 2,
             "crs": crs,
             "transform": transform,
             "compress": "ZSTD",
-            "tiled": True,
-            "blockxsize": 256,
-            "blockysize": 256,
-            "predictor": 2,
+            "zstd_level": 22,
+            "tiled": False,
+            "blockysize": height,
+            "predictor": 1,  # categorical — horizontal diff hurts
             "nodata": 255,
         }
         with rasterio.open(out_path, "w", **profile) as dst:
