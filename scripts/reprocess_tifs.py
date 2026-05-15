@@ -295,9 +295,7 @@ def _reprocess_one(
     udm2_path = _udm2_partner(path, asset)
     udm2_existed = bool(udm2_path and udm2_path.exists())
     udm2_size_before = udm2_path.stat().st_size if udm2_existed else 0
-    udm2_embedded = (
-        asset == "SR" and tags.get("UDM2_AVAILABLE") == "true"
-    )
+    udm2_embedded = asset == "SR" and tags.get("UDM2_AVAILABLE") == "true"
     try:
         size_before = path.stat().st_size
         with rasterio.open(path) as src:
@@ -436,9 +434,7 @@ def _iter_tifs(planet_root: Path, country: str) -> list[Path]:
     for d in dirs:
         tifs.extend(
             sorted(
-                p
-                for p in d.iterdir()
-                if p.name.endswith(".tif") and not p.stem.endswith("_udm2")
+                p for p in d.iterdir() if p.name.endswith(".tif") and not p.stem.endswith("_udm2")
             )
         )
     return tifs

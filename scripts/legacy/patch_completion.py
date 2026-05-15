@@ -213,11 +213,10 @@ async def _complete_one(
     args: argparse.Namespace,
     log_path: Path,
 ) -> dict:
-    key = (member["country"], member["id"], member["window"])
     tried: list[str] = []
 
     async def _attempt(iid: str, strategy: str) -> dict | None:
-        ok, err = await _try_extract(sess, iid, member, args.planet_root)
+        ok, _err = await _try_extract(sess, iid, member, args.planet_root)
         tried.append(iid)
         if ok:
             return {

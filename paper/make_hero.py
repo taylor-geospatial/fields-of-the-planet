@@ -211,7 +211,7 @@ def main() -> int:
     # Layout: each row holds 2 triplets = 6 cells; with n=12 -> 6 rows
     triplets_per_row = 2
     n_rows = (len(picks) + triplets_per_row - 1) // triplets_per_row
-    fig, axes = plt.subplots(
+    _fig, axes = plt.subplots(
         n_rows,
         triplets_per_row * 3,
         figsize=(triplets_per_row * 3 * 1.4, n_rows * 1.4),

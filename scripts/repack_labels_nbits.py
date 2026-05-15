@@ -77,16 +77,18 @@ def _repack_one(path: Path, dry_run: bool) -> dict:
             desc = src.descriptions[0] if src.descriptions else None
             height = src.height
         # Rewrite with NBITS=2 + ZSTD-22, single strip.
-        profile.update({
-            "driver": "GTiff",
-            "dtype": "uint8",
-            "nbits": 2,
-            "compress": "ZSTD",
-            "zstd_level": 22,
-            "tiled": False,
-            "blockysize": height,
-            "predictor": 1,
-        })
+        profile.update(
+            {
+                "driver": "GTiff",
+                "dtype": "uint8",
+                "nbits": 2,
+                "compress": "ZSTD",
+                "zstd_level": 22,
+                "tiled": False,
+                "blockysize": height,
+                "predictor": 1,
+            }
+        )
         # Drop tiling-specific keys that conflict with stripped layout.
         profile.pop("blockxsize", None)
 
@@ -105,7 +107,7 @@ def _repack_one(path: Path, dry_run: bool) -> dict:
         result["status"] = "repacked"
         result["size_after"] = size_after
         result["ratio"] = round(size_after / max(size_before, 1), 4)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         result["status"] = "failed"
         result["error"] = str(e)
     result["wall_s"] = round(time.perf_counter() - t, 3)
@@ -155,7 +157,9 @@ def main() -> int:
 
     log.info(
         "done: %d repacked  %d skipped  %d failed",
-        n_repacked, n_skipped, n_failed,
+        n_repacked,
+        n_skipped,
+        n_failed,
     )
     if total_before:
         log.info(

@@ -1,0 +1,98 @@
+trainer:
+  max_epochs: 100
+  log_every_n_steps: 10
+  accelerator: gpu
+  precision: bf16-mixed
+  default_root_dir: logs/prue/ftw_planet-unet-efnet7-crop512-sdf
+  devices:
+    - 0
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      entity: isaaccorley
+      project: ftw-planet
+      name: prue-efnet7-crop512-sdf
+      save_dir: logs/prue/ftw_planet-unet-efnet7-crop512-sdf
+      log_model: false
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        save_last: true
+        filename: "{epoch}-{val/loss:.2f}"
+model:
+  class_path: ftw_planet.trainers.SDFSegTask
+  init_args:
+    class_weights: [0.05, 0.2, 0.75]
+    loss: "logcoshdice"
+    model: "unet"
+    backbone: "efficientnet-b7"
+    weights: true
+    patch_weights: false
+    in_channels: 8
+    num_classes: 3
+    num_filters: 64
+    ignore_index: 3
+    lr: 1e-3
+    patience: 100
+    sdf_weight: 0.2
+    sdf_clip: 20.0
+    sdf_hidden: 32
+data:
+  class_path: ftw_planet.datamodules.FTWPlanetDataModule
+  init_args:
+    batch_size: 8
+    num_workers: 20
+    crop_size: 512
+    load_boundaries: true
+    usable_only: true
+    return_sdf: true
+    # CC-BY split (matches FTW PRUE B7 ccby release): 14 train countries
+    train_countries:
+      - austria
+      - brazil
+      - corsica
+      - denmark
+      - estonia
+      - finland
+      - france
+      - india
+      - luxembourg
+      - netherlands
+      - rwanda
+      - slovakia
+      - spain
+      - vietnam
+    val_countries:
+      - austria
+    test_countries:
+      - austria
+      - belgium
+      - brazil
+      - cambodia
+      - corsica
+      - croatia
+      - denmark
+      - estonia
+      - finland
+      - france
+      - germany
+      - india
+      - kenya
+      - latvia
+      - lithuania
+      - luxembourg
+      - netherlands
+      - portugal
+      - rwanda
+      - slovakia
+      - slovenia
+      - south_africa
+      - spain
+      - sweden
+      - vietnam
+  dict_kwargs:
+    root: data
+seed_everything: 7
