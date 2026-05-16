@@ -18,7 +18,6 @@ import torch
 from torch import Tensor
 from torchgeo.datasets import NonGeoDataset
 
-
 PLANET_SR_SCALE = 10000.0  # PlanetScope SR DN -> reflectance
 
 
@@ -38,6 +37,7 @@ class FTWPlanet(NonGeoDataset):
         boundary_dilate_px: int = 0,
         return_sdf: bool = False,
         sdf_clip_px: float = 20.0,
+        swap_order: bool = False,
     ) -> None:
         if countries is None:
             raise ValueError("Specify countries to load")
@@ -53,6 +53,7 @@ class FTWPlanet(NonGeoDataset):
         self.boundary_dilate_px = int(boundary_dilate_px)
         self.return_sdf = bool(return_sdf)
         self.sdf_clip_px = float(sdf_clip_px)
+        self.swap_order = bool(swap_order)
 
         planet_root = os.path.join(root, "planet")
         ftw_root = os.path.join(root, "ftw")
@@ -70,7 +71,9 @@ class FTWPlanet(NonGeoDataset):
         sub_frames = []
         for country in countries:
             chips = gpd.read_parquet(os.path.join(ftw_root, country, f"chips_{country}.parquet"))
-            chips = chips[chips["split"] == split][["aoi_id"]].rename(columns={"aoi_id": "patch_id"})
+            chips = chips[chips["split"] == split][["aoi_id"]].rename(
+                columns={"aoi_id": "patch_id"}
+            )
             chips["patch_id"] = chips["patch_id"].astype(str)
             chips["country"] = country
             sub_frames.append(idx.merge(chips, on=["country", "patch_id"], how="inner"))
@@ -108,6 +111,7 @@ class FTWPlanet(NonGeoDataset):
         sdf_target = None
         if self.return_sdf:
             from scipy.ndimage import distance_transform_edt
+
             sdf_target = distance_transform_edt(lbl != 2).astype(np.float32)
             np.clip(sdf_target, 0.0, self.sdf_clip_px, out=sdf_target)
 
@@ -119,6 +123,7 @@ class FTWPlanet(NonGeoDataset):
         # inside the dilated ring become class 2, eating into class 1.
         if self.boundary_dilate_px > 0:
             from scipy.ndimage import binary_dilation
+
             boundary = lbl == 2
             k = 2 * self.boundary_dilate_px + 1
             struct = np.ones((k, k), dtype=bool)
@@ -135,10 +140,15 @@ class FTWPlanet(NonGeoDataset):
         lbl = lbl[:h, :w]
 
         # Window B first then A — matches stock FTW datamodule channel order.
-        image = np.concatenate([b, a], axis=0)
-        sample: dict[str, Tensor] = {
+        # If swap_order, randomly use [A, B] instead (per-sample, p=0.5).
+        if self.swap_order and np.random.rand() < 0.5:
+            image = np.concatenate([a, b], axis=0)
+        else:
+            image = np.concatenate([b, a], axis=0)
+        sample: dict[str, Any] = {
             "image": torch.from_numpy(image),
             "mask": torch.from_numpy(lbl if self.load_boundaries else (lbl > 0).astype(np.int64)),
+            "country": r["country"],
         }
         if sdf_target is not None:
             sample["sdf"] = torch.from_numpy(sdf_target)

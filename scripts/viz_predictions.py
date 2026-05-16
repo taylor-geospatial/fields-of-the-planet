@@ -1,7 +1,6 @@
 """Render image + GT + prediction for a handful of test patches."""
 
 import argparse
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
 
 def _pad32(x, value=0.0):
@@ -43,7 +42,7 @@ def main():
     for row, idx in enumerate(indices):
         s = ds[int(idx)]
         img8, gt = s["image"], s["mask"]  # (8,H,W), (H,W)
-        img_in = (img8.unsqueeze(0).to(device) / PLANET_SR_SCALE)
+        img_in = img8.unsqueeze(0).to(device) / PLANET_SR_SCALE
         img_in, H, W = _pad32(img_in)
         with torch.inference_mode():
             pred3 = model(img_in).argmax(dim=1)[0, :H, :W].cpu().numpy()  # 0/1/2
@@ -54,9 +53,12 @@ def main():
         rgb = np.stack([a[2], a[1], a[0]], axis=-1).astype(np.float32) / 3000.0
         rgb = np.clip(rgb, 0, 1)
 
-        axes[row, 0].imshow(rgb); axes[row, 0].set_title("Window A RGB")
-        axes[row, 1].imshow(gt_np, cmap="tab10", vmin=0, vmax=3); axes[row, 1].set_title("GT (0/1/2)")
-        axes[row, 2].imshow(pred3, cmap="tab10", vmin=0, vmax=3); axes[row, 2].set_title("Pred 3-class")
+        axes[row, 0].imshow(rgb)
+        axes[row, 0].set_title("Window A RGB")
+        axes[row, 1].imshow(gt_np, cmap="tab10", vmin=0, vmax=3)
+        axes[row, 1].set_title("GT (0/1/2)")
+        axes[row, 2].imshow(pred3, cmap="tab10", vmin=0, vmax=3)
+        axes[row, 2].set_title("Pred 3-class")
         # 2-class diff: field gt vs field pred
         gt_field = (gt_np == 1).astype(np.uint8)
         pred_field = (pred3 == 1).astype(np.uint8)
@@ -70,7 +72,8 @@ def main():
         axes[row, 4].imshow((pred3 == 2).astype(np.uint8), cmap="gray")
         axes[row, 4].set_title("Pred boundary mask")
         for ax in axes[row]:
-            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_yticks([])
     fig.tight_layout()
     fig.savefig(args.out, dpi=110, bbox_inches="tight")
     print(f"wrote {args.out}")

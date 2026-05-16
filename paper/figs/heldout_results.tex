@@ -1,0 +1,19 @@
+\begin{tabular}{lcccc}
+\toprule
+Model & Pix IoU & Pix Prec & Pix Rec & Obj F1 \\
+\midrule
+\multicolumn{5}{l}{\textit{9 (excl K+P) held-out countries (macro avg)}}\\
+S2 CCBY (B3, CE) \cite{kerner2024ftw} & \textbf{0.608} & \textbf{0.834} & 0.706 & 0.317 \\
+FTW-Planet B3 (PRUE recipe) & 0.541 & 0.815 & 0.637 & 0.323 \\
+FTW-Planet B3 + SDF aux & 0.520 & 0.814 & 0.616 & 0.320 \\
+FTW-Planet B3 + frame-field aux & 0.542 & 0.825 & 0.632 & 0.302 \\
+FTW-Planet B7 + SDF aux & 0.571 & 0.785 & \textbf{0.709} & \textbf{0.334} \\
+\midrule
+\multicolumn{5}{l}{\textit{all 11 held-out countries (macro avg)}}\\
+S2 CCBY (B3, CE) \cite{kerner2024ftw} & \textbf{0.537} & \textbf{0.828} & 0.619 & 0.262 \\
+FTW-Planet B3 (PRUE recipe) & 0.444 & 0.750 & 0.570 & 0.265 \\
+FTW-Planet B3 + SDF aux & 0.478 & 0.734 & 0.623 & \textbf{0.279} \\
+FTW-Planet B3 + frame-field aux & 0.446 & 0.700 & 0.574 & 0.249 \\
+FTW-Planet B7 + SDF aux & 0.468 & 0.642 & \textbf{0.641} & 0.274 \\
+\bottomrule
+\end{tabular}

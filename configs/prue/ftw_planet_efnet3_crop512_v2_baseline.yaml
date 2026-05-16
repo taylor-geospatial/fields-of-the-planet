@@ -3,16 +3,15 @@ trainer:
   log_every_n_steps: 10
   accelerator: gpu
   precision: bf16-mixed
-  default_root_dir: logs/prue/ftw_planet-unet-efnet3-crop512
-  devices:
-    - 0
+  default_root_dir: logs/prue/ftw_planet-unet-efnet3-crop512-v2-baseline
+  devices: [0]
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       entity: isaaccorley
       project: ftw-planet
-      name: prue-efnet3-crop512
-      save_dir: logs/prue/ftw_planet-unet-efnet3-crop512
+      name: prue-efnet3-crop512-v2-baseline
+      save_dir: logs/prue/ftw_planet-unet-efnet3-crop512-v2-baseline
       log_model: false
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
@@ -47,50 +46,10 @@ data:
     usable_only: true
     preprocess_aug: true
     resize_aug: true
-    # CC-BY split (matches FTW PRUE B7 ccby release): 14 train countries
-    train_countries:
-      - austria
-      - brazil
-      - corsica
-      - denmark
-      - estonia
-      - finland
-      - france
-      - india
-      - luxembourg
-      - netherlands
-      - rwanda
-      - slovakia
-      - spain
-      - vietnam
-    val_countries:
-      - austria
-    test_countries:
-      - austria
-      - belgium
-      - brazil
-      - cambodia
-      - corsica
-      - croatia
-      - denmark
-      - estonia
-      - finland
-      - france
-      - germany
-      - india
-      - kenya
-      - latvia
-      - lithuania
-      - luxembourg
-      - netherlands
-      - portugal
-      - rwanda
-      - slovakia
-      - slovenia
-      - south_africa
-      - spain
-      - sweden
-      - vietnam
+    # v2 split: new val_countries (in-dist + 2 held-out for OOD signal)
+    train_countries: [austria, brazil, corsica, denmark, estonia, finland, france, india, luxembourg, netherlands, rwanda, slovakia, spain, vietnam]
+    val_countries: [austria, cambodia, slovenia]
+    test_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
   dict_kwargs:
     root: data
 seed_everything: 7

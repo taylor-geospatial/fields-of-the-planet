@@ -209,7 +209,7 @@ def _build_row(
     }
     # bounds: prefer reading from tif (it's reprojected from geom in any case;
     # but the row schema asks for 4326 bounds derived from manifest geometry).
-    _ = bounds  # noqa — kept for future use
+    _ = bounds
 
     for suffix, t in (("a", ta), ("b", tb)):
         for k in UDM2_FLOAT_KEYS:
@@ -288,9 +288,7 @@ def main() -> int:
 
     if args.country == "all":
         countries = sorted(
-            d.name
-            for d in args.planet_root.iterdir()
-            if d.is_dir() and d.name != "_global"
+            d.name for d in args.planet_root.iterdir() if d.is_dir() and d.name != "_global"
         )
     else:
         countries = [args.country]
@@ -304,7 +302,9 @@ def main() -> int:
             total_rows += n
             total_missing += miss
 
-    log.info("TOTAL: %d rows across %d countries; %d skipped", total_rows, len(countries), total_missing)
+    log.info(
+        "TOTAL: %d rows across %d countries; %d skipped", total_rows, len(countries), total_missing
+    )
     return 0
 
 

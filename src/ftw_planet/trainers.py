@@ -24,6 +24,48 @@ class FTWPlanetSegTask(CustomSemanticSegmentationTask):
         lr = opt.optimizer.param_groups[0]["lr"]
         self.log("lr", lr, on_step=False, on_epoch=True)
 
+    def on_validation_epoch_start(self) -> None:  # type: ignore[override]
+        super().on_validation_epoch_start()
+        # country -> [tp, fp, fn] tallies for field class
+        self._val_per_country: dict[str, list[int]] = {}
+
+    def validation_step(  # type: ignore[override]
+        self, batch: Any, batch_idx: int, dataloader_idx: int = 0
+    ) -> None:
+        super().validation_step(batch, batch_idx, dataloader_idx)
+        countries = batch.get("country", None)
+        if not countries:
+            return
+        x = batch["image"]
+        y = batch["mask"].squeeze(1) if batch["mask"].dim() == 4 else batch["mask"]
+        with torch.inference_mode():
+            y_hat = self(x)
+        preds = y_hat.argmax(dim=1)
+        ignore = self.hparams.get("ignore_index", 3)
+        valid = y != ignore
+        p_field = (preds == 1) & valid
+        t_field = (y == 1) & valid
+        tp = (p_field & t_field).flatten(1).sum(dim=1)
+        fp = (p_field & ~t_field).flatten(1).sum(dim=1)
+        fn = (~p_field & t_field).flatten(1).sum(dim=1)
+        for i, c in enumerate(countries):
+            d = self._val_per_country.setdefault(c, [0, 0, 0])
+            d[0] += int(tp[i].item())
+            d[1] += int(fp[i].item())
+            d[2] += int(fn[i].item())
+
+    def on_validation_epoch_end(self) -> None:  # type: ignore[override]
+        super().on_validation_epoch_end()
+        pc = getattr(self, "_val_per_country", {})
+        for c, (tp, fp, fn) in pc.items():
+            denom = tp + fp + fn
+            iou = tp / denom if denom > 0 else 0.0
+            prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            self.log(f"val/iou/field/{c}", iou, on_epoch=True, sync_dist=True)
+            self.log(f"val/precision/field/{c}", prec, on_epoch=True, sync_dist=True)
+            self.log(f"val/recall/field/{c}", rec, on_epoch=True, sync_dist=True)
+
 
 class ClDiceSegTask(FTWPlanetSegTask):
     """Adds a soft-clDice term on the boundary channel to the existing loss.
@@ -57,7 +99,9 @@ class ClDiceSegTask(FTWPlanetSegTask):
 
         base = self.criterion(y_hat, y)
         cld = soft_cldice_boundary(
-            y_hat, y, boundary_class=self.cldice_class,
+            y_hat,
+            y,
+            boundary_class=self.cldice_class,
             ignore_index=self.hparams.get("ignore_index", 3),
             iters=self.cldice_iters,
         )
@@ -170,9 +214,10 @@ class FrameFieldSegTask(SDFSegTask):
             nn.GELU(),
             nn.Conv2d(frame_hidden, 4, kernel_size=1),
         )
-        sx: torch.Tensor = torch.tensor(
-            [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]]
-        ).view(1, 1, 3, 3) / 8.0
+        sx: torch.Tensor = (
+            torch.tensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]]).view(1, 1, 3, 3)
+            / 8.0
+        )
         sy: torch.Tensor = sx.transpose(2, 3).contiguous()
         self.register_buffer("sobel_x", sx)
         self.register_buffer("sobel_y", sy)
@@ -187,7 +232,9 @@ class FrameFieldSegTask(SDFSegTask):
         frame = self.frame_head(dec)  # (B, 4, H, W)
         return seg, sdf, frame
 
-    def _compute_gt_tangent(self, y: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _compute_gt_tangent(
+        self, y: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Tangent direction at each pixel from gradient of field-interior mask.
 
         Returns (tx, ty, weight) each of shape (B, 1, H, W). Weight is 1 where
@@ -253,7 +300,11 @@ class FrameFieldSegTask(SDFSegTask):
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
         self.log("train/loss_base", base, on_step=False, on_epoch=True, sync_dist=True)
         self.log("train/loss_sdf", sdf_loss, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("train/loss_frame_align", frame_align, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("train/loss_frame_smooth", frame_smooth, on_step=False, on_epoch=True, sync_dist=True)
+        self.log(
+            "train/loss_frame_align", frame_align, on_step=False, on_epoch=True, sync_dist=True
+        )
+        self.log(
+            "train/loss_frame_smooth", frame_smooth, on_step=False, on_epoch=True, sync_dist=True
+        )
         self.train_metrics.update(seg, y)
         return loss

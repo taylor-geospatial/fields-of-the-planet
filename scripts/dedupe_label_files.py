@@ -80,17 +80,21 @@ def main() -> int:
                     files[other_win].unlink()
                 removed += 1
 
-        print(f"{country:14s} renamed={renamed:>5d} removed={removed:>5d} "
-              f"already={already:>5d} missing={missing:>5d}")
+        print(
+            f"{country:14s} renamed={renamed:>5d} removed={removed:>5d} "
+            f"already={already:>5d} missing={missing:>5d}"
+        )
         total_renamed += renamed
         total_removed += removed
         total_already += already
         total_missing += missing
 
     print()
-    print(f"TOTAL: renamed={total_renamed}  removed={total_removed}  "
-          f"already_new={total_already}  missing={total_missing}  "
-          f"{'(applied)' if args.apply else '(dry-run)'}")
+    print(
+        f"TOTAL: renamed={total_renamed}  removed={total_removed}  "
+        f"already_new={total_already}  missing={total_missing}  "
+        f"{'(applied)' if args.apply else '(dry-run)'}"
+    )
     return 0
 
 

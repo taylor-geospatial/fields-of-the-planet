@@ -168,13 +168,107 @@ We summarize practical lessons in case other groups attempt similar releases aga
 
 \paragraph{Cost-effective access.} For windowed access patterns, COG range reads via \texttt{/vsicurl/} are $\sim$100$\times$ faster than Orders API clipping and require only the Data API role. Documenting this access pattern more prominently would lower the barrier for other dataset projects.
 
-\section{Limitations and future work}
+\section{Benchmark}
+\label{sec:benchmark}
+
+We train and evaluate field-boundary segmentation models on FTW-Planet to
+characterize the dataset and to compare against the FTW Sentinel-2
+baseline. To ensure a fair held-out comparison we adopt the FTW
+\textbf{CC-BY split}~\cite{kerner2024ftw}: 14 countries are used for
+training (austria, brazil, corsica, denmark, estonia, finland, france,
+india, luxembourg, netherlands, rwanda, slovakia, spain, vietnam) and
+the remaining 11 are entirely held out at test time (belgium, cambodia,
+croatia, germany, kenya, latvia, lithuania, portugal, slovenia,
+south africa, sweden). All metrics in this section are macro-averaged
+per country following the FTW protocol.
+
+\paragraph{Recipe.} We follow the PRUE recipe~\cite{kerner2024ftw}:
+EfficientNet--UNet, in\_channels$\,=\,$8 (window B then A, 4 bands each),
+3-class output, \texttt{logcoshdice} loss with class weights
+$[0.05, 0.20, 0.75]$, ignore index 3 (padded regions), 100 epochs of
+AdamW @ $10^{-3}$, batch size 32 (B7: 8) at random 512$\times$512
+crops, bf16-mixed, kornia GPU augmentations (90$^\circ$ rotations and
+H/V flips). All inputs are scaled by $/10000$. Inference pads each
+patch to at least $512\times512$ (matching the training crop) before a
+single forward pass; we previously verified this rule is worth +24\,pts
+pixel IoU over padding to the nearest multiple of 32.
+
+\paragraph{Auxiliary heads.} We ablate two auxiliary regression heads
+attached to the final UNet decoder feature map (16~channels at full
+resolution): (i)~an \textbf{SDF head} predicting the clipped Euclidean
+distance to the nearest field boundary, supervised with $L_1$ against a
+target computed at data-loading time and trained jointly with the seg
+loss at weight $0.2$; and (ii)~a \textbf{frame field head} predicting a
+4-PolyVector field $f(z)\,=\,z^4 + c_2 z^2 + c_0$ whose four roots
+encode the local boundary tangent directions~\cite{girard2021ffl}.
+Frame-field supervision uses the GT boundary tangent (rotated Sobel
+gradient of the field-interior mask) via the alignment loss
+$|f(\tau)|^2$, plus an $L_2$ spatial smoothness term on $(c_0, c_2)$.
+
+\paragraph{Post-processing.} For instance separation we use
+marker-controlled watershed: seeds from $h$-maxima on the topographic
+surface, basins flooded inside the predicted field mask. With an SDF
+head the topographic surface is the predicted SDF directly; without it
+we use the Euclidean distance transform of the predicted boundary.
+
+\paragraph{Results.} Table~\ref{tab:heldout} reports macro-averaged
+metrics on the 11 held-out countries (and on the 9-country subset that
+excludes kenya, presence-only, and portugal, where every model
+collapses to $\le 0.10$ pixel IoU). The S2 CC-BY checkpoint
+from~\cite{kerner2024ftw} is the only fully apples-to-apples baseline;
+S2 PRUE-B7 is trained on the full 25-country set and would constitute
+an unfair comparison on these held-out splits.
+
+\begin{table}[t]
+    \centering
+    \small
+    \caption{Held-out benchmark. All models trained on the FTW CC-BY
+    14-country split and macro-averaged over either all 11 held-out
+    countries or the 9 that retain non-trivial field coverage and
+    polygon labels.}
+    \label{tab:heldout}
+    \input{figs/heldout_results.tex}
+\end{table}
+
+Three takeaways:
+\begin{itemize}
+\itemsep0em
+\item On pixel IoU, S2 CC-BY narrowly leads our best FTW-Planet
+configuration (0.608 vs 0.571 on the 9-country subset).
+PlanetScope's 3$\times$ GSD advantage does \emph{not} translate to
+better pixel-level field IoU once the segmentation must generalize to
+held-out countries; the Sentinel-2 model trained on the same 14
+countries transfers better.
+\item On \emph{object-level} F1, our FTW-Planet B7+SDF model leads
+(0.334 vs 0.317), suggesting that higher-resolution imagery improves
+field \emph{instance} separation even when pixel-level accuracy lags
+slightly. This is the metric most relevant for downstream
+polygonization.
+\item The SDF auxiliary head improves held-out robustness on hard
+transfer cases. In particular, on portugal (low field coverage,
+unfamiliar terraced landscape) the B3 baseline drops to 0.007 pixel
+IoU; adding the SDF head recovers it to 0.576. The frame-field head
+does not improve held-out accuracy in our configuration; further
+sweep of loss weights is required.
+\end{itemize}
+
+\begin{table}[t]
+    \centering
+    \scriptsize
+    \caption{Per-country pixel IoU on the 11 held-out countries:
+    S2 CC-BY (B3) vs our best FTW-Planet (B7 + SDF). Both models trained
+    on identical 14 CC-BY countries.}
+    \label{tab:heldout_pc}
+    \input{figs/heldout_per_country.tex}
+\end{table}
+
+
 
 \textbf{Coverage.} 5{,}715 (4.1\%) of (patch, window) targets have a chosen scene that never produced a usable URL despite repeated reactivation; 343 (0.2\%) hit hard Planet-side asset failures. These patches retain their FTW Sentinel-2 imagery but have no PlanetScope companion in this release.
 
 \textbf{Temporal misalignment.} The PlanetScope acquisition date is the closest cloud-free match to the FTW season midpoint, not the exact S2 acquisition date. Differences are typically $<$2\,weeks but can exceed a month in cloudy regions.
 
-\textbf{Future work.} (i)~Add 8-band SuperDove samples where available for the same patches. (ii)~Provide pre-computed augmented mosaics across both seasonal windows. (iii)~Train and release baseline boundary-segmentation models that consume the 3\,m imagery + label triples and compare against FTW-supplied 10\,m baselines.
+\textbf{Future work.} (i)~Add 8-band SuperDove samples where available for the same patches. (ii)~Provide pre-computed augmented mosaics across both seasonal windows. (iii)~Close the held-out pixel-IoU gap to Sentinel-2: candidate directions include longer pre-training, multi-temporal stacks beyond the two FTW windows, and instance-aware decoders (e.g.\ a polygon head conditioned on the frame field).
 
 \section{Conclusion}
 

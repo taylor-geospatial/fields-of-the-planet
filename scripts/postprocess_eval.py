@@ -24,7 +24,6 @@ Example:
 """
 
 import argparse
-import os
 import time
 from pathlib import Path
 
@@ -40,14 +39,34 @@ from torch.utils.data import DataLoader
 from torchmetrics import JaccardIndex, MetricCollection, Precision, Recall
 from tqdm import tqdm
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
-
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
 COUNTRIES = [
-    "austria","belgium","brazil","cambodia","corsica","croatia","denmark",
-    "estonia","finland","france","germany","india","kenya","latvia","lithuania",
-    "luxembourg","netherlands","portugal","rwanda","slovakia","slovenia",
-    "south_africa","spain","sweden","vietnam",
+    "austria",
+    "belgium",
+    "brazil",
+    "cambodia",
+    "corsica",
+    "croatia",
+    "denmark",
+    "estonia",
+    "finland",
+    "france",
+    "germany",
+    "india",
+    "kenya",
+    "latvia",
+    "lithuania",
+    "luxembourg",
+    "netherlands",
+    "portugal",
+    "rwanda",
+    "slovakia",
+    "slovenia",
+    "south_africa",
+    "spain",
+    "sweden",
+    "vietnam",
 ]
 
 
@@ -69,29 +88,47 @@ def _pad_min32(
     return (
         F.pad(image, (0, new_w - w, 0, new_h - h), value=0.0),
         F.pad(mask, (0, new_w - w, 0, new_h - h), value=3),
-        h, w,
+        h,
+        w,
     )
 
 
 # ------- D4 transforms (TTA) -------------------------------------------------
 
+
 # Each element: (forward fn, inverse fn) acting on (N,C,H,W) or (N,H,W).
 def _d4_transforms() -> list[tuple]:
-    def ident(x): return x
-    def hflip(x): return torch.flip(x, dims=[-1])
-    def vflip(x): return torch.flip(x, dims=[-2])
-    def hv(x):    return torch.flip(x, dims=[-2, -1])
-    def r90(x):   return torch.rot90(x, 1, dims=[-2, -1])
-    def r270(x):  return torch.rot90(x, 3, dims=[-2, -1])
-    def r90_h(x): return torch.flip(torch.rot90(x, 1, dims=[-2, -1]), dims=[-1])
-    def r90_v(x): return torch.flip(torch.rot90(x, 1, dims=[-2, -1]), dims=[-2])
+    def ident(x):
+        return x
+
+    def hflip(x):
+        return torch.flip(x, dims=[-1])
+
+    def vflip(x):
+        return torch.flip(x, dims=[-2])
+
+    def hv(x):
+        return torch.flip(x, dims=[-2, -1])
+
+    def r90(x):
+        return torch.rot90(x, 1, dims=[-2, -1])
+
+    def r270(x):
+        return torch.rot90(x, 3, dims=[-2, -1])
+
+    def r90_h(x):
+        return torch.flip(torch.rot90(x, 1, dims=[-2, -1]), dims=[-1])
+
+    def r90_v(x):
+        return torch.flip(torch.rot90(x, 1, dims=[-2, -1]), dims=[-2])
+
     return [
         (ident, ident),
         (hflip, hflip),
         (vflip, vflip),
-        (hv,    hv),
-        (r90,   r270),
-        (r270,  r90),
+        (hv, hv),
+        (r90, r270),
+        (r270, r90),
         (r90_h, lambda x: torch.rot90(torch.flip(x, dims=[-1]), 3, dims=[-2, -1])),
         (r90_v, lambda x: torch.rot90(torch.flip(x, dims=[-2]), 3, dims=[-2, -1])),
     ]
@@ -99,9 +136,10 @@ def _d4_transforms() -> list[tuple]:
 
 # ------- Watershed -----------------------------------------------------------
 
+
 def watershed_instances(
-    seg_pred: np.ndarray,            # (H,W) argmax of seg, 0/1/2
-    distance: np.ndarray,            # (H,W) larger -> deeper inside field
+    seg_pred: np.ndarray,  # (H,W) argmax of seg, 0/1/2
+    distance: np.ndarray,  # (H,W) larger -> deeper inside field
     h_min: float = 2.0,
     field_class: int = 1,
 ) -> np.ndarray:
@@ -127,6 +165,7 @@ def gt_instances(mask: np.ndarray, field_class: int = 1) -> np.ndarray:
 
 
 # ------- Inference -----------------------------------------------------------
+
 
 def _has_sdf_head(task: torch.nn.Module) -> bool:
     return hasattr(task, "sdf_head") and hasattr(task, "_forward_dual")
@@ -166,11 +205,23 @@ def _predict_tta(task, model, image: torch.Tensor, sdf_clip: float):
 
 
 def evaluate_country(
-    task, model, device, country: str, root: str, split: str, num_workers: int,
-    iou_threshold: float, use_tta: bool, use_watershed: bool, h_min: float,
-    sdf_clip: float, min_pad_size: int = 0,
+    task,
+    model,
+    device,
+    country: str,
+    root: str,
+    split: str,
+    num_workers: int,
+    iou_threshold: float,
+    use_tta: bool,
+    use_watershed: bool,
+    h_min: float,
+    sdf_clip: float,
+    min_pad_size: int = 0,
 ) -> dict[str, float]:
-    ds = FTWPlanet(root=root, countries=[country], split=split, transforms=None, load_boundaries=True)
+    ds = FTWPlanet(
+        root=root, countries=[country], split=split, transforms=None, load_boundaries=True
+    )
     dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     metrics = MetricCollection(
@@ -181,7 +232,7 @@ def evaluate_country(
         ]
     ).to(device)
     obj_pix_tps = obj_pix_fps = obj_pix_fns = 0  # pixel-cc style (baseline)
-    obj_ws_tps = obj_ws_fps = obj_ws_fns = 0     # watershed-derived
+    obj_ws_tps = obj_ws_fps = obj_ws_fns = 0  # watershed-derived
 
     for batch in tqdm(dl, desc=country, leave=False):
         image = batch["image"].to(device) / PLANET_SR_SCALE
@@ -197,8 +248,8 @@ def evaluate_country(
         # Collapse 3-class to 2-class for pixel metrics: only field == 1.
         seg_field = (seg_pred == 1).long()
         mask_eval = mask.clone()
-        mask_eval[mask_eval == 2] = 0   # boundary -> background for 2-class eval
-        mask_eval[mask == 3] = 3         # keep padded ignore
+        mask_eval[mask_eval == 2] = 0  # boundary -> background for 2-class eval
+        mask_eval[mask == 3] = 3  # keep padded ignore
         metrics.update(seg_field, mask_eval)
 
         seg_np = seg_pred.squeeze(0).cpu().numpy().astype(np.uint8)[:H, :W]
@@ -206,8 +257,12 @@ def evaluate_country(
 
         # Object metrics, "baseline" = connected components of the predicted
         # field class (what scripts/eval_planet.py reports).
-        tps, fps, fns = get_object_level_metrics(gt_np, (seg_np == 1).astype(np.uint8), iou_threshold=iou_threshold)
-        obj_pix_tps += tps; obj_pix_fps += fps; obj_pix_fns += fns
+        tps, fps, fns = get_object_level_metrics(
+            gt_np, (seg_np == 1).astype(np.uint8), iou_threshold=iou_threshold
+        )
+        obj_pix_tps += tps
+        obj_pix_fps += fps
+        obj_pix_fns += fns
 
         if use_watershed:
             if sdf is not None:
@@ -227,7 +282,9 @@ def evaluate_country(
             # along watershed boundaries so touching fields become disjoint.
             sep_pred = (inst_pred > 0).astype(np.uint8)
             tps, fps, fns = get_object_level_metrics(gt_np, sep_pred, iou_threshold=iou_threshold)
-            obj_ws_tps += tps; obj_ws_fps += fps; obj_ws_fns += fns
+            obj_ws_tps += tps
+            obj_ws_fps += fps
+            obj_ws_fns += fns
 
     res = metrics.compute()
     out = {
@@ -235,15 +292,21 @@ def evaluate_country(
         "pixel_level_precision": res["MulticlassPrecision"][1].item(),
         "pixel_level_recall": res["MulticlassRecall"][1].item(),
     }
+
     def _f1(tps, fps, fns):
         p = tps / max(tps + fps, 1)
         r = tps / max(tps + fns, 1)
         return p, r, (2 * p * r / (p + r)) if (p + r) else 0.0
+
     p0, r0, f0 = _f1(obj_pix_tps, obj_pix_fps, obj_pix_fns)
-    out["object_pix_precision"] = p0; out["object_pix_recall"] = r0; out["object_pix_f1"] = f0
+    out["object_pix_precision"] = p0
+    out["object_pix_recall"] = r0
+    out["object_pix_f1"] = f0
     if use_watershed:
         p1, r1, f1 = _f1(obj_ws_tps, obj_ws_fps, obj_ws_fns)
-        out["object_ws_precision"] = p1; out["object_ws_recall"] = r1; out["object_ws_f1"] = f1
+        out["object_ws_precision"] = p1
+        out["object_ws_recall"] = r1
+        out["object_ws_f1"] = f1
     return out
 
 
@@ -261,27 +324,47 @@ def main() -> int:
     # gave < 1 pt object F1 on average and *hurt* the boundary run.
     # Opt in explicitly for final reporting numbers if needed.
     p.add_argument("--tta", action="store_true", help="D4 TTA ensemble (default off).")
-    p.add_argument("--watershed", action="store_true", help="Run watershed instance post-processing.")
-    p.add_argument("--h-min", type=float, default=2.0, help="h_maxima parameter for watershed seeds.")
+    p.add_argument(
+        "--watershed", action="store_true", help="Run watershed instance post-processing."
+    )
+    p.add_argument(
+        "--h-min", type=float, default=2.0, help="h_maxima parameter for watershed seeds."
+    )
     p.add_argument("--sdf-clip", type=float, default=20.0)
     p.add_argument(
-        "--min-pad-size", type=int, default=0,
+        "--min-pad-size",
+        type=int,
+        default=0,
         help="Pad H,W to at least this size at inference (e.g. 512 to match training crop).",
     )
     args = p.parse_args()
 
-    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu")
+    device = torch.device(
+        f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu"
+    )
     print(f"device={device} ckpt={args.ckpt} tta={args.tta} watershed={args.watershed}")
 
-    # Try loading as SDFSegTask first (subclass); fall back to base task.
+    # Try most-specific subclass first; fall back through SDF -> base.
     tic = time.time()
+    task = None
     try:
-        from ftw_planet.trainers import SDFSegTask
-        task = SDFSegTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
-        print("loaded as SDFSegTask")
+        from ftw_planet.trainers import FrameFieldSegTask
+
+        task = FrameFieldSegTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
+        print("loaded as FrameFieldSegTask")
     except Exception:
-        task = CustomSemanticSegmentationTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
-        print("loaded as CustomSemanticSegmentationTask (no SDF head)")
+        pass
+    if task is None:
+        try:
+            from ftw_planet.trainers import SDFSegTask
+
+            task = SDFSegTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
+            print("loaded as SDFSegTask")
+        except Exception:
+            task = CustomSemanticSegmentationTask.load_from_checkpoint(
+                str(args.ckpt), map_location="cpu"
+            )
+            print("loaded as CustomSemanticSegmentationTask (no SDF head)")
     task = task.eval().to(device)
     model = task.model
     print(f"loaded model in {time.time() - tic:.1f}s")
@@ -289,10 +372,19 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     if not args.out.exists():
         cols = [
-            "train_checkpoint", "country", "tta", "watershed",
-            "pixel_level_iou", "pixel_level_precision", "pixel_level_recall",
-            "object_pix_precision", "object_pix_recall", "object_pix_f1",
-            "object_ws_precision", "object_ws_recall", "object_ws_f1",
+            "train_checkpoint",
+            "country",
+            "tta",
+            "watershed",
+            "pixel_level_iou",
+            "pixel_level_precision",
+            "pixel_level_recall",
+            "object_pix_precision",
+            "object_pix_recall",
+            "object_pix_f1",
+            "object_ws_precision",
+            "object_ws_recall",
+            "object_ws_f1",
         ]
         with args.out.open("w") as f:
             f.write(",".join(cols) + "\n")
@@ -302,16 +394,29 @@ def main() -> int:
         print(f"=== {country} ({args.split}) ===")
         try:
             m = evaluate_country(
-                task, model, device, country, args.root, args.split, args.num_workers,
-                args.iou_threshold, args.tta, args.watershed, args.h_min, args.sdf_clip,
+                task,
+                model,
+                device,
+                country,
+                args.root,
+                args.split,
+                args.num_workers,
+                args.iou_threshold,
+                args.tta,
+                args.watershed,
+                args.h_min,
+                args.sdf_clip,
                 min_pad_size=args.min_pad_size,
             )
         except Exception as e:
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             print(f"  skip {country}: {e}")
             continue
         ws_cols = ",".join(
-            f"{m.get(k, float('nan')):.6f}" for k in ("object_ws_precision", "object_ws_recall", "object_ws_f1")
+            f"{m.get(k, float('nan')):.6f}"
+            for k in ("object_ws_precision", "object_ws_recall", "object_ws_f1")
         )
         line = (
             f"{args.ckpt},{country},{int(args.tta)},{int(args.watershed)},"
@@ -321,10 +426,7 @@ def main() -> int:
         )
         with args.out.open("a") as f:
             f.write(line)
-        line_print = (
-            f"  iou={m['pixel_level_iou']:.4f} "
-            f"obj_pix_F1={m['object_pix_f1']:.4f}"
-        )
+        line_print = f"  iou={m['pixel_level_iou']:.4f} obj_pix_F1={m['object_pix_f1']:.4f}"
         if args.watershed:
             line_print += f" obj_ws_F1={m['object_ws_f1']:.4f}"
         print(line_print)

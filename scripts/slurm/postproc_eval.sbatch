@@ -16,7 +16,8 @@ cd "$SLURM_SUBMIT_DIR"
 
 CKPT="${CKPT:?need CKPT}"
 OUT="${OUT:?need OUT}"
-EXTRA="${EXTRA:---watershed}"
+# shellcheck disable=SC2206  # intentional word-splitting of EXTRA flags
+EXTRA_ARGS=( ${EXTRA:---watershed} )
 
 uv run --no-sync python scripts/postprocess_eval.py \
-    --ckpt "$CKPT" --out "$OUT" --gpu 0 --num-workers 8 $EXTRA
+    --ckpt "$CKPT" --out "$OUT" --gpu 0 --num-workers 8 "${EXTRA_ARGS[@]}"

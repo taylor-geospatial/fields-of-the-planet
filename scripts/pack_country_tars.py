@@ -45,7 +45,10 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--planet-root", type=Path, default=Path("data/planet"))
     p.add_argument(
-        "--index", type=Path, default=None, help="Path to index.parquet (default: <root>/index.parquet)."
+        "--index",
+        type=Path,
+        default=None,
+        help="Path to index.parquet (default: <root>/index.parquet).",
     )
     p.add_argument(
         "--out-dir",
@@ -74,7 +77,11 @@ def _json_default(o: Any) -> Any:
 
 def _row_to_metadata(row: dict[str, Any]) -> dict[str, Any]:
     """Strip path columns (recoverable from sample key) and embed geometry as GeoJSON."""
-    out = {k: v for k, v in row.items() if k not in ("image_a_path", "image_b_path", "label_path", "geometry")}
+    out = {
+        k: v
+        for k, v in row.items()
+        if k not in ("image_a_path", "image_b_path", "label_path", "geometry")
+    }
     geom = row.get("geometry")
     if geom is not None:
         out["geometry"] = mapping(geom)
@@ -141,7 +148,14 @@ def _pack_country(
 
     tmp_path.replace(out_path)
     size_mb = out_path.stat().st_size / (1024**2)
-    log.info("%s: wrote %s (%d samples, %.1f MiB, %d missing)", country, out_path, n_ok, size_mb, n_missing)
+    log.info(
+        "%s: wrote %s (%d samples, %.1f MiB, %d missing)",
+        country,
+        out_path,
+        n_ok,
+        size_mb,
+        n_missing,
+    )
     return (country, n_ok, n_missing)
 
 
@@ -169,9 +183,7 @@ def main() -> int:
     total_ok = 0
     total_missing = 0
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
-        futs = {
-            ex.submit(_pack_country, c, gdf, args.planet_root, out_dir): c for c in countries
-        }
+        futs = {ex.submit(_pack_country, c, gdf, args.planet_root, out_dir): c for c in countries}
         for fut in as_completed(futs):
             _, n_ok, n_missing = fut.result()
             total_ok += n_ok

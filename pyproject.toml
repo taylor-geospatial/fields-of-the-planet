@@ -107,12 +107,17 @@ lint.ignore = [
 lint.extend-per-file-ignores."paper/**" = [
   "ANN001",
   "ANN201",
+  "ANN202",
+  "B007",
+  "B905",
   "RUF001",
 ]
 lint.extend-per-file-ignores."scripts/**" = [
   "ANN001",
   "ANN201",
+  "ANN202",
   "PERF401",
+  "RUF059",
   "SIM113",
 ]
 lint.extend-per-file-ignores."src/ftw_planet/**" = [

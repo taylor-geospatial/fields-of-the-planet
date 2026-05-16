@@ -25,7 +25,7 @@ import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 from matplotlib.colors import ListedColormap
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 from ftw_planet.trainers import SDFSegTask
 
 mpl.rcParams.update({"font.family": "serif", "font.size": 8})
@@ -34,10 +34,29 @@ CMAP_SEG = ListedColormap(["#0a3055", "#f0e2bd", "#e68630", "#888888"])
 S2_SCALE = 3000.0
 
 COUNTRIES = [
-    "austria","belgium","brazil","cambodia","corsica","croatia","denmark",
-    "estonia","finland","france","germany","latvia","lithuania","luxembourg",
-    "netherlands","portugal","rwanda","slovakia","slovenia","south_africa",
-    "spain","sweden","vietnam",
+    "austria",
+    "belgium",
+    "brazil",
+    "cambodia",
+    "corsica",
+    "croatia",
+    "denmark",
+    "estonia",
+    "finland",
+    "france",
+    "germany",
+    "latvia",
+    "lithuania",
+    "luxembourg",
+    "netherlands",
+    "portugal",
+    "rwanda",
+    "slovakia",
+    "slovenia",
+    "south_africa",
+    "spain",
+    "sweden",
+    "vietnam",
 ]
 
 
@@ -136,13 +155,21 @@ def run_country(country, s2_model, planet_task, device, max_patches=60):
             continue
         iou_s2 = field_iou(pred_s2, mk_s2)
         iou_pl = field_iou(pred_pl, gt_pl)
-        rows.append({
-            "patch_id": pid, "iou_s2": iou_s2, "iou_planet": iou_pl,
-            "rgb_s2": rgb_s2[:Hs, :Ws], "rgb_pl": rgb_pl[:Hp, :Wp],
-            "gt_s2": mk_s2, "gt_pl": gt_pl,
-            "pred_s2": pred_s2, "pred_pl": pred_pl,
-            "ff": float((mk_s2 == 1).mean()), "size": Hs * Ws,
-        })
+        rows.append(
+            {
+                "patch_id": pid,
+                "iou_s2": iou_s2,
+                "iou_planet": iou_pl,
+                "rgb_s2": rgb_s2[:Hs, :Ws],
+                "rgb_pl": rgb_pl[:Hp, :Wp],
+                "gt_s2": mk_s2,
+                "gt_pl": gt_pl,
+                "pred_s2": pred_s2,
+                "pred_pl": pred_pl,
+                "ff": float((mk_s2 == 1).mean()),
+                "size": Hs * Ws,
+            }
+        )
     if not rows:
         return None
     iou_s2 = np.nanmean([r["iou_s2"] for r in rows])
@@ -154,12 +181,12 @@ def run_country(country, s2_model, planet_task, device, max_patches=60):
 
 def render_qual(rows, out_path):
     n = len(rows)
-    fig, axes = plt.subplots(n, 5, figsize=(10.5, 2.1 * n),
-                             gridspec_kw={"wspace": 0.04, "hspace": 0.18})
+    fig, axes = plt.subplots(
+        n, 5, figsize=(10.5, 2.1 * n), gridspec_kw={"wspace": 0.04, "hspace": 0.18}
+    )
     if n == 1:
         axes = axes[None, :]
-    col_titles = ["S2 RGB", "Planet RGB", "GT (Planet)",
-                  "S2 PRUE-B7 pred", "FTW-Planet SDF pred"]
+    col_titles = ["S2 RGB", "Planet RGB", "GT (Planet)", "S2 PRUE-B7 pred", "FTW-Planet SDF pred"]
     for i, (country, sample) in enumerate(rows):
         axes[i, 0].imshow(sample["rgb_s2"])
         axes[i, 1].imshow(sample["rgb_pl"])
@@ -169,7 +196,8 @@ def render_qual(rows, out_path):
         axes[i, 3].set_title(f"IoU {sample['iou_s2']:.2f}", fontsize=7)
         axes[i, 4].set_title(f"IoU {sample['iou_planet']:.2f}", fontsize=7)
         for ax in axes[i]:
-            ax.set_xticks([]); ax.set_yticks([])
+            ax.set_xticks([])
+            ax.set_yticks([])
             for s in ax.spines.values():
                 s.set_linewidth(0.4)
         axes[i, 0].set_ylabel(f"{country}\n{sample['patch_id']}", fontsize=7)
@@ -182,8 +210,13 @@ def render_qual(rows, out_path):
         mpatches.Patch(color="#f0e2bd", label="field (1)"),
         mpatches.Patch(color="#e68630", label="boundary (2)"),
     ]
-    fig.legend(handles=legend_handles, loc="lower center", ncol=3,
-               frameon=False, bbox_to_anchor=(0.5, -0.01))
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.01),
+    )
     Path(out_path).parent.mkdir(exist_ok=True, parents=True)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -192,8 +225,13 @@ def render_qual(rows, out_path):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--s2-ckpt", default="/u/isaaccorley/.cache/torch/hub/checkpoints/FTW_PRUE_EFNET_B7.ckpt")
-    p.add_argument("--planet-ckpt", default="logs/prue/ftw_planet-unet-efnet3-crop512-sdf/ftw-planet/3e0u1bwd/checkpoints/last.ckpt")
+    p.add_argument(
+        "--s2-ckpt", default="/u/isaaccorley/.cache/torch/hub/checkpoints/FTW_PRUE_EFNET_B7.ckpt"
+    )
+    p.add_argument(
+        "--planet-ckpt",
+        default="logs/prue/ftw_planet-unet-efnet3-crop512-sdf/ftw-planet/3e0u1bwd/checkpoints/last.ckpt",
+    )
     p.add_argument("--per-page", type=int, default=6)
     p.add_argument("--max-patches", type=int, default=60)
     args = p.parse_args()
@@ -203,7 +241,9 @@ def main():
     s2_task = CustomSemanticSegmentationTask.load_from_checkpoint(args.s2_ckpt, map_location="cpu")
     s2_model = s2_task.model.eval().to(device)
     print("loading Planet SDF...")
-    pl_task = SDFSegTask.load_from_checkpoint(args.planet_ckpt, map_location="cpu").eval().to(device)
+    pl_task = (
+        SDFSegTask.load_from_checkpoint(args.planet_ckpt, map_location="cpu").eval().to(device)
+    )
 
     table_rows = []
     qual_rows = []
@@ -227,8 +267,12 @@ def main():
     print(f"mean S2 IoU: {df.iou_s2.mean():.3f}   mean Planet IoU: {df.iou_planet.mean():.3f}")
 
     # LaTeX table
-    lines = [r"\begin{tabular}{lccc}", r"\toprule",
-             r"Country & N & S2 PRUE-B7 & FTW-Planet SDF \\", r"\midrule"]
+    lines = [
+        r"\begin{tabular}{lccc}",
+        r"\toprule",
+        r"Country & N & S2 PRUE-B7 & FTW-Planet SDF \\",
+        r"\midrule",
+    ]
     for _, r in df.iterrows():
         better = r"\textbf"
         s2 = f"{r['iou_s2']:.3f}"
@@ -238,9 +282,12 @@ def main():
         elif r["iou_s2"] > r["iou_planet"]:
             s2 = f"{better}{{{s2}}}"
         lines.append(f"{r['country'].replace('_', ' ')} & {int(r['n'])} & {s2} & {pl} \\\\")
-    lines += [r"\midrule",
-              f"Mean & -- & {df.iou_s2.mean():.3f} & \\textbf{{{df.iou_planet.mean():.3f}}} \\\\",
-              r"\bottomrule", r"\end{tabular}"]
+    lines += [
+        r"\midrule",
+        f"Mean & -- & {df.iou_s2.mean():.3f} & \\textbf{{{df.iou_planet.mean():.3f}}} \\\\",
+        r"\bottomrule",
+        r"\end{tabular}",
+    ]
     Path("paper/figs/s2_vs_planet_table.tex").write_text("\n".join(lines) + "\n")
     print("wrote paper/figs/s2_vs_planet_table.tex")
 

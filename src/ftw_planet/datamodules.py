@@ -14,14 +14,14 @@ Differences from the stock S2 datamodule:
 from collections.abc import Callable
 from typing import Any
 
+import kornia
 import kornia.augmentation as K
 import torch
 from lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
-
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
 PAD_IGNORE_INDEX = 3  # mask pad value; matches trainer.model.ignore_index=3
 
@@ -62,6 +62,7 @@ def _random_crop(image: Tensor, mask: Tensor, size: int) -> tuple[Tensor, Tensor
 
 def _make_crop_transform(size: int, train: bool) -> Callable[[dict], dict]:
     """Crop image, mask, and (optionally) sdf with identical geometry."""
+
     def _t(sample: dict) -> dict:
         img = sample["image"]
         msk = sample["mask"]
@@ -107,6 +108,16 @@ class FTWPlanetDataModule(LightningDataModule):
         boundary_dilate_px: int = 0,
         boundary_dilate_schedule: dict | None = None,
         return_sdf: bool = False,
+        preprocess_aug: bool = False,
+        resize_aug: bool = False,
+        swap_order: bool = False,
+        per_band_gamma_aug: bool = False,
+        per_band_gamma_range: tuple[float, float] = (0.8, 1.2),
+        per_band_gamma_p: float = 0.3,
+        cutmix_aug: bool = False,
+        cutmix_p: float = 0.5,
+        cutmix_scale: tuple[float, float] = (0.25, 0.5),
+        cutmix_buffer: int = 2,
         **_: Any,
     ) -> None:
         super().__init__()
@@ -125,7 +136,9 @@ class FTWPlanetDataModule(LightningDataModule):
         # GPU side in on_after_batch_transfer so we can swap it per epoch
         # without re-spawning dataloader workers.
         if boundary_dilate_schedule is not None:
-            self.boundary_dilate_schedule = {int(k): int(v) for k, v in boundary_dilate_schedule.items()}
+            self.boundary_dilate_schedule = {
+                int(k): int(v) for k, v in boundary_dilate_schedule.items()
+            }
         else:
             self.boundary_dilate_schedule = None
         self.return_sdf = bool(return_sdf)
@@ -133,65 +146,128 @@ class FTWPlanetDataModule(LightningDataModule):
         # 8 channels = window B (4) + window A (4); /10000 to reflectance.
         self.mean = torch.zeros(8)
         self.std = torch.full((8,), PLANET_SR_SCALE)
-        self.train_aug = K.AugmentationSequential(
-            K.Normalize(mean=self.mean, std=self.std),
+        self.preprocess_aug = bool(preprocess_aug)
+        self.resize_aug = bool(resize_aug)
+        self.swap_order = bool(swap_order)
+        self.per_band_gamma_aug = bool(per_band_gamma_aug)
+        self.per_band_gamma_range = (float(per_band_gamma_range[0]), float(per_band_gamma_range[1]))
+        self.per_band_gamma_p = float(per_band_gamma_p)
+        self.cutmix_aug = bool(cutmix_aug)
+        self.cutmix_p = float(cutmix_p)
+        self.cutmix_scale = (float(cutmix_scale[0]), float(cutmix_scale[1]))
+        self.cutmix_buffer = int(cutmix_buffer)
+
+        # Normalization branch: either fixed /PLANET_SR_SCALE or random divisor
+        # in [0.5x, 1.5x] of PLANET_SR_SCALE (mirrors FTW PRUE preprocess_aug,
+        # which uses [1500, 4500] around the /3000 fixed value).
+        def random_divisor_normalize(x: Tensor) -> Tensor:
+            if x.dim() != 4:
+                return x
+            divisors = torch.empty(x.size(0), 1, 1, 1, device=x.device, dtype=x.dtype).uniform_(
+                PLANET_SR_SCALE * 0.5, PLANET_SR_SCALE * 1.5
+            )
+            return x / divisors
+
+        # Per-band random gamma in [lo, hi] applied after normalization.
+        # Each of the 8 channels gets an independent gamma per sample,
+        # simulating cross-acquisition atmospheric-correction variation.
+        _gamma_lo, _gamma_hi = self.per_band_gamma_range
+        _gamma_p = self.per_band_gamma_p
+
+        def per_band_gamma(x: Tensor) -> Tensor:
+            if x.dim() != 4 or torch.rand(1).item() > _gamma_p:
+                return x
+            B, C = x.shape[0], x.shape[1]
+            gammas = torch.empty(B, C, 1, 1, device=x.device, dtype=x.dtype).uniform_(
+                _gamma_lo, _gamma_hi
+            )
+            return x.clamp(min=1e-6) ** gammas
+
+        train_augs: list[Any] = [
+            kornia.contrib.Lambda(random_divisor_normalize)
+            if self.preprocess_aug
+            else K.Normalize(mean=self.mean, std=self.std),
             K.RandomRotation(p=0.5, degrees=90),
             K.RandomHorizontalFlip(p=0.5),
             K.RandomVerticalFlip(p=0.5),
             K.RandomSharpness(p=0.5),
-            data_keys=None,
-        )
+        ]
+        if self.per_band_gamma_aug:
+            train_augs.append(kornia.contrib.Lambda(per_band_gamma))
+        if self.resize_aug:
+            train_augs.append(
+                K.RandomResizedCrop(
+                    (self.crop_size, self.crop_size),
+                    scale=(0.3, 0.9),
+                    ratio=(0.75, 1.33),
+                    p=0.5,
+                )
+            )
+        self.train_aug = K.AugmentationSequential(*train_augs, data_keys=None)
         self.aug = K.AugmentationSequential(
             K.Normalize(mean=self.mean, std=self.std), data_keys=None
         )
 
     def setup(self, stage: str) -> None:
-        if stage in ("fit",):
+        if stage == "fit":
             # If a schedule is set, defer dilation to on_after_batch_transfer
             # (GPU). The dataset always returns the original (un-dilated)
             # boundary, and the SDF target is also computed on the original.
             ds_dilate = 0 if self.boundary_dilate_schedule is not None else self.boundary_dilate_px
             self.train_dataset = FTWPlanet(
-                root=self.root, countries=self.train_countries, split="train",
+                root=self.root,
+                countries=self.train_countries,
+                split="train",
                 transforms=_make_crop_transform(self.crop_size, train=True),
-                load_boundaries=self.load_boundaries, usable_only=self.usable_only,
-                boundary_dilate_px=ds_dilate, return_sdf=self.return_sdf,
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
+                boundary_dilate_px=ds_dilate,
+                return_sdf=self.return_sdf,
+                swap_order=self.swap_order,
             )
             print(f"[ftw-planet] train samples: {len(self.train_dataset)}")
         if stage in ("fit", "validate"):
             # val/test always uses the original 1-px boundary for fair metrics.
             self.val_dataset = FTWPlanet(
-                root=self.root, countries=self.val_countries, split="val",
+                root=self.root,
+                countries=self.val_countries,
+                split="val",
                 transforms=_make_crop_transform(self.crop_size, train=False),
-                load_boundaries=self.load_boundaries, usable_only=self.usable_only,
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
             )
             print(f"[ftw-planet] val samples: {len(self.val_dataset)}")
         if stage == "test":
             self.test_dataset = FTWPlanet(
-                root=self.root, countries=self.test_countries, split="test",
+                root=self.root,
+                countries=self.test_countries,
+                split="test",
                 transforms=_make_crop_transform(self.crop_size, train=False),
-                load_boundaries=self.load_boundaries, usable_only=self.usable_only,
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
             )
             print(f"[ftw-planet] test samples: {len(self.test_dataset)}")
 
-    def _loader(self, ds, shuffle: bool) -> DataLoader:
-        kw: dict = dict(
-            batch_size=self.batch_size, shuffle=shuffle,
-            num_workers=self.num_workers, pin_memory=True,
-            persistent_workers=self.num_workers > 0,
-        )
+    def _loader(self, ds: FTWPlanet, shuffle: bool) -> DataLoader:
+        kw: dict[str, Any] = {
+            "batch_size": self.batch_size,
+            "shuffle": shuffle,
+            "num_workers": self.num_workers,
+            "pin_memory": True,
+            "persistent_workers": self.num_workers > 0,
+        }
         if self.num_workers > 0:
             # 4 batches queued per worker so the GPU never waits on rasterio.
             kw["prefetch_factor"] = 4
         return DataLoader(ds, **kw)
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         return self._loader(self.train_dataset, shuffle=True)
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
         return self._loader(self.val_dataset, shuffle=False)
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         return self._loader(self.test_dataset, shuffle=False)
 
     def _gpu_dilate_boundary(self, mask: Tensor, iters: int) -> Tensor:
@@ -216,12 +292,78 @@ class FTWPlanetDataModule(LightningDataModule):
         keys = [k for k in sched if k <= ep]
         return sched[max(keys)] if keys else 0
 
-    def on_after_batch_transfer(self, batch, dataloader_idx: int = 0):
+    def _cutmix_with_buffer(self, batch: dict) -> dict:
+        """CutMix paste with ignore_index buffer along the cut rectangle border.
+
+        Pastes a random rectangle from image[perm] into image[i] (same for
+        mask and sdf if present), then paints a ``cutmix_buffer``-px ring of
+        ``PAD_IGNORE_INDEX`` along the cut edges so the seg loss does not get
+        contaminated by phantom (synthetic) class transitions.
+        """
+        image = batch["image"]
+        mask = batch["mask"]
+        if image.dim() != 4 or image.size(0) < 2:
+            return batch
+        if torch.rand(1).item() > self.cutmix_p:
+            return batch
+        B, _, H, W = image.shape
+        perm = torch.randperm(B, device=image.device)
+        lo, hi = self.cutmix_scale
+        lam = torch.empty(1, device=image.device).uniform_(lo, hi).item()
+        cut_h = max(8, int(H * lam))
+        cut_w = max(8, int(W * lam))
+        cy = int(torch.randint(0, max(1, H - cut_h), (1,), device=image.device).item())
+        cx = int(torch.randint(0, max(1, W - cut_w), (1,), device=image.device).item())
+        image[:, :, cy : cy + cut_h, cx : cx + cut_w] = image[perm][
+            :, :, cy : cy + cut_h, cx : cx + cut_w
+        ]
+
+        # Mask may be (B,H,W) or (B,1,H,W); normalize to 3-D for indexing.
+        squeezed = mask.dim() == 3
+        if squeezed:
+            mask = mask.unsqueeze(1)
+        mask[:, :, cy : cy + cut_h, cx : cx + cut_w] = mask[perm][
+            :, :, cy : cy + cut_h, cx : cx + cut_w
+        ]
+        b = self.cutmix_buffer
+        if b > 0:
+            y0, y1 = max(0, cy - b), min(H, cy + cut_h + b)
+            x0, x1 = max(0, cx - b), min(W, cx + cut_w + b)
+            mask[:, :, max(0, cy - b) : min(H, cy + b), x0:x1] = PAD_IGNORE_INDEX  # top
+            mask[:, :, max(0, cy + cut_h - b) : min(H, cy + cut_h + b), x0:x1] = (
+                PAD_IGNORE_INDEX  # bottom
+            )
+            mask[:, :, y0:y1, max(0, cx - b) : min(W, cx + b)] = PAD_IGNORE_INDEX  # left
+            mask[:, :, y0:y1, max(0, cx + cut_w - b) : min(W, cx + cut_w + b)] = (
+                PAD_IGNORE_INDEX  # right
+            )
+        batch["mask"] = mask.squeeze(1) if squeezed else mask
+
+        if "sdf" in batch:
+            sdf = batch["sdf"]
+            squeezed_sdf = sdf.dim() == 3
+            if squeezed_sdf:
+                sdf = sdf.unsqueeze(1)
+            sdf[:, :, cy : cy + cut_h, cx : cx + cut_w] = sdf[perm][
+                :, :, cy : cy + cut_h, cx : cx + cut_w
+            ]
+            batch["sdf"] = sdf.squeeze(1) if squeezed_sdf else sdf
+        return batch
+
+    def on_after_batch_transfer(self, batch: dict, dataloader_idx: int = 0) -> dict:
         trainer = self.trainer
         training = trainer is not None and trainer.training
         if training:
             iters = self._current_curriculum_px()
             if iters > 0:
                 batch["mask"] = self._gpu_dilate_boundary(batch["mask"], iters)
+        # kornia AugmentationSequential treats non-tensor keys awkwardly; pop
+        # string-valued metadata before augs and re-attach after.
+        country = batch.pop("country", None)
         aug = self.train_aug if training else self.aug
-        return aug(batch)
+        batch = aug(batch)
+        if country is not None:
+            batch["country"] = country
+        if training and self.cutmix_aug:
+            batch = self._cutmix_with_buffer(batch)
+        return batch

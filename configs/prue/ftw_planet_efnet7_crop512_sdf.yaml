@@ -49,6 +49,8 @@ data:
     load_boundaries: true
     usable_only: true
     return_sdf: true
+    preprocess_aug: true
+    resize_aug: true
     # CC-BY split (matches FTW PRUE B7 ccby release): 14 train countries
     train_countries:
       - austria

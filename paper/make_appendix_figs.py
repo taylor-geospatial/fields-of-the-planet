@@ -10,9 +10,9 @@ Writes paper/figs/appendix_qual_<idx>.pdf, with 5 countries per figure.
 import argparse
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 import torch
@@ -23,7 +23,7 @@ from scipy.ndimage import distance_transform_edt, label
 from skimage.morphology import h_maxima
 from skimage.segmentation import watershed
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 from ftw_planet.trainers import SDFSegTask
 
 mpl.rcParams.update({"font.family": "serif", "font.size": 8})
@@ -31,10 +31,29 @@ mpl.rcParams.update({"font.family": "serif", "font.size": 8})
 CMAP_SEG = ListedColormap(["#0a3055", "#f0e2bd", "#e68630", "#888888"])
 
 COUNTRIES = [
-    "austria","belgium","brazil","cambodia","corsica","croatia","denmark",
-    "estonia","finland","france","germany","latvia","lithuania","luxembourg",
-    "netherlands","portugal","rwanda","slovakia","slovenia","south_africa",
-    "spain","sweden","vietnam",
+    "austria",
+    "belgium",
+    "brazil",
+    "cambodia",
+    "corsica",
+    "croatia",
+    "denmark",
+    "estonia",
+    "finland",
+    "france",
+    "germany",
+    "latvia",
+    "lithuania",
+    "luxembourg",
+    "netherlands",
+    "portugal",
+    "rwanda",
+    "slovakia",
+    "slovenia",
+    "south_africa",
+    "spain",
+    "sweden",
+    "vietnam",
 ]
 
 
@@ -102,10 +121,17 @@ def predict(task, model, device, country, has_sdf):
 
 def render_figure(rows, out_path):
     n = len(rows)
-    fig, axes = plt.subplots(n, 4, figsize=(7.0, 2.0 * n), gridspec_kw={"wspace": 0.05, "hspace": 0.15})
+    fig, axes = plt.subplots(
+        n, 4, figsize=(7.0, 2.0 * n), gridspec_kw={"wspace": 0.05, "hspace": 0.15}
+    )
     if n == 1:
         axes = axes[None, :]
-    col_titles = ["PlanetScope SR (RGB)", "Ground truth", "Prediction (3-class)", "Watershed instances"]
+    col_titles = [
+        "PlanetScope SR (RGB)",
+        "Ground truth",
+        "Prediction (3-class)",
+        "Watershed instances",
+    ]
     for i, (country, pid, rgb, gt, pred, inst) in enumerate(rows):
         rng = np.random.default_rng(0)
         n_inst = int(inst.max())
@@ -118,8 +144,10 @@ def render_figure(rows, out_path):
         axes[i, 2].imshow(pred, cmap=CMAP_SEG, vmin=0, vmax=3, interpolation="nearest")
         axes[i, 3].imshow(inst, cmap=inst_cmap, interpolation="nearest")
         for ax in axes[i]:
-            ax.set_xticks([]); ax.set_yticks([])
-            for s in ax.spines.values(): s.set_linewidth(0.4)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for s in ax.spines.values():
+                s.set_linewidth(0.4)
         axes[i, 0].set_ylabel(f"{country}\n{pid}", fontsize=7)
         if i == 0:
             for j, t in enumerate(col_titles):
@@ -129,7 +157,13 @@ def render_figure(rows, out_path):
         mpatches.Patch(color="#f0e2bd", label="field interior (1)"),
         mpatches.Patch(color="#e68630", label="boundary (2)"),
     ]
-    fig.legend(handles=legend_handles, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, -0.01))
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.01),
+    )
     Path(out_path).parent.mkdir(exist_ok=True, parents=True)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -138,7 +172,10 @@ def render_figure(rows, out_path):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--ckpt", default="logs/prue/ftw_planet-unet-efnet3-crop512-sdf/ftw-planet/3e0u1bwd/checkpoints/last.ckpt")
+    p.add_argument(
+        "--ckpt",
+        default="logs/prue/ftw_planet-unet-efnet3-crop512-sdf/ftw-planet/3e0u1bwd/checkpoints/last.ckpt",
+    )
     p.add_argument("--per-figure", type=int, default=6)
     args = p.parse_args()
 

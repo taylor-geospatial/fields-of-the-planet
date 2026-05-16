@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 from matplotlib.colors import ListedColormap
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 from ftw_planet.trainers import SDFSegTask
 
 mpl.rcParams.update({"font.family": "serif", "font.size": 8})
@@ -28,10 +28,29 @@ mpl.rcParams.update({"font.family": "serif", "font.size": 8})
 CMAP_SEG = ListedColormap(["#0a3055", "#f0e2bd", "#e68630", "#888888"])
 
 COUNTRIES = [
-    "austria","belgium","brazil","cambodia","corsica","croatia","denmark",
-    "estonia","finland","france","germany","latvia","lithuania","luxembourg",
-    "netherlands","portugal","rwanda","slovakia","slovenia","south_africa",
-    "spain","sweden","vietnam",
+    "austria",
+    "belgium",
+    "brazil",
+    "cambodia",
+    "corsica",
+    "croatia",
+    "denmark",
+    "estonia",
+    "finland",
+    "france",
+    "germany",
+    "latvia",
+    "lithuania",
+    "luxembourg",
+    "netherlands",
+    "portugal",
+    "rwanda",
+    "slovakia",
+    "slovenia",
+    "south_africa",
+    "spain",
+    "sweden",
+    "vietnam",
 ]
 
 
@@ -104,11 +123,19 @@ def pick_bmg(task, device, country, has_sdf, max_patches=60):
 def render_page(rows, out_path):
     """rows: list of (country, [worst, median, best])."""
     n = len(rows)
-    fig, axes = plt.subplots(n, 6, figsize=(11.0, 1.9 * n),
-                             gridspec_kw={"wspace": 0.04, "hspace": 0.18})
+    fig, axes = plt.subplots(
+        n, 6, figsize=(11.0, 1.9 * n), gridspec_kw={"wspace": 0.04, "hspace": 0.18}
+    )
     if n == 1:
         axes = axes[None, :]
-    group_titles = ["Bad (RGB)", "Bad (Pred)", "Okay (RGB)", "Okay (Pred)", "Great (RGB)", "Great (Pred)"]
+    group_titles = [
+        "Bad (RGB)",
+        "Bad (Pred)",
+        "Okay (RGB)",
+        "Okay (Pred)",
+        "Great (RGB)",
+        "Great (Pred)",
+    ]
     for i, (country, triplet) in enumerate(rows):
         for j, (iou, pid, rgb, gt, pred) in enumerate(triplet):
             ax_rgb = axes[i, 2 * j]
@@ -117,7 +144,8 @@ def render_page(rows, out_path):
             ax_pred.imshow(pred, cmap=CMAP_SEG, vmin=0, vmax=3, interpolation="nearest")
             ax_rgb.set_title(f"{pid}\nIoU {iou:.2f}", fontsize=7)
             for ax in (ax_rgb, ax_pred):
-                ax.set_xticks([]); ax.set_yticks([])
+                ax.set_xticks([])
+                ax.set_yticks([])
                 for s in ax.spines.values():
                     s.set_linewidth(0.4)
         axes[i, 0].set_ylabel(country, fontsize=9)
@@ -129,8 +157,13 @@ def render_page(rows, out_path):
         mpatches.Patch(color="#f0e2bd", label="field (1)"),
         mpatches.Patch(color="#e68630", label="boundary (2)"),
     ]
-    fig.legend(handles=legend_handles, loc="lower center", ncol=3,
-               frameon=False, bbox_to_anchor=(0.5, -0.01))
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.01),
+    )
     Path(out_path).parent.mkdir(exist_ok=True, parents=True)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -139,7 +172,10 @@ def render_page(rows, out_path):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--ckpt", default="logs/prue/ftw_planet-unet-efnet3-crop512-sdf/ftw-planet/3e0u1bwd/checkpoints/last.ckpt")
+    p.add_argument(
+        "--ckpt",
+        default="logs/prue/ftw_planet-unet-efnet3-crop512-sdf/ftw-planet/3e0u1bwd/checkpoints/last.ckpt",
+    )
     p.add_argument("--per-page", type=int, default=4)
     p.add_argument("--max-patches", type=int, default=60)
     args = p.parse_args()

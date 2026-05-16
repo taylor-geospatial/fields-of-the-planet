@@ -91,9 +91,7 @@ def main() -> int:
         log.info("DRY RUN — pass --apply to actually move files")
 
     total = {"window_a": 0, "window_b": 0, "labels": 0, "skipped": 0, "conflict": 0}
-    countries = sorted(
-        d for d in args.planet_root.iterdir() if d.is_dir() and d.name != "_global"
-    )
+    countries = sorted(d for d in args.planet_root.iterdir() if d.is_dir() and d.name != "_global")
     for cdir in countries:
         c = _migrate_country(cdir, args.apply)
         log.info(

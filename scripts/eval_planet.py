@@ -19,7 +19,6 @@ Example:
 """
 
 import argparse
-import os
 import time
 from pathlib import Path
 
@@ -32,13 +31,34 @@ from torch.utils.data import DataLoader
 from torchmetrics import JaccardIndex, MetricCollection, Precision, Recall
 from tqdm import tqdm
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
 COUNTRIES = [
-    "austria","belgium","brazil","cambodia","corsica","croatia","denmark",
-    "estonia","finland","france","germany","india","kenya","latvia","lithuania",
-    "luxembourg","netherlands","portugal","rwanda","slovakia","slovenia",
-    "south_africa","spain","sweden","vietnam",
+    "austria",
+    "belgium",
+    "brazil",
+    "cambodia",
+    "corsica",
+    "croatia",
+    "denmark",
+    "estonia",
+    "finland",
+    "france",
+    "germany",
+    "india",
+    "kenya",
+    "latvia",
+    "lithuania",
+    "luxembourg",
+    "netherlands",
+    "portugal",
+    "rwanda",
+    "slovakia",
+    "slovenia",
+    "south_africa",
+    "spain",
+    "sweden",
+    "vietnam",
 ]
 
 
@@ -65,7 +85,9 @@ def evaluate_country(
     iou_threshold: float,
     model_predicts_3_classes: bool,
 ) -> dict[str, float]:
-    ds = FTWPlanet(root=root, countries=[country], split=split, transforms=None, load_boundaries=True)
+    ds = FTWPlanet(
+        root=root, countries=[country], split=split, transforms=None, load_boundaries=True
+    )
     dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     # 2-class evaluation (background vs field) — matches upstream test() default.
@@ -97,7 +119,9 @@ def evaluate_country(
         out_np = outputs.squeeze(0).cpu().numpy().astype(np.uint8)
         msk_np = mask_eval.squeeze(0).cpu().numpy().astype(np.uint8)
         tps, fps, fns = get_object_level_metrics(msk_np, out_np, iou_threshold=iou_threshold)
-        all_tps += tps; all_fps += fps; all_fns += fns
+        all_tps += tps
+        all_fps += fps
+        all_fns += fns
 
     res = metrics.compute()
     pix_iou = res["MulticlassJaccardIndex"][1].item()
@@ -137,7 +161,9 @@ def main() -> int:
     )
     args = p.parse_args()
 
-    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu")
+    device = torch.device(
+        f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu"
+    )
     print(f"device={device} ckpt={args.ckpt}")
 
     tic = time.time()
@@ -159,8 +185,14 @@ def main() -> int:
         print(f"=== {country} ({args.split}) ===")
         try:
             m = evaluate_country(
-                model, device, country, args.root, args.split, args.num_workers,
-                args.iou_threshold, args.model_predicts_3_classes,
+                model,
+                device,
+                country,
+                args.root,
+                args.split,
+                args.num_workers,
+                args.iou_threshold,
+                args.model_predicts_3_classes,
             )
         except Exception as e:
             print(f"  skip {country}: {e}")

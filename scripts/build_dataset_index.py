@@ -213,9 +213,7 @@ def _build_one(args: tuple[str, str, Path, Path, Path, dict, Path]) -> dict[str,
 def _collect_tasks(planet_root: Path, geoms: dict) -> tuple[list, int]:
     tasks = []
     missing = 0
-    countries = sorted(
-        d for d in planet_root.iterdir() if d.is_dir() and d.name != "_global"
-    )
+    countries = sorted(d for d in planet_root.iterdir() if d.is_dir() and d.name != "_global")
     for cdir in countries:
         wa_dir = cdir / "window_a"
         wb_dir = cdir / "window_b"

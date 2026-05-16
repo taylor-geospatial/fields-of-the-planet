@@ -7,9 +7,9 @@ override defaults. Saves paper/figs/qualitative.pdf.
 import argparse
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -19,7 +19,7 @@ from scipy.ndimage import distance_transform_edt, label
 from skimage.morphology import h_maxima
 from skimage.segmentation import watershed
 
-from ftw_planet.datasets import FTWPlanet, PLANET_SR_SCALE
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
 mpl.rcParams.update({"font.family": "serif", "font.size": 8})
 
@@ -44,7 +44,8 @@ def predict_one(ckpt, country, patch_id, device):
     idx = None
     for i, r in enumerate(ds.records):
         if r["patch_id"] == str(patch_id):
-            idx = i; break
+            idx = i
+            break
     if idx is None:
         idx = 0
         patch_id = ds.records[0]["patch_id"]
@@ -73,12 +74,19 @@ def predict_one(ckpt, country, patch_id, device):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--ckpt", default="logs/prue/ftw_planet-unet-efnet3-bf16/ftw-planet/1io8addz/checkpoints/last.ckpt")
-    p.add_argument("--rows", nargs="+", default=[
-        "austria:g83_00033_11",
-        "france:g68_00021_4",
-        "rwanda:1592589",
-    ])
+    p.add_argument(
+        "--ckpt",
+        default="logs/prue/ftw_planet-unet-efnet3-bf16/ftw-planet/1io8addz/checkpoints/last.ckpt",
+    )
+    p.add_argument(
+        "--rows",
+        nargs="+",
+        default=[
+            "austria:g83_00033_11",
+            "france:g68_00021_4",
+            "rwanda:1592589",
+        ],
+    )
     p.add_argument("--out", default="paper/figs/qualitative.pdf")
     args = p.parse_args()
 
@@ -89,9 +97,17 @@ def main():
         triplets.append(predict_one(args.ckpt, country, pid, device))
 
     n = len(triplets)
-    fig, axes = plt.subplots(n, 4, figsize=(7.0, 2.0 * n), gridspec_kw={"wspace": 0.05, "hspace": 0.15})
-    if n == 1: axes = axes[None, :]
-    col_titles = ["PlanetScope SR (RGB)", "Ground truth", "Prediction (3-class)", "Watershed instances"]
+    fig, axes = plt.subplots(
+        n, 4, figsize=(7.0, 2.0 * n), gridspec_kw={"wspace": 0.05, "hspace": 0.15}
+    )
+    if n == 1:
+        axes = axes[None, :]
+    col_titles = [
+        "PlanetScope SR (RGB)",
+        "Ground truth",
+        "Prediction (3-class)",
+        "Watershed instances",
+    ]
     for i, (country, pid, rgb, gt, pred, inst) in enumerate(triplets):
         # Use a perturbed colormap for instance ids so adjacent labels are distinct.
         rng = np.random.default_rng(0)
@@ -106,8 +122,10 @@ def main():
         axes[i, 2].imshow(pred, cmap=CMAP_SEG, vmin=0, vmax=3, interpolation="nearest")
         axes[i, 3].imshow(inst, cmap=inst_cmap, interpolation="nearest")
         for ax in axes[i]:
-            ax.set_xticks([]); ax.set_yticks([])
-            for s in ax.spines.values(): s.set_linewidth(0.4)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for s in ax.spines.values():
+                s.set_linewidth(0.4)
         axes[i, 0].set_ylabel(f"{country}\n{pid}", fontsize=7)
         if i == 0:
             for j, t in enumerate(col_titles):
@@ -119,7 +137,13 @@ def main():
         mpatches.Patch(color="#f0e2bd", label="field interior (1)"),
         mpatches.Patch(color="#e68630", label="boundary (2)"),
     ]
-    fig.legend(handles=legend_handles, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, -0.02))
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.02),
+    )
     Path(args.out).parent.mkdir(exist_ok=True, parents=True)
     fig.savefig(args.out, dpi=200, bbox_inches="tight")
     print(f"wrote {args.out}")
