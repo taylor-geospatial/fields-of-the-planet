@@ -7,28 +7,13 @@
 \usepackage{multirow}
 \usepackage{caption}
 \usepackage{xcolor}
-\usepackage{framed}
 \usepackage{fontawesome5}
 \usepackage[colorlinks=true,allcolors=earthDark]{hyperref}
 \usepackage[capitalize]{cleveref}
 
 % Earthy greenish-brown palette (FTW-HD theme).
 \definecolor{earthDark}{rgb}{0.30, 0.40, 0.18}      % deep moss/olive
-\definecolor{earthMid}{rgb}{0.45, 0.52, 0.28}       % olive/sage
 \definecolor{earthSienna}{rgb}{0.55, 0.34, 0.20}    % warm umber / sienna
-\definecolor{earthRust}{rgb}{0.68, 0.42, 0.20}      % rust accent
-\definecolor{earthCream}{rgb}{0.96, 0.93, 0.83}     % parchment background
-\definecolor{earthMoss}{rgb}{0.91, 0.94, 0.84}      % light moss background
-\definecolor{earthSand}{rgb}{0.94, 0.90, 0.78}      % sand background
-
-\newenvironment{recbox}{%
-  \def\FrameCommand{\fboxsep=8pt\fcolorbox{earthSienna}{earthSand}}%
-  \MakeFramed{\advance\hsize-\width \FrameRestore}}%
-{\endMakeFramed}
-\newenvironment{winbox}{%
-  \def\FrameCommand{\fboxsep=8pt\fcolorbox{earthDark}{earthMoss}}%
-  \MakeFramed{\advance\hsize-\width \FrameRestore}}%
-{\endMakeFramed}
 
 \def\cvprPaperID{****}
 \def\confName{CVPR}
@@ -296,19 +281,13 @@ on top of augmax full, but B3 is the sweet spot.
     \label{fig:aug_ablation}
 \end{figure}
 
-\begin{table}[t]
+\begin{table*}[t]
     \centering
-    \small
-    \caption{\textbf{Held-out benchmark.} 9-country held-out Obj F1 across
-    four post-processing combos (watershed and/or D4 TTA) and four
-    \textbf{augmax} configurations per imagery source (B3/B7 $\times$
-    CC-BY/full train split). The released FTW S2 PRUE checkpoints are
-    listed as reference (their numbers are on the FTW \texttt{full\_data}
-    test split, not held-out only; see~\Cref{tab:full_data} for an
-    apples-to-apples full\_data comparison). Best per row in bold.}
+    \scriptsize
+    \caption{\textbf{Held-out benchmark.} 9-country held-out Obj F1 across four post-processing combos (watershed and/or D4 TTA) and four \textbf{augmax} configurations per imagery source (B3/B7 $\times$ CC-BY/full train split). The released FTW S2 PRUE checkpoints are listed as reference (their numbers are on the FTW \texttt{full\_data} test split, not held-out only; see~\Cref{tab:full_data} for an apples-to-apples full\_data comparison). Best per row in bold.}
     \label{tab:heldout}
     \input{figs/heldout_results.tex}
-\end{table}
+\end{table*}
 
 \subsection{Honest polygon metrics}
 
@@ -404,101 +383,36 @@ does not separate them into individual fields.
     \label{fig:per_country_bars}
 \end{figure}
 
-\begin{table}[t]
+\begin{table*}[t]
     \centering
-    \small
-    \caption{\textbf{Polygon-level evaluation, 11-country held-out, WS+TTA.}
-    PQ = SQ$\times$RQ. AP$_{[.5:.95]}$ averages F1 across IoU thresholds.
-    $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary
-    error is mean / p95 symmetric chamfer distance between predicted and
-    GT boundary pixels, in meters (GSD-invariant). Best in bold.}
+    \scriptsize
+    \caption{\textbf{Polygon-level evaluation, 11-country held-out, WS+TTA.} PQ\,$=$\,SQ$\times$RQ. AP$_{[.5:.95]}$ averages F1 across IoU thresholds. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundary pixels, in meters (GSD-invariant). Best in bold.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
-\end{table}
+\end{table*}
 
-\begin{winbox}
-\noindent\textbf{What did work} (positive findings, ranked by impact).
-\begin{itemize}
-\itemsep0em
-\item \textbf{FTW PRUE \texttt{preprocess\_aug} + \texttt{resize\_aug}}
-delivers $+6.7$\,pts pixel IoU and $+3.2$\,pts Obj F1 (WS) on the
-9-country held-out subset. This single change closes the gap to the
-S2 CC-BY baseline.
-\item \textbf{Adding \texttt{swap\_order} + per-band random gamma}
-(\emph{augplus}) on top of the PRUE augs adds another $+1.9$\,pts pixel
-IoU and $+1.0$\,pt Obj F1.
-\item \textbf{The bespoke aug bundle} (per-band random affine + Gaussian
-blur + Gaussian noise + single-window dropout + small-angle rotation
-+ shear + boundary-thickness jitter) on top of \emph{augplus}
-(\emph{augmax}) adds $+1.3$\,pts pixel IoU and $+4.1$\,pts Obj F1 (WS).
-Recall jumps $+3.6$\,pts at flat precision: the model finds more
-fields without becoming over-eager.
-\item \textbf{Padding inference inputs to $\geq\!512\times512$} (the
-training crop size) is worth $+24$\,pts pixel IoU over padding to the
-next multiple of 32. BatchNorm is highly sensitive to spatial scale.
-\item \textbf{Watershed} adds $\sim\!1$\,pt Obj F1 (\emph{augmax}, WS vs
-CC). \textbf{D4 TTA} adds another $\sim\!1$\,pt Obj F1 and $+0.6$\,pts
-pixel IoU on top of watershed. TTA is a no-op on weakly regularized
-baselines but helps once the model is well-augmented.
-\item \textbf{Austria-only validation} is a tighter checkpoint-selection
-signal than a mixed val set; the FTW PRUE default is the right
-choice.
-\item \textbf{Last checkpoint is fine.} The last and best (by val/loss)
-checkpoints differ by $<\!0.5$\,pt on held-out across every model we
-trained, so no early-stop is needed.
-\item \textbf{SDF auxiliary head} provides a robustness floor for
-hard-transfer cases when augmentations are off (e.g.\ portugal
-recovers from $0.007$ to $0.576$ pixel IoU). Net-neutral once augs
-are on; useful if you cannot run the full aug recipe.
+\subsection{Things that helped}
+\begin{itemize}\itemsep0em
+\item \textbf{FTW PRUE \texttt{preprocess\_aug} + \texttt{resize\_aug}}: $+6.7$\,pts pixel IoU, $+3.2$\,pts Obj F1 (WS), closes the gap to the S2 CC-BY baseline.
+\item \textbf{\texttt{swap\_order} + per-band $\gamma$} (\emph{augplus}): $+1.9$\,pts pixel IoU, $+1.0$\,pt Obj F1.
+\item \textbf{Bespoke bundle} (per-band affine, Gaussian blur \& noise, single-window dropout, small-angle rotation + shear, boundary jitter; \emph{augmax}): $+1.3$\,pts pixel IoU, $+4.1$\,pts Obj F1. Recall $+3.6$\,pts at flat precision.
+\item \textbf{Pad inference $\geq 512$}: $+24$\,pts pixel IoU over padding to next mult-32. BatchNorm is highly sensitive to spatial scale.
+\item \textbf{Watershed}: $\sim\!1$\,pt Obj F1. \textbf{D4 TTA}: another $\sim\!1$\,pt Obj F1 once the model is well-augmented (it is a no-op on weakly regularized baselines).
+\item \textbf{Train on all 25 countries}: $+8.0$\,pts Obj F1 over the CC-BY 14-country split.
+\item \textbf{Austria-only val} is a tighter checkpoint-selection signal than a mixed val of austria + two held-out countries (the latter loses $\sim\!4$\,pts held-out IoU).
+\item \textbf{Last checkpoint is fine}: last and best-by-val/loss differ by $<\!0.5$\,pt across every model.
+\item \textbf{SDF aux head} rescues hard-transfer cases when augs are off (portugal IoU $0.007 \rightarrow 0.576$). Net-neutral once augs are on.
 \end{itemize}
-\end{winbox}
 
-\begin{recbox}
-\noindent\textbf{What did not work} (negative ablations, for future researchers).
-\begin{itemize}
-\itemsep0em
-\item \textbf{Soft-clDice on the boundary class.} Topological-skeleton loss
-\cite{shit2021cldice} added to the seg objective collapsed the boundary
-predictions (mode-collapse: model painted everything as field). Tried on
-boundary class and field class, weight $\in\!\{0.2, 0.5\}$; abandoned.
-\item \textbf{Curriculum boundary dilation} ($3\!\rightarrow\!0$\,px over
-training). Marginal vs the fixed-dilation baseline ($-0.4$\,pts pixel
-IoU); the model is robust to boundary thickness on its own and the
-curriculum adds complexity without payoff.
-\item \textbf{Frame-field auxiliary head} \cite{girard2021ffl} at our
-weight setting ($0.1$ alignment + $0.01$ smoothness on top of SDF). No
-held-out gain; degrades the underlying SDF head's watershed signal
-(obj F1 collapses to the connected-components value). A wider weight
-sweep and target-rescaling under resize remain open.
-\item \textbf{CutMix with 2\,px ignore buffer.} Pasting a rectangular
-patch from another batch sample (with ignore-buffer along cut edges)
-produced $-1$\,pt pixel IoU and near-zero change in object F1 vs
-augplus. Field-level structure does not transfer between patches the
-way object instances do.
-\item \textbf{D4 test-time augmentation.} The 8-way flip+rotation
-ensemble at inference was $<\!1$\,pt either way across all checkpoints
-we tried (sometimes negative), so we disabled it by default. The
-training augmentations already cover D4 symmetries.
-\item \textbf{Mixed-country validation set.} Adding cambodia + slovenia
-to the val set (instead of austria only) produced a noisier
-val/loss signal and shifted checkpoint selection away from the best
-held-out generalizer; held-out IoU dropped by $\sim\!4$\,pts at fixed
-recipe. Austria-only is the better monitor.
-\item \textbf{Replicate padding instead of zero padding.} We expected
-replicate-mode padding (\texttt{F.pad(mode="replicate")}) for image
-inputs at train and inference to be a free win by keeping BatchNorm
-inputs in distribution. In practice it consistently \emph{hurt} object
-F1 by $8$--$10$\,pts on the Austria val set throughout training, while
-pixel IoU stayed within $\pm 0.02$ of zero padding. We attribute this
-to replicate creating a synthetic extension of field interior into the
-padded region: predictions near the patch edge then learn that fields
-do not end abruptly, which causes adjacent fields to merge as a single
-connected component and collapse instance separation. Zero padding
-gives the model a consistent (if artificial) ``everything is
-background here'' boundary cue at the patch edge that keeps watershed
-clean.
+\subsection{Things that did not}
+\begin{itemize}\itemsep0em
+\item \textbf{Soft clDice} on the boundary class~\cite{shit2021cldice} caused mode collapse (model painted everything field). Tried boundary and field classes, weights $\{0.2, 0.5\}$; abandoned.
+\item \textbf{Curriculum boundary dilation} ($3\!\rightarrow\!0$\,px). $-0.4$\,pts pixel IoU; the model handles boundary thickness fine on its own.
+\item \textbf{Frame-field head}~\cite{girard2021ffl} at weight $0.1$ alignment $+ 0.01$ smoothness on top of SDF: no gain and degrades the SDF watershed signal. A wider weight sweep and target rescaling under resize remain open.
+\item \textbf{CutMix} with a 2\,px ignore-buffer: $-1$\,pt pixel IoU, near-zero obj F1 change. Field structure does not transfer between patches the way object instances do.
+\item \textbf{Replicate padding} (zero $\rightarrow$ replicate for image inputs): we expected a free BN win; instead $-8$\,pts to $-10$\,pts Obj F1 throughout training, pixel IoU unchanged. Replicate makes the model believe fields continue past the patch edge and causes adjacent fields to merge into one watershed instance. Zero padding gives a consistent (if artificial) ``end-of-field'' cue.
+\item \textbf{Mixed-country val} (austria + cambodia + slovenia): noisier val/loss signal, picked worse held-out checkpoints; $-4$\,pts held-out IoU. We use austria only.
 \end{itemize}
-\end{recbox}
 
 \section{Limitations and future work}
 
