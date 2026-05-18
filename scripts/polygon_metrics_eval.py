@@ -27,22 +27,21 @@ import numpy as np
 import rasterio.features
 import shapely.geometry
 import torch
-from scipy.ndimage import distance_transform_edt
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 
 # Reuse all the inference + watershed infrastructure from postprocess_eval.
 from postprocess_eval import (
     COUNTRIES,
-    _has_sdf_head,
     _pad_min32,
     _predict,
     _predict_tta,
     watershed_instances,
 )
+from scipy.ndimage import distance_transform_edt
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
-from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 
 # IoU thresholds for AP@[0.5:0.05:0.95]
 AP_IOU_THRESHOLDS = np.round(np.arange(0.5, 0.96, 0.05), 2).tolist()
@@ -174,9 +173,7 @@ def evaluate_country(
             load_boundaries=True,
         )
         scale = PLANET_SR_SCALE
-    dl = DataLoader(
-        ds, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=True
-    )
+    dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     gsd_m = GSD_M[dataset_backend]
 
@@ -192,9 +189,7 @@ def evaluate_country(
     for batch in tqdm(dl, desc=country, leave=False):
         image = batch["image"].to(device) / scale
         mask = batch["mask"].to(device)
-        image, mask, H, W = _pad_min32(
-            image, mask, min_size=min_pad_size, pad_mode=pad_mode
-        )
+        image, mask, H, W = _pad_min32(image, mask, min_size=min_pad_size, pad_mode=pad_mode)
 
         if use_tta:
             probs, sdf = _predict_tta(task, model, image, sdf_clip)
@@ -280,12 +275,8 @@ def evaluate_country(
         "ap_5_95": ap,
         "n_pred_mean": float(np.mean(n_pred_per_patch)) if n_pred_per_patch else 0.0,
         "n_gt_mean": float(np.mean(n_gt_per_patch)) if n_gt_per_patch else 0.0,
-        "polygon_count_delta_mean": (
-            float(np.mean(polygon_deltas)) if polygon_deltas else 0.0
-        ),
-        "polygon_count_delta_median": (
-            float(np.median(polygon_deltas)) if polygon_deltas else 0.0
-        ),
+        "polygon_count_delta_mean": (float(np.mean(polygon_deltas)) if polygon_deltas else 0.0),
+        "polygon_count_delta_median": (float(np.median(polygon_deltas)) if polygon_deltas else 0.0),
         "boundary_error_m_mean": float(chamfer_m.mean()) if chamfer_m.size else float("nan"),
         "boundary_error_m_p95": (
             float(np.percentile(chamfer_m, 95)) if chamfer_m.size else float("nan")
@@ -308,9 +299,7 @@ def main() -> int:
     p.add_argument("--sdf-clip", type=float, default=20.0)
     p.add_argument("--min-pad-size", type=int, default=0)
     p.add_argument("--pad-mode", type=str, default="zero", choices=["zero", "replicate"])
-    p.add_argument(
-        "--dataset-backend", type=str, default="planet", choices=["planet", "s2"]
-    )
+    p.add_argument("--dataset-backend", type=str, default="planet", choices=["planet", "s2"])
     p.add_argument("--s2-data-scale", type=float, default=3000.0)
     args = p.parse_args()
 
