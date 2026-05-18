@@ -7,7 +7,9 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --gpus-per-node=1
 #SBATCH --mem=128G
-#SBATCH --time=15:00:00
+#SBATCH --time=24:00:00
+#SBATCH --signal=B:USR1@180
+#SBATCH --requeue
 #SBATCH --output=logs/train_%j.out
 #SBATCH --error=logs/train_%j.err
 
@@ -19,7 +21,13 @@ cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
 
 CONFIG="${CONFIG:-configs/prue/ftw_planet_efnet3.yaml}"
+CKPT_PATH="${CKPT_PATH:-}"
 
 nvidia-smi || true
 
-uv run --no-sync ftw model fit -c "$CONFIG"
+if [ -n "$CKPT_PATH" ]; then
+    echo "Resuming from checkpoint: $CKPT_PATH"
+    uv run --no-sync ftw model fit -c "$CONFIG" --ckpt_path "$CKPT_PATH"
+else
+    uv run --no-sync ftw model fit -c "$CONFIG"
+fi

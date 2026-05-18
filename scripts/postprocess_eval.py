@@ -71,22 +71,27 @@ COUNTRIES = [
 
 
 def _pad_min32(
-    image: torch.Tensor, mask: torch.Tensor, min_size: int = 0
+    image: torch.Tensor, mask: torch.Tensor, min_size: int = 0, pad_mode: str = "zero"
 ) -> tuple[torch.Tensor, torch.Tensor, int, int]:
     """Pad H,W to ``max(next-mult-of-32, min_size)``.
 
     ``min_size=0`` keeps the legacy behaviour (next mult-32 only).
     Setting ``min_size`` to the training crop size (e.g. 512) makes every
     inference patch at least as wide/tall as training crops, eliminating
-    the spatial-size drift between train and eval.
+    the spatial-size drift between train and eval. ``pad_mode="replicate"``
+    repeats edge image pixels (mask still gets ignore_index).
     """
     h, w = image.shape[-2], image.shape[-1]
     new_h = max(((h + 31) // 32) * 32, min_size)
     new_w = max(((w + 31) // 32) * 32, min_size)
     if (new_h, new_w) == (h, w):
         return image, mask, h, w
+    if pad_mode == "replicate":
+        img_padded = F.pad(image, (0, new_w - w, 0, new_h - h), mode="replicate")
+    else:
+        img_padded = F.pad(image, (0, new_w - w, 0, new_h - h), value=0.0)
     return (
-        F.pad(image, (0, new_w - w, 0, new_h - h), value=0.0),
+        img_padded,
         F.pad(mask, (0, new_w - w, 0, new_h - h), value=3),
         h,
         w,
@@ -218,10 +223,27 @@ def evaluate_country(
     h_min: float,
     sdf_clip: float,
     min_pad_size: int = 0,
+    pad_mode: str = "zero",
+    dataset_backend: str = "planet",
+    s2_data_scale: float = 3000.0,
 ) -> dict[str, float]:
-    ds = FTWPlanet(
-        root=root, countries=[country], split=split, transforms=None, load_boundaries=True
-    )
+    if dataset_backend == "s2":
+        from ftw_tools.training.datasets import FTW
+
+        ds = FTW(
+            root=root,
+            countries=[country],
+            split=split,
+            transforms=None,
+            load_boundaries=True,
+            temporal_options="stacked",
+        )
+        _scale = float(s2_data_scale)
+    else:
+        ds = FTWPlanet(
+            root=root, countries=[country], split=split, transforms=None, load_boundaries=True
+        )
+        _scale = PLANET_SR_SCALE
     dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     metrics = MetricCollection(
@@ -235,9 +257,9 @@ def evaluate_country(
     obj_ws_tps = obj_ws_fps = obj_ws_fns = 0  # watershed-derived
 
     for batch in tqdm(dl, desc=country, leave=False):
-        image = batch["image"].to(device) / PLANET_SR_SCALE
+        image = batch["image"].to(device) / _scale
         mask = batch["mask"].to(device)
-        image, mask, H, W = _pad_min32(image, mask, min_size=min_pad_size)
+        image, mask, H, W = _pad_min32(image, mask, min_size=min_pad_size, pad_mode=pad_mode)
 
         if use_tta:
             probs, sdf = _predict_tta(task, model, image, sdf_clip)
@@ -337,6 +359,21 @@ def main() -> int:
         default=0,
         help="Pad H,W to at least this size at inference (e.g. 512 to match training crop).",
     )
+    p.add_argument(
+        "--pad-mode",
+        type=str,
+        default="zero",
+        choices=["zero", "replicate"],
+        help="Padding mode for image inputs: 'zero' (default) or 'replicate' (keeps values in distribution).",
+    )
+    p.add_argument(
+        "--dataset-backend",
+        type=str,
+        default="planet",
+        choices=["planet", "s2"],
+        help="'planet' (FTW-Planet 3m, /10000) or 's2' (FTW S2 10m, /3000).",
+    )
+    p.add_argument("--s2-data-scale", type=float, default=3000.0)
     args = p.parse_args()
 
     device = torch.device(
@@ -407,6 +444,9 @@ def main() -> int:
                 args.h_min,
                 args.sdf_clip,
                 min_pad_size=args.min_pad_size,
+                pad_mode=args.pad_mode,
+                dataset_backend=args.dataset_backend,
+                s2_data_scale=args.s2_data_scale,
             )
         except Exception as e:
             import traceback

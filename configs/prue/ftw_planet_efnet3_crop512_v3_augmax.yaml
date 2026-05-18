@@ -3,15 +3,15 @@ trainer:
   log_every_n_steps: 10
   accelerator: gpu
   precision: bf16-mixed
-  default_root_dir: logs/prue/ftw_planet-unet-efnet3-crop512-v2-cutmix
+  default_root_dir: logs/prue/ftw_planet-unet-efnet3-crop512-v3-augmax
   devices: [0]
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       entity: isaaccorley
       project: ftw-planet
-      name: prue-efnet3-crop512-v2-cutmix
-      save_dir: logs/prue/ftw_planet-unet-efnet3-crop512-v2-cutmix
+      name: prue-efnet3-crop512-v3-augmax
+      save_dir: logs/prue/ftw_planet-unet-efnet3-crop512-v3-augmax
       log_model: false
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
@@ -48,7 +48,13 @@ data:
     resize_aug: true
     swap_order: true
     per_band_gamma_aug: true
-    cutmix_aug: true
+    per_band_affine_aug: true
+    gaussian_blur_aug: true
+    gaussian_noise_aug: true
+    single_window_dropout_p: 0.15
+    small_angle_rotation_aug: true
+    shear_aug: true
+    boundary_jitter_aug: true
     # v2 split: new val_countries (in-dist + 2 held-out for OOD signal)
     train_countries: [austria, brazil, corsica, denmark, estonia, finland, france, india, luxembourg, netherlands, rwanda, slovakia, spain, vietnam]
     val_countries: [austria]

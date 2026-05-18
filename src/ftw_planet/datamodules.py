@@ -23,16 +23,80 @@ from torch.utils.data import DataLoader
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
+
+def _ftw_s2_dataset(
+    root: str,
+    countries: list[str],
+    split: str,
+    transforms: Callable | None,
+    load_boundaries: bool,
+    swap_order: bool = False,
+    **_: Any,
+) -> Any:
+    """Construct the FTW Sentinel-2 dataset from ``ftw_tools`` and inject
+    ``country`` into each sample (needed for per-country val metrics).
+
+    Returns a thin proxy whose ``__getitem__`` adds ``country`` derived from
+    the file path. ``ftw_tools`` does not surface the country directly.
+    """
+    from ftw_tools.training.datasets import FTW as _FTW
+
+    base = _FTW(
+        root=root,
+        countries=countries,
+        split=split,
+        transforms=transforms,
+        load_boundaries=load_boundaries,
+        temporal_options="stacked",
+        swap_order=swap_order,
+    )
+
+    # Per-sample country lookup from the file path:
+    # data/ftw/<country>/s2_images/window_b/<id>.tif
+    country_for = [str(p["window_b"]).split("/ftw/")[-1].split("/")[0] for p in base.filenames]
+
+    class _Wrapped:
+        def __init__(self, base: Any, country_for: list[str]) -> None:
+            self._base = base
+            self._country_for = country_for
+            self.filenames = base.filenames
+
+        def __len__(self) -> int:
+            return len(self._base)
+
+        def __getitem__(self, i: int) -> dict:
+            s = self._base[i]
+            s["country"] = self._country_for[i]
+            return s
+
+    return _Wrapped(base, country_for)
+
+
 PAD_IGNORE_INDEX = 3  # mask pad value; matches trainer.model.ignore_index=3
 
 
-def _pad_to(x: Tensor, size: int, value: float = 0.0) -> Tensor:
+def _pad_to(x: Tensor, size: int, value: float = 0.0, mode: str = "constant") -> Tensor:
+    """Pad bottom/right to reach ``size`` in H/W.
+
+    ``mode="constant"`` uses ``value`` (used for masks: ``ignore_index=3``).
+    ``mode="replicate"`` repeats edge pixels, keeping image values in
+    distribution — preferred for image tensors so BatchNorm and the
+    convolutional features don't see OOD zeros.
+    """
     h, w = x.shape[-2], x.shape[-1]
     ph = max(size - h, 0)
     pw = max(size - w, 0)
     if ph == 0 and pw == 0:
         return x
     # F.pad order: (left, right, top, bottom)
+    if mode == "replicate":
+        # `replicate` requires 4-D input; expand if needed and squeeze after.
+        squeeze = False
+        if x.dim() == 3:
+            x = x.unsqueeze(0)
+            squeeze = True
+        out = torch.nn.functional.pad(x, (0, pw, 0, ph), mode="replicate")
+        return out.squeeze(0) if squeeze else out
     return torch.nn.functional.pad(x, (0, pw, 0, ph), value=value)
 
 
@@ -60,16 +124,23 @@ def _random_crop(image: Tensor, mask: Tensor, size: int) -> tuple[Tensor, Tensor
     )
 
 
-def _make_crop_transform(size: int, train: bool) -> Callable[[dict], dict]:
-    """Crop image, mask, and (optionally) sdf with identical geometry."""
+def _make_crop_transform(size: int, train: bool, pad_mode: str = "zero") -> Callable[[dict], dict]:
+    """Crop image, mask, and (optionally) sdf with identical geometry.
+
+    ``pad_mode``: ``"zero"`` (default) pads image with zeros; ``"replicate"``
+    pads image with edge-replication so BN inputs stay in distribution.
+    Mask always pads with ``ignore_index`` so loss/metrics skip the pad.
+    """
 
     def _t(sample: dict) -> dict:
         img = sample["image"]
         msk = sample["mask"]
-        # Pad all tensors to ``size``. Image: zeros, mask: ignore_index, sdf:
-        # clip value (treated as "far from boundary"). Use a high but finite
-        # constant so L1 stays bounded.
-        img = _pad_to(img, size, value=0.0)
+        # Pad all tensors to ``size``. Image: zeros or replicate; mask:
+        # ignore_index; sdf: clip value (treated as "far from boundary").
+        if pad_mode == "replicate":
+            img = _pad_to(img, size, mode="replicate")
+        else:
+            img = _pad_to(img, size, value=0.0)
         msk = _pad_to(msk, size, value=PAD_IGNORE_INDEX)
         sdf = None
         if "sdf" in sample:
@@ -118,6 +189,30 @@ class FTWPlanetDataModule(LightningDataModule):
         cutmix_p: float = 0.5,
         cutmix_scale: tuple[float, float] = (0.25, 0.5),
         cutmix_buffer: int = 2,
+        # v3 augs
+        per_band_affine_aug: bool = False,
+        per_band_affine_a_range: tuple[float, float] = (0.9, 1.1),
+        per_band_affine_b_range: tuple[float, float] = (-0.02, 0.02),
+        per_band_affine_p: float = 0.3,
+        gaussian_blur_aug: bool = False,
+        gaussian_blur_sigma: tuple[float, float] = (0.5, 1.5),
+        gaussian_blur_p: float = 0.3,
+        gaussian_noise_aug: bool = False,
+        gaussian_noise_std: float = 0.015,
+        gaussian_noise_p: float = 0.3,
+        single_window_dropout_p: float = 0.0,
+        small_angle_rotation_aug: bool = False,
+        small_angle_rotation_degrees: float = 30.0,
+        small_angle_rotation_p: float = 0.5,
+        shear_aug: bool = False,
+        shear_degrees: float = 5.0,
+        shear_p: float = 0.3,
+        boundary_jitter_aug: bool = False,
+        boundary_jitter_max_px: int = 2,
+        boundary_jitter_p: float = 0.5,
+        pad_mode: str = "zero",
+        dataset_backend: str = "planet",
+        s2_data_scale: float = 3000.0,
         **_: Any,
     ) -> None:
         super().__init__()
@@ -143,9 +238,15 @@ class FTWPlanetDataModule(LightningDataModule):
             self.boundary_dilate_schedule = None
         self.return_sdf = bool(return_sdf)
 
-        # 8 channels = window B (4) + window A (4); /10000 to reflectance.
+        # 8 channels = window B (4) + window A (4); divisor depends on
+        # source: /10000 for PlanetScope SR, /3000 for Sentinel-2 (FTW
+        # convention).
+        if dataset_backend not in ("planet", "s2"):
+            raise ValueError(f"dataset_backend must be 'planet' or 's2', got {dataset_backend!r}")
+        self.dataset_backend = dataset_backend
+        self._data_scale = PLANET_SR_SCALE if dataset_backend == "planet" else float(s2_data_scale)
         self.mean = torch.zeros(8)
-        self.std = torch.full((8,), PLANET_SR_SCALE)
+        self.std = torch.full((8,), self._data_scale)
         self.preprocess_aug = bool(preprocess_aug)
         self.resize_aug = bool(resize_aug)
         self.swap_order = bool(swap_order)
@@ -156,15 +257,48 @@ class FTWPlanetDataModule(LightningDataModule):
         self.cutmix_p = float(cutmix_p)
         self.cutmix_scale = (float(cutmix_scale[0]), float(cutmix_scale[1]))
         self.cutmix_buffer = int(cutmix_buffer)
+        # v3 augs
+        self.per_band_affine_aug = bool(per_band_affine_aug)
+        self.per_band_affine_a_range = (
+            float(per_band_affine_a_range[0]),
+            float(per_band_affine_a_range[1]),
+        )
+        self.per_band_affine_b_range = (
+            float(per_band_affine_b_range[0]),
+            float(per_band_affine_b_range[1]),
+        )
+        self.per_band_affine_p = float(per_band_affine_p)
+        self.gaussian_blur_aug = bool(gaussian_blur_aug)
+        self.gaussian_blur_sigma = (float(gaussian_blur_sigma[0]), float(gaussian_blur_sigma[1]))
+        self.gaussian_blur_p = float(gaussian_blur_p)
+        self.gaussian_noise_aug = bool(gaussian_noise_aug)
+        self.gaussian_noise_std = float(gaussian_noise_std)
+        self.gaussian_noise_p = float(gaussian_noise_p)
+        self.single_window_dropout_p = float(single_window_dropout_p)
+        self.small_angle_rotation_aug = bool(small_angle_rotation_aug)
+        self.small_angle_rotation_degrees = float(small_angle_rotation_degrees)
+        self.small_angle_rotation_p = float(small_angle_rotation_p)
+        self.shear_aug = bool(shear_aug)
+        self.shear_degrees = float(shear_degrees)
+        self.shear_p = float(shear_p)
+        self.boundary_jitter_aug = bool(boundary_jitter_aug)
+        self.boundary_jitter_max_px = int(boundary_jitter_max_px)
+        self.boundary_jitter_p = float(boundary_jitter_p)
+        if pad_mode not in ("zero", "replicate"):
+            raise ValueError(f"pad_mode must be 'zero' or 'replicate', got {pad_mode!r}")
+        self.pad_mode = pad_mode
 
-        # Normalization branch: either fixed /PLANET_SR_SCALE or random divisor
-        # in [0.5x, 1.5x] of PLANET_SR_SCALE (mirrors FTW PRUE preprocess_aug,
-        # which uses [1500, 4500] around the /3000 fixed value).
+        # Normalization branch: either fixed /``self._data_scale`` or random
+        # divisor in [0.5x, 1.5x] of the fixed scale (mirrors FTW PRUE
+        # preprocess_aug, which uses [1500, 4500] around the /3000 fixed
+        # value for S2; we use [5000, 15000] around /10000 for PlanetScope).
+        _scale = self._data_scale
+
         def random_divisor_normalize(x: Tensor) -> Tensor:
             if x.dim() != 4:
                 return x
             divisors = torch.empty(x.size(0), 1, 1, 1, device=x.device, dtype=x.dtype).uniform_(
-                PLANET_SR_SCALE * 0.5, PLANET_SR_SCALE * 1.5
+                _scale * 0.5, _scale * 1.5
             )
             return x / divisors
 
@@ -183,6 +317,24 @@ class FTWPlanetDataModule(LightningDataModule):
             )
             return x.clamp(min=1e-6) ** gammas
 
+        # Per-band random affine y = a*x + b. Strict generalization of gamma:
+        # models inter-Dove-satellite radiometric offsets + atmospheric biases.
+        _aff_a_lo, _aff_a_hi = self.per_band_affine_a_range
+        _aff_b_lo, _aff_b_hi = self.per_band_affine_b_range
+        _aff_p = self.per_band_affine_p
+
+        def per_band_affine(x: Tensor) -> Tensor:
+            if x.dim() != 4 or torch.rand(1).item() > _aff_p:
+                return x
+            B, C = x.shape[0], x.shape[1]
+            a = torch.empty(B, C, 1, 1, device=x.device, dtype=x.dtype).uniform_(
+                _aff_a_lo, _aff_a_hi
+            )
+            b = torch.empty(B, C, 1, 1, device=x.device, dtype=x.dtype).uniform_(
+                _aff_b_lo, _aff_b_hi
+            )
+            return a * x + b
+
         train_augs: list[Any] = [
             kornia.contrib.Lambda(random_divisor_normalize)
             if self.preprocess_aug
@@ -192,8 +344,39 @@ class FTWPlanetDataModule(LightningDataModule):
             K.RandomVerticalFlip(p=0.5),
             K.RandomSharpness(p=0.5),
         ]
+        if self.small_angle_rotation_aug:
+            train_augs.append(
+                K.RandomAffine(
+                    degrees=self.small_angle_rotation_degrees,
+                    p=self.small_angle_rotation_p,
+                )
+            )
+        if self.shear_aug:
+            train_augs.append(
+                K.RandomAffine(
+                    degrees=0.0,
+                    shear=self.shear_degrees,
+                    p=self.shear_p,
+                )
+            )
         if self.per_band_gamma_aug:
             train_augs.append(kornia.contrib.Lambda(per_band_gamma))
+        if self.per_band_affine_aug:
+            train_augs.append(kornia.contrib.Lambda(per_band_affine))
+        if self.gaussian_blur_aug:
+            train_augs.append(
+                K.RandomGaussianBlur(
+                    kernel_size=(3, 3),
+                    sigma=self.gaussian_blur_sigma,
+                    p=self.gaussian_blur_p,
+                )
+            )
+        if self.gaussian_noise_aug:
+            train_augs.append(
+                K.RandomGaussianNoise(
+                    mean=0.0, std=self.gaussian_noise_std, p=self.gaussian_noise_p
+                )
+            )
         if self.resize_aug:
             train_augs.append(
                 K.RandomResizedCrop(
@@ -209,44 +392,81 @@ class FTWPlanetDataModule(LightningDataModule):
         )
 
     def setup(self, stage: str) -> None:
+        ds_ctor: Any
+        extra: dict[str, Any]
+        if self.dataset_backend == "s2":
+            # S2 native patches are 256x256, no padding needed; use FTW
+            # dataset via ftw_tools with country-injected wrapper.
+            ds_ctor = _ftw_s2_dataset
+            extra = {}  # S2 dataset doesn't take usable_only/boundary_dilate/return_sdf
+        else:
+            ds_ctor = FTWPlanet
+            extra = {
+                "usable_only": self.usable_only,
+                "boundary_dilate_px": 0,  # set below in train branch
+                "return_sdf": self.return_sdf,
+                "swap_order": self.swap_order,
+            }
+
         if stage == "fit":
             # If a schedule is set, defer dilation to on_after_batch_transfer
             # (GPU). The dataset always returns the original (un-dilated)
             # boundary, and the SDF target is also computed on the original.
             ds_dilate = 0 if self.boundary_dilate_schedule is not None else self.boundary_dilate_px
-            self.train_dataset = FTWPlanet(
+            train_extra = dict(extra)
+            if self.dataset_backend == "planet":
+                train_extra["boundary_dilate_px"] = ds_dilate
+            else:
+                # FTW S2 dataset supports swap_order natively
+                train_extra["swap_order"] = self.swap_order
+            self.train_dataset = ds_ctor(
                 root=self.root,
                 countries=self.train_countries,
                 split="train",
-                transforms=_make_crop_transform(self.crop_size, train=True),
+                transforms=_make_crop_transform(self.crop_size, train=True, pad_mode=self.pad_mode),
                 load_boundaries=self.load_boundaries,
-                usable_only=self.usable_only,
-                boundary_dilate_px=ds_dilate,
-                return_sdf=self.return_sdf,
-                swap_order=self.swap_order,
+                **train_extra,
             )
-            print(f"[ftw-planet] train samples: {len(self.train_dataset)}")
+            print(f"[ftw-{self.dataset_backend}] train samples: {len(self.train_dataset)}")
         if stage in ("fit", "validate"):
             # val/test always uses the original 1-px boundary for fair metrics.
-            self.val_dataset = FTWPlanet(
+            val_extra = dict(extra)
+            if self.dataset_backend == "planet":
+                val_extra["boundary_dilate_px"] = 0
+                val_extra["return_sdf"] = False
+                val_extra["swap_order"] = False
+            else:
+                val_extra["swap_order"] = False
+            self.val_dataset = ds_ctor(
                 root=self.root,
                 countries=self.val_countries,
                 split="val",
-                transforms=_make_crop_transform(self.crop_size, train=False),
+                transforms=_make_crop_transform(
+                    self.crop_size, train=False, pad_mode=self.pad_mode
+                ),
                 load_boundaries=self.load_boundaries,
-                usable_only=self.usable_only,
+                **val_extra,
             )
-            print(f"[ftw-planet] val samples: {len(self.val_dataset)}")
+            print(f"[ftw-{self.dataset_backend}] val samples: {len(self.val_dataset)}")
         if stage == "test":
-            self.test_dataset = FTWPlanet(
+            test_extra = dict(extra)
+            if self.dataset_backend == "planet":
+                test_extra["boundary_dilate_px"] = 0
+                test_extra["return_sdf"] = False
+                test_extra["swap_order"] = False
+            else:
+                test_extra["swap_order"] = False
+            self.test_dataset = ds_ctor(
                 root=self.root,
                 countries=self.test_countries,
                 split="test",
-                transforms=_make_crop_transform(self.crop_size, train=False),
+                transforms=_make_crop_transform(
+                    self.crop_size, train=False, pad_mode=self.pad_mode
+                ),
                 load_boundaries=self.load_boundaries,
-                usable_only=self.usable_only,
+                **test_extra,
             )
-            print(f"[ftw-planet] test samples: {len(self.test_dataset)}")
+            print(f"[ftw-{self.dataset_backend}] test samples: {len(self.test_dataset)}")
 
     def _loader(self, ds: FTWPlanet, shuffle: bool) -> DataLoader:
         kw: dict[str, Any] = {
@@ -273,15 +493,18 @@ class FTWPlanetDataModule(LightningDataModule):
     def _gpu_dilate_boundary(self, mask: Tensor, iters: int) -> Tensor:
         if iters <= 0:
             return mask
-        b = (mask == 2).float().unsqueeze(1)  # (B,1,H,W)
+        # Accept both (B,H,W) and (B,1,H,W); normalize to (B,1,H,W) for max_pool.
+        squeezed = mask.dim() == 3
+        m = mask.unsqueeze(1) if squeezed else mask
+        b = (m == 2).float()
         for _ in range(iters):
             b = torch.nn.functional.max_pool2d(b, kernel_size=3, stride=1, padding=1)
-        b = b.squeeze(1) > 0.5
-        out = mask.clone()
+        b = b > 0.5
+        out = m.clone()
         # Don't overwrite ignore_index pixels (e.g. padded regions).
-        valid = mask != PAD_IGNORE_INDEX
+        valid = m != PAD_IGNORE_INDEX
         out[b & valid] = 2
-        return out
+        return out.squeeze(1) if squeezed else out
 
     def _current_curriculum_px(self) -> int:
         sched = self.boundary_dilate_schedule
@@ -350,6 +573,31 @@ class FTWPlanetDataModule(LightningDataModule):
             batch["sdf"] = sdf.squeeze(1) if squeezed_sdf else sdf
         return batch
 
+    def _single_window_dropout(self, image: Tensor) -> Tensor:
+        """Zero out either window B (channels 0:4) or window A (channels 4:8)
+        for the whole batch with probability ``single_window_dropout_p``.
+        """
+        if self.single_window_dropout_p <= 0 or torch.rand(1).item() > self.single_window_dropout_p:
+            return image
+        image = image.clone()
+        if torch.rand(1).item() < 0.5:
+            image[:, 0:4] = 0.0
+        else:
+            image[:, 4:8] = 0.0
+        return image
+
+    def _random_boundary_jitter(self, mask: Tensor) -> Tensor:
+        """Randomly dilate the boundary class by 0 .. boundary_jitter_max_px
+        with probability ``boundary_jitter_p`` per batch. Models the
+        thickness ambiguity of the GT under 3m all-touched rasterization.
+        """
+        if not self.boundary_jitter_aug or torch.rand(1).item() > self.boundary_jitter_p:
+            return mask
+        iters = int(torch.randint(0, self.boundary_jitter_max_px + 1, (1,)).item())
+        if iters <= 0:
+            return mask
+        return self._gpu_dilate_boundary(mask, iters)
+
     def on_after_batch_transfer(self, batch: dict, dataloader_idx: int = 0) -> dict:
         trainer = self.trainer
         training = trainer is not None and trainer.training
@@ -364,6 +612,9 @@ class FTWPlanetDataModule(LightningDataModule):
         batch = aug(batch)
         if country is not None:
             batch["country"] = country
-        if training and self.cutmix_aug:
-            batch = self._cutmix_with_buffer(batch)
+        if training:
+            batch["image"] = self._single_window_dropout(batch["image"])
+            batch["mask"] = self._random_boundary_jitter(batch["mask"])
+            if self.cutmix_aug:
+                batch = self._cutmix_with_buffer(batch)
         return batch

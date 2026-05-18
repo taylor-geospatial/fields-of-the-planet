@@ -48,7 +48,7 @@ data:
     resize_aug: true
     # v2 split: new val_countries (in-dist + 2 held-out for OOD signal)
     train_countries: [austria, brazil, corsica, denmark, estonia, finland, france, india, luxembourg, netherlands, rwanda, slovakia, spain, vietnam]
-    val_countries: [austria, cambodia, slovenia]
+    val_countries: [austria]
     test_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
   dict_kwargs:
     root: data

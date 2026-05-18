@@ -6,6 +6,7 @@ Obj F1; bottom: Δ Pixel IoU. Bars sorted by Δ Obj F1.
 Writes paper/figs/per_country_bars.pdf.
 """
 
+import glob
 from pathlib import Path
 
 import matplotlib as mpl
@@ -13,21 +14,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-mpl.rcParams.update({
-    "font.family": "serif",
-    "font.size": 9,
-    "axes.labelsize": 9,
-    "xtick.labelsize": 7,
-    "ytick.labelsize": 8,
-    "legend.fontsize": 8,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-})
+mpl.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.size": 9,
+        "axes.labelsize": 9,
+        "xtick.labelsize": 7,
+        "ytick.labelsize": 8,
+        "legend.fontsize": 8,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+    }
+)
 
 FIGS = Path(__file__).parent / "figs"
 FIGS.mkdir(exist_ok=True, parents=True)
-
-import glob
 
 s2_files = [f for f in sorted(glob.glob("logs/ftw_official/b7_*.csv")) if "per_country" not in f]
 s2 = pd.concat([pd.read_csv(f) for f in s2_files], ignore_index=True)
@@ -57,8 +58,14 @@ ax1.set_yticks(y)
 ax1.set_yticklabels(m.country.str.replace("_", " "))
 ax1.grid(axis="x", linewidth=0.4, alpha=0.5)
 for yi, v in zip(y, m.d_f1):
-    ax1.text(v + (0.003 if v >= 0 else -0.003), yi, f"{v:+.3f}", va="center",
-             ha="left" if v >= 0 else "right", fontsize=7)
+    ax1.text(
+        v + (0.003 if v >= 0 else -0.003),
+        yi,
+        f"{v:+.3f}",
+        va="center",
+        ha="left" if v >= 0 else "right",
+        fontsize=7,
+    )
 ax1.set_xlim(-0.1, 0.16)
 
 # Bottom: Δ Pixel IoU (same country order)
@@ -70,8 +77,14 @@ ax2.set_yticks(y)
 ax2.set_yticklabels(m.country.str.replace("_", " "))
 ax2.grid(axis="x", linewidth=0.4, alpha=0.5)
 for yi, v in zip(y, m.d_iou):
-    ax2.text(v + (0.005 if v >= 0 else -0.005), yi, f"{v:+.3f}", va="center",
-             ha="left" if v >= 0 else "right", fontsize=7)
+    ax2.text(
+        v + (0.005 if v >= 0 else -0.005),
+        yi,
+        f"{v:+.3f}",
+        va="center",
+        ha="left" if v >= 0 else "right",
+        fontsize=7,
+    )
 ax2.set_xlim(-0.55, 0.15)
 
 fig.suptitle(
