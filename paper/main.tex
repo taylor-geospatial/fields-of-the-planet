@@ -1,6 +1,6 @@
-\documentclass[10pt,twocolumn,letterpaper]{article}
+\documentclass{article}
 
-\usepackage[review]{cvpr}
+\usepackage{microtype}
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
@@ -8,32 +8,43 @@
 \usepackage{caption}
 \usepackage{xcolor}
 \usepackage{fontawesome5}
-\usepackage[colorlinks=true,allcolors=earthDark]{hyperref}
-\usepackage[capitalize]{cleveref}
+\usepackage{hyperref}
+% Pass [accepted] to icml2026 so author names are visible (preprint mode).
+\usepackage[accepted]{icml2026}
+\usepackage[capitalize,noabbrev]{cleveref}
 
 % Earthy greenish-brown palette (FTW-HD theme).
 \definecolor{earthDark}{rgb}{0.30, 0.40, 0.18}      % deep moss/olive
 \definecolor{earthSienna}{rgb}{0.55, 0.34, 0.20}    % warm umber / sienna
 
-\def\cvprPaperID{****}
-\def\confName{CVPR}
-\def\confYear{2026}
-
-\title{FTW-HD\,\textcolor{earthSienna}{\faTv}: Bringing Fields of the World into High Definition}
-
-\author{Anonymous EarthVision submission\\
-Paper ID \cvprPaperID}
+\icmltitlerunning{FTW-HD: Bringing Fields of the World into HD}
 
 \begin{document}
-\twocolumn[{%
-\renewcommand\twocolumn[1][]{#1}%
-\maketitle
-\begin{center}
+
+\twocolumn[
+\icmltitle{FTW-HD\,\textcolor{earthSienna}{\faTv}: Bringing Fields of the World into High Definition}
+
+\icmlsetsymbol{equal}{*}
+
+\begin{icmlauthorlist}
+\icmlauthor{Isaac~Corley}{tgi}
+\end{icmlauthorlist}
+
+\icmlaffiliation{tgi}{Taylor Geospatial Institute, USA}
+\icmlcorrespondingauthor{Isaac~Corley}{isaac.corley@taylorgeospatial.org}
+\icmlkeywords{Remote Sensing, Field Boundary Segmentation, PlanetScope, Agriculture}
+
+\vskip 0.3in
+]
+
+\printAffiliationsAndNotice{}
+
+\begin{figure*}[!t]
+    \centering
     \includegraphics[width=0.95\linewidth]{hero.pdf}
-    \captionof{figure}{\textbf{FTW-HD pairs every Fields of The World patch with co-registered 3\,m PlanetScope imagery and a freshly rasterized 3-class label.} Twelve sample patches spanning the dataset's geographic range. Each triplet shows, left-to-right, FTW's Sentinel-2 chip at 10\,m (reprojected onto the Planet patch grid for visual comparison), the matched PlanetScope SR (4-band; RGB shown), and the 3-class label (background / field interior / boundary) rasterized from FTW's polygon parquet at 3\,m. Reflectance shown is band value $/\,3000$ clipped to $[0,1]$. Boundary class is buffered by 3\,m ($\approx 2$\,px). All samples filtered to UDM2 clear $\geq 99\%$.}
+    \caption{\textbf{FTW-HD pairs every Fields of The World patch with co-registered 3\,m PlanetScope imagery and a freshly rasterized 3-class label.} Twelve sample patches spanning the dataset's geographic range. Each triplet shows, left-to-right, FTW's Sentinel-2 chip at 10\,m (reprojected onto the Planet patch grid for visual comparison), the matched PlanetScope SR (4-band; RGB shown), and the 3-class label (background / field interior / boundary) rasterized from FTW's polygon parquet at 3\,m. Reflectance shown is band value $/\,3000$ clipped to $[0,1]$. Boundary class is buffered by 3\,m ($\approx 2$\,px). All samples filtered to UDM2 clear $\geq 99\%$.}
     \label{fig:hero}
-\end{center}%
-}]
+\end{figure*}
 \begin{abstract}
 Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which is too coarse to see the smallest fields. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}. The dataset covers 25 countries and 134{,}267 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads.
 We also train a baseline. An EfficientNet-B3 \cite{tan2019efficientnet} U-Net \cite{ronneberger2015unet} with our \emph{augmax} augmentation recipe -- the FTW PRUE recipe plus per-band gamma and affine jitter, single-window dropout, small-angle rotation and shear, Gaussian blur and noise, and boundary-thickness jitter -- beats the released FTW S2 PRUE-B7 (trained on all 25 countries) on every metric that is not biased by pixel grid: PQ \cite{kirillov2019panoptic} 0.324 vs 0.283, AP\,[0.5:0.95] 0.263 vs 0.225, and mean boundary error in meters 7.4 vs 14.8. Our model uses a $4\times$ smaller backbone. Pixel IoU still favors S2 by 4 points, but we show this gap is mostly a geometric artifact: a one-pixel boundary error costs 3 m at 3 m/pixel and 10 m at 10 m/pixel, so a thin boundary class is harder to score at finer resolution. The recipe also helps S2 itself, though PlanetScope's 3$\times$ GSD compounds the gain in Nordic and smallholder regions specifically.
@@ -428,7 +439,7 @@ does not separate them into individual fields.
 
 FTW-HD is a 3\,m PlanetScope companion to Fields of The World. We did the boring engineering -- range-read the COGs, reactivate the broken URLs, rasterize the labels onto the new grid -- so that others don't have to. We also showed that a small B3 model trained with the right augmentations does as well as or better than the released $4\times$ larger Sentinel-2 baseline on every metric that does not bake in a pixel-grid bias. Field boundaries are where most of the loss happens, and a 3$\times$ finer grid is the cheapest way to localize them.
 
-\bibliographystyle{ieeenat_fullname}
+\bibliographystyle{icml2026}
 \bibliography{refs}
 
 \end{document}
