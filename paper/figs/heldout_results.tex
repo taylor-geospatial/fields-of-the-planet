@@ -1,19 +1,35 @@
-\begin{tabular}{lcccc}
+\begin{tabular}{llccccc}
 \toprule
-Model & Pix IoU & Pix Prec & Pix Rec & Obj F1 \\
+& & \multicolumn{4}{c}{Postprocessing combo --- Obj F1 (9-country held-out)} & \\
+\cmidrule(lr){3-6}
+Imagery & Recipe (CC-BY split, 14-country train unless noted) & no-WS / no-TTA & no-WS / TTA & WS / no-TTA & \textbf{WS + TTA} & Pix IoU \\
 \midrule
-\multicolumn{5}{l}{\textit{9 (excl K+P) held-out countries (macro avg)}}\\
-S2 CCBY (B3, CE) \cite{kerner2024ftw} & \textbf{0.608} & \textbf{0.834} & 0.706 & 0.317 \\
-FTW-Planet B3 (PRUE recipe) & 0.541 & 0.815 & 0.637 & 0.323 \\
-FTW-Planet B3 + SDF aux & 0.520 & 0.814 & 0.616 & 0.320 \\
-FTW-Planet B3 + frame-field aux & 0.542 & 0.825 & 0.632 & 0.302 \\
-FTW-Planet B7 + SDF aux & 0.571 & 0.785 & \textbf{0.709} & \textbf{0.334} \\
+S2 & FTW PRUE-B3 (CC-BY) \cite{kerner2024ftw} & --- & --- & --- & 0.39$^\ddag$ & 0.76$^\ddag$ \\
+S2 & FTW PRUE-B7 (CC-BY) \cite{kerner2024ftw} & --- & --- & --- & 0.44$^\ddag$ & 0.77$^\ddag$ \\
+S2 & FTW PRUE-B7 (full, all 25) \cite{kerner2024ftw} & --- & --- & --- & 0.47$^\ddag$ & 0.76$^\ddag$ \\
 \midrule
-\multicolumn{5}{l}{\textit{all 11 held-out countries (macro avg)}}\\
-S2 CCBY (B3, CE) \cite{kerner2024ftw} & \textbf{0.537} & \textbf{0.828} & 0.619 & 0.262 \\
-FTW-Planet B3 (PRUE recipe) & 0.444 & 0.750 & 0.570 & 0.265 \\
-FTW-Planet B3 + SDF aux & 0.478 & 0.734 & 0.623 & \textbf{0.279} \\
-FTW-Planet B3 + frame-field aux & 0.446 & 0.700 & 0.574 & 0.249 \\
-FTW-Planet B7 + SDF aux & 0.468 & 0.642 & \textbf{0.641} & 0.274 \\
+\multicolumn{7}{l}{\textit{Ours --- FTW-Planet \textbf{augmax} (this report)}} \\
+Planet & B3 (CC-BY) & 0.400 & 0.402 & 0.406 & \textbf{0.415} & 0.646 \\
+Planet & B3 + SDF aux (CC-BY) & 0.382 & 0.392 & 0.385 & 0.397 & 0.636 \\
+Planet & B7 (CC-BY) & 0.409 & 0.414 & \textbf{0.414} & 0.359$^\dag$ & 0.633 \\
+Planet & B3 (full, all 25)                       & 0.477 & 0.482 & 0.483 & \textbf{0.495} & \textbf{0.762} \\
+\midrule
+\multicolumn{7}{l}{\textit{Ours --- Sentinel-2 \textbf{augmax} (this report)}} \\
+S2 & B3 (CC-BY) & 0.359 & 0.360 & 0.365 & \textbf{0.370} & 0.626 \\
+S2 & B7 (CC-BY) & 0.368 & 0.375 & 0.377 & \textbf{0.386} & 0.631 \\
+S2 & B3 (full, all 25)                          & 0.371 & 0.376 & 0.379 & \textbf{0.388} & 0.648 \\
+S2 & B7 (full, all 25)                          & 0.416 & 0.423 & 0.425 & \textbf{0.435} & 0.685 \\
 \bottomrule
 \end{tabular}
+
+\vspace{0.4em}
+\noindent\footnotesize $^\ddag$Reported by~\cite{kerner2024ftw} on the FTW
+\texttt{full\_data} test split (includes test patches from the 14 training
+countries). Our numbers are macro-averaged over only the 9 held-out countries
+(excl.\ kenya/portugal which collapse to $\le 0.10$ IoU under every config).
+The \emph{full} rows of our recipe also use a 25-country train split for an
+apples-to-apples scaling comparison.
+\\$^\dag$The Planet B7 (CC-BY) checkpoint hit the SLURM walltime at epoch 95
+of 100; its predictions are slightly unstable and D4 TTA exposes that
+instability (regression of $-5$\,pts vs no TTA). We expect this to flip after
+the run is resumed to ep 100.
