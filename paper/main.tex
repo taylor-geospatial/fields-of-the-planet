@@ -17,7 +17,7 @@
 \definecolor{earthDark}{rgb}{0.30, 0.40, 0.18}      % deep moss/olive
 \definecolor{earthSienna}{rgb}{0.55, 0.34, 0.20}    % warm umber / sienna
 
-\icmltitlerunning{FTW-HD: Bringing Fields of the World into HD}
+\icmltitlerunning{FTW-HD}
 
 \begin{document}
 
@@ -285,12 +285,12 @@ augmentation contribution dwarfs the parameter-count contribution at
 this dataset size. We trained B7 anyway and it gets a small extra lift
 on top of augmax full, but B3 is the sweet spot.
 
-\begin{figure}[t]
+\begin{figure*}[t]
     \centering
-    \includegraphics[width=\linewidth]{figs/aug_ablation.pdf}
+    \includegraphics[width=0.92\linewidth]{figs/aug_ablation.pdf}
     \caption{\textbf{Cumulative augmentation lift on Obj F1.} 9-country held-out, WS+TTA inference. Left: FTW-HD recipe progression goes from $0.323$ (PRUE, no extra augs) to $0.495$ (augmax, B3 full data), a $+17.2$\,pt absolute gain. Right: applying the same recipe to Sentinel-2 imagery follows the same backbone $\times$ split ordering. Dotted lines mark the released FTW S2 PRUE reference numbers~\cite{kerner2024ftw}.}
     \label{fig:aug_ablation}
-\end{figure}
+\end{figure*}
 
 \begin{table*}[t]
     \centering
@@ -370,7 +370,7 @@ does not separate them into individual fields.
     \input{figs/full_data_compare.tex}
 \end{table}
 
-\begin{table}[t]
+\begin{table*}[t]
     \centering
     \scriptsize
     \caption{Per-country pixel IoU on the 11 held-out countries:
@@ -381,9 +381,9 @@ does not separate them into individual fields.
     lithuania, slovenia, south africa).}
     \label{tab:heldout_pc}
     \input{figs/heldout_per_country.tex}
-\end{table}
+\end{table*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
     \centering
     \includegraphics[width=\linewidth]{figs/per_country_bars.pdf}
     \caption{\textbf{Per-country deltas, full\_data} (Planet B3 augmax
@@ -392,7 +392,7 @@ does not separate them into individual fields.
     rwanda is the extreme case of high pixel coverage with poor instance
     separation on the S2 side.}
     \label{fig:per_country_bars}
-\end{figure}
+\end{figure*}
 
 \begin{table*}[t]
     \centering
