@@ -30,7 +30,7 @@
 \icmlauthor{Isaac~Corley}{tgi}
 \end{icmlauthorlist}
 
-\icmlaffiliation{tgi}{Taylor Geospatial Institute, USA}
+\icmlaffiliation{tgi}{Taylor Geospatial, USA}
 \icmlcorrespondingauthor{Isaac~Corley}{isaac.corley@taylorgeospatial.org}
 \icmlkeywords{Remote Sensing, Field Boundary Segmentation, PlanetScope, Agriculture}
 
@@ -46,7 +46,7 @@
     \label{fig:hero}
 \end{figure*}
 \begin{abstract}
-Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which is too coarse to see the smallest fields. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}. The dataset covers 25 countries and 134{,}267 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads.
+Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which is too coarse to see the smallest fields. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}. The dataset covers 25 countries and 134{,}267 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads. We release imagery, labels, and code at \url{https://source.coop/taylor-geospatial/ftw-hd}.\footnote{URL will resolve at camera-ready; staging copy available to reviewers on request.}
 We also train a baseline. An EfficientNet-B3 \cite{tan2019efficientnet} U-Net \cite{ronneberger2015unet} with our \emph{augmax} augmentation recipe -- the FTW PRUE recipe plus per-band gamma and affine jitter, single-window dropout, small-angle rotation and shear, Gaussian blur and noise, and boundary-thickness jitter -- beats the released FTW S2 PRUE-B7 (trained on all 25 countries) on every metric that is not biased by pixel grid: PQ \cite{kirillov2019panoptic} 0.324 vs 0.283, AP\,[0.5:0.95] 0.263 vs 0.225, and mean boundary error in meters 7.4 vs 14.8. Our model uses a $4\times$ smaller backbone. Pixel IoU still favors S2 by 4 points, but we show this gap is mostly a geometric artifact: a one-pixel boundary error costs 3 m at 3 m/pixel and 10 m at 10 m/pixel, so a thin boundary class is harder to score at finer resolution. The recipe also helps S2 itself, though PlanetScope's 3$\times$ GSD compounds the gain in Nordic and smallholder regions specifically.
 \end{abstract}
 
@@ -62,9 +62,9 @@ The hard part was getting the imagery. PlanetScope's Orders API is slow and tile
 \begin{itemize}
 \itemsep0em
     \item A paired 3\,m PlanetScope + UDM2 + 3-class label dataset across all 25 FTW countries: 134{,}267 (patch, window) pairs.
-    \item A range-read pipeline that pulls 134k patches off 6{,}113 PlanetScope COGs on a single HPC node in 17\,h, with no Orders API use.
+    \item A range-read pipeline that pulls 134k patches off 6{,}113 PlanetScope COGs in $\sim$17\,h wall-time / $\sim$84 CPU-node-h on a commodity AMD EPYC partition, with no Orders API use (\Cref{tab:pipeline_cost}).
     \item Per-patch UDM2 quality stats for the full release, plus a re-sampling tool that searches alternative scenes when a patch is locally cloudy.
-    \item A baseline recipe (\emph{augmax}) that beats the released FTW S2 PRUE-B7 (full) checkpoint on PQ, AP\,[0.5:0.95], and meter-scale boundary error, at $4\times$ smaller backbone.
+    \item A baseline recipe (\emph{augmax}) that demonstrates the headroom in 3\,m: an EfficientNet-B3 U-Net beats the released FTW S2 PRUE-B7 (full) checkpoint on PQ, AP\,[0.5:0.95], and meter-scale boundary error, at $4\times$ smaller backbone. The recipe is a baseline, not a claim of method novelty.
 \end{itemize}
 
 \section{Related work}
@@ -176,7 +176,25 @@ We summarize practical lessons in case other groups attempt similar releases aga
 
 \paragraph{Activation reliability.} Across 6{,}113 unique scenes, $\sim$24\% of \texttt{:activate} calls returned URLs that subsequently failed with HTTP 400 on the first range read. A second \texttt{:activate} call typically returned a different, working URL; reactivating the failed item\_ids recovered 99\% of these patches. Our final pipeline includes an automatic reactivation pass.
 
-\paragraph{Throughput.} Cold-storage thaw, not bandwidth, is the bottleneck. Activation throughput plateaus around 10\,scenes/min per account; total dataset construction took $\sim$17\,h end-to-end on a single HPC node, dominated by activation. Pre-warming a list of scene IDs would compress this substantially.
+\paragraph{Throughput.} Cold-storage thaw, not bandwidth, is the bottleneck. Activation throughput plateaus around 10\,scenes/min per account, which sets a hard floor on time-to-completion regardless of client concurrency above 32. \Cref{tab:pipeline_cost} reports the wall-time and node-hours for each phase. Total end-to-end build was $\sim$17\,h dominated by activation; pre-warming a list of scene IDs would compress this substantially.
+
+\begin{table}[t]
+    \centering
+    \small
+    \caption{Build cost for the full FTW-HD release (134{,}267 patch--window pairs, $\sim$6{,}113 unique PlanetScope scenes). All phases run on the \texttt{cpu\_amd} partition (AMD EPYC 7452/7453); no GPUs are used. Node-hours are summed across array tasks.}
+    \label{tab:pipeline_cost}
+    \begin{tabular}{lrrr}
+    \toprule
+    Phase & Layout & Wall-time & Node-h \\
+    \midrule
+    Search   & $32 \times$ 8-core, \%8  & $\sim$1\,h  & $\sim$8 \\
+    Activate & $1 \times$ 8-core         & $\sim$12\,h & 12 \\
+    Extract  & $64 \times$ 16-core, \%16 & $\sim$4\,h  & $\sim$64 \\
+    \midrule
+    Total    &                          & $\sim$17\,h & $\sim$84 \\
+    \bottomrule
+    \end{tabular}
+\end{table}
 
 \paragraph{Cost-effective access.} For windowed access patterns, COG range reads via \texttt{/vsicurl/} are $\sim$100$\times$ faster than Orders API clipping and require only the Data API role. Documenting this access pattern more prominently would lower the barrier for other dataset projects.
 
@@ -412,13 +430,14 @@ does not separate them into individual fields.
 \item \textbf{Train on all 25 countries}: $+8.0$\,pts Obj F1 over the CC-BY 14-country split.
 \item \textbf{Austria-only val} is a tighter checkpoint-selection signal than a mixed val of austria + two held-out countries (the latter loses $\sim\!4$\,pts held-out IoU).
 \item \textbf{Last checkpoint is fine}: last and best-by-val/loss differ by $<\!0.5$\,pt across every model.
-\item \textbf{SDF aux head} rescues hard-transfer cases when augs are off (portugal IoU $0.007 \rightarrow 0.576$). Net-neutral once augs are on.
 \end{itemize}
 
 \subsection{Things that did not}
 \begin{itemize}\itemsep0em
 \item \textbf{Soft clDice} on the boundary class~\cite{shit2021cldice} caused mode collapse (model painted everything field). Tried boundary and field classes, weights $\{0.2, 0.5\}$; abandoned.
 \item \textbf{Curriculum boundary dilation} ($3\!\rightarrow\!0$\,px). $-0.4$\,pts pixel IoU; the model handles boundary thickness fine on its own.
+\item \textbf{SDF auxiliary head} (signed-distance regression on the boundary class). Helps hard-transfer cases when augs are off (portugal IoU $0.007 \rightarrow 0.576$), but with \emph{augmax} it is net-negative: at full-data scale, $-3$\,pts Obj F1 on B3 ($0.463 \rightarrow 0.433$) and $-6$\,pts on B7 ($0.437 \rightarrow 0.373$). It also \emph{halves} the watershed lift it was supposed to enable (from $+0.012$\,pts to $+0.007$\,pts on B3 full), so the extra head doesn't pay for itself once the model is already well-regularized.
+\item \textbf{Larger backbone (EfficientNet-B7)}. Despite more capacity, full-data B7 trails B3 by $2.6$\,pts Obj F1 ($0.437$ vs $0.463$) on the 22-country full-data split, and $3$\,pts on the 9-country held-out set. 3\,m PlanetScope plus our augs is not data-limited at B3; B7 overfits.
 \item \textbf{Frame-field head}~\cite{girard2021ffl} at weight $0.1$ alignment $+ 0.01$ smoothness on top of SDF: no gain and degrades the SDF watershed signal. A wider weight sweep and target rescaling under resize remain open.
 \item \textbf{CutMix} with a 2\,px ignore-buffer: $-1$\,pt pixel IoU, near-zero obj F1 change. Field structure does not transfer between patches the way object instances do.
 \item \textbf{Replicate padding} (zero $\rightarrow$ replicate for image inputs): we expected a free BN win; instead $-8$\,pts to $-10$\,pts Obj F1 throughout training, pixel IoU unchanged. Replicate makes the model believe fields continue past the patch edge and causes adjacent fields to merge into one watershed instance. Zero padding gives a consistent (if artificial) ``end-of-field'' cue.
@@ -431,9 +450,9 @@ does not separate them into individual fields.
 
 \textbf{Temporal misalignment.} Our PlanetScope acquisition date is the closest cloud-free match to the FTW season midpoint, not to the exact Sentinel-2 acquisition date. The gap is usually under two weeks but can exceed a month in cloudy regions.
 
-\textbf{Hard transfer regions.} Portugal (terraced micro-fields) and Kenya (presence-only labels) collapse to $\le 0.10$ pixel IoU under every configuration we tried. These countries need either targeted data acquisition or a transfer-specific strategy. We do not try to solve them here.
+\textbf{Hard transfer regions.} Portugal (terraced micro-fields, $<3$\,m wide) and Kenya (FTW's Kenya tile only annotates a subset of fields and leaves surrounding land unlabeled, so our pixelwise loss treats real but unannotated parcels as negatives) collapse to $\le 0.10$ pixel IoU under every configuration we tried. These countries need either targeted data acquisition or a transfer-specific strategy. We do not try to solve them here.
 
-\textbf{Future work.} (i) Rescale the SDF auxiliary target with \texttt{resize\_aug} so the head doesn't degenerate under aggressive resizing. (ii) Train a B5 row to fill out the backbone $\times$ split grid. (iii) Add 8-band SuperDove samples where they are available, for richer spectral signal.
+\textbf{Future work.} (i) Train a B5 row to fill out the backbone $\times$ split grid. (ii) Add 8-band SuperDove samples where they are available, for richer spectral signal.
 
 \section{Conclusion}
 
