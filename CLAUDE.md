@@ -31,7 +31,7 @@ make clean
 ## Conventions
 
 - **NEVER** `from __future__ import annotations`. Forbidden.
-- Keep files <~500 LOC. Split/refactor when growing.
+- Keep files \<~500 LOC. Split/refactor when growing.
 - Conventional Commits: `feat|fix|refactor|build|ci|chore|docs|style|perf|test`.
 - **No silent failures.** Don't wrap suspicious code in `try/except → warn → return None/NaN/[]`. Use narrowest exception type; if you don't know it, run and find out. No `# noqa` / `# type: ignore` without a one-line justification. (See user global CLAUDE.md for full rationale.)
 - Field-boundary metrics: lead with **object F1 / polygon quality (PQ/SQ/RQ, AP)**. Pixel IoU is secondary.

@@ -1,7 +1,6 @@
----
-name: ftw-planet-training
-description: Train and evaluate field-boundary segmentation models on the FTW-Planet dataset. Covers the hydra config layout under configs/prue/, lightning trainer entrypoint at scripts/train.py, eval scripts (eval_planet.py, evaluate.py, polygon_metrics_eval.py, postprocess_eval.py), and the metrics that actually matter (object F1, polygon quality > pixel IoU). Use when the user asks to train a new model, run evals, sweep configs, or interpret metrics.
----
+______________________________________________________________________
+
+## name: ftw-planet-training description: Train and evaluate field-boundary segmentation models on the FTW-Planet dataset. Covers the hydra config layout under configs/prue/, lightning trainer entrypoint at scripts/train.py, eval scripts (eval_planet.py, evaluate.py, polygon_metrics_eval.py, postprocess_eval.py), and the metrics that actually matter (object F1, polygon quality > pixel IoU). Use when the user asks to train a new model, run evals, sweep configs, or interpret metrics.
 
 # FTW-Planet Training & Eval
 
@@ -44,15 +43,15 @@ Naming pattern: `<dataset>_<encoder>_<crop>_<variant>.yaml`.
 - `efnet3` / `efnet5` / `efnet7` — timm `tf_efficientnetv2_{s,m,l}` encoders (B3/B5/B7 family).
 - `crop256` / `crop512` — random crop size during training. PlanetScope patches are larger than S2, so 512 is the default for `ftw_planet_*`.
 - Variant suffixes:
-  - (none) — baseline 3-class CE.
-  - `v2_baseline` / `v3_augmax` — augmentation regimes. `v3_augmax_full` = augmax + full FTW (all countries), `v3_augmax_replicate` = subset to match an external baseline, `v3_augmax_sdf` = augmax + SDF head.
-  - `sdf` — adds signed distance function regression head (enables watershed at inference).
-  - `cldice` — clDice loss (boundary-aware soft-skeletonization).
-  - `cutmix` — CutMix augmentation.
-  - `framefield` — frame-field head (DECODE-style boundary geometry).
-  - `boundary` — extra boundary-class weighting.
-  - `curriculum` — staged curriculum learning.
-  - `augplus` / `augmax` — incremental aug sets; `augmax_full` is the strongest.
+    - (none) — baseline 3-class CE.
+    - `v2_baseline` / `v3_augmax` — augmentation regimes. `v3_augmax_full` = augmax + full FTW (all countries), `v3_augmax_replicate` = subset to match an external baseline, `v3_augmax_sdf` = augmax + SDF head.
+    - `sdf` — adds signed distance function regression head (enables watershed at inference).
+    - `cldice` — clDice loss (boundary-aware soft-skeletonization).
+    - `cutmix` — CutMix augmentation.
+    - `framefield` — frame-field head (DECODE-style boundary geometry).
+    - `boundary` — extra boundary-class weighting.
+    - `curriculum` — staged curriculum learning.
+    - `augplus` / `augmax` — incremental aug sets; `augmax_full` is the strongest.
 
 Train config is the union: each YAML sets `trainer.*`, `model.*`, `data.*`, `optimizer.*`. Output dir: `logs/prue/<run_name>/`. W&B project: `ftw-planet`.
 
@@ -60,13 +59,13 @@ Train config is the union: each YAML sets `trainer.*`, `model.*`, `data.*`, `opt
 
 Pick by what you want to measure:
 
-| Script                      | Reports                                                                  | When                                                                   |
-| --------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `eval_planet.py`            | Per-country **pixel IoU/precision/recall + object P/R/F1**. CSV.         | Sanity-check checkpoint; matches `ftw-baselines/run_eval.py` schema.   |
-| `postprocess_eval.py`       | Object P/R/F1 **with/without** watershed + TTA, side-by-side.            | Postproc ablation (SDF-driven or boundary-EDT watershed, D4 TTA).      |
-| `polygon_metrics_eval.py`   | **PQ / SQ / RQ**, **AP@[0.5:0.05:0.95]**, polygon-count delta, chamfer-m. | Polygon-level quality. **This is the headline metric** for the paper.  |
-| `evaluate.py`               | Hydra wrapper (thin).                                                    | Rarely used directly; prefer the above three.                          |
-| `viz_predictions.py`        | Per-patch PNG renders.                                                   | Qualitative inspection.                                                |
+| Script                    | Reports                                                                   | When                                                                  |
+| ------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `eval_planet.py`          | Per-country **pixel IoU/precision/recall + object P/R/F1**. CSV.          | Sanity-check checkpoint; matches `ftw-baselines/run_eval.py` schema.  |
+| `postprocess_eval.py`     | Object P/R/F1 **with/without** watershed + TTA, side-by-side.             | Postproc ablation (SDF-driven or boundary-EDT watershed, D4 TTA).     |
+| `polygon_metrics_eval.py` | **PQ / SQ / RQ**, **AP@[0.5:0.05:0.95]**, polygon-count delta, chamfer-m. | Polygon-level quality. **This is the headline metric** for the paper. |
+| `evaluate.py`             | Hydra wrapper (thin).                                                     | Rarely used directly; prefer the above three.                         |
+| `viz_predictions.py`      | Per-patch PNG renders.                                                    | Qualitative inspection.                                               |
 
 Example:
 
@@ -85,8 +84,8 @@ SLURM: `scripts/slurm/eval_prue.sbatch`, `scripts/slurm/postproc_eval.sbatch`.
 For field-boundary work, report in this order:
 
 1. **Polygon quality**: PQ / SQ / RQ, AP@[0.5:0.05:0.95] (`polygon_metrics_eval.py`).
-2. **Object F1** at IoU 0.5 (`eval_planet.py`, `postprocess_eval.py`).
-3. **Pixel IoU** — secondary; useful for training curves, not for headlines.
+1. **Object F1** at IoU 0.5 (`eval_planet.py`, `postprocess_eval.py`).
+1. **Pixel IoU** — secondary; useful for training curves, not for headlines.
 
 Pixel IoU rewards blob predictions that fail at the polygon level. Lead with object/polygon metrics.
 

@@ -44,7 +44,7 @@ End-to-end search → activate → extract → rasterize → prune. Full phase t
 ## Conventions
 
 - **Never** `from __future__ import annotations`.
-- Keep files <500 LOC. Split / refactor when they grow.
+- Keep files \<500 LOC. Split / refactor when they grow.
 - Conventional Commits (`feat|fix|refactor|build|ci|chore|docs|style|perf|test`).
 - Telegraph style in docs. No filler.
 - No silent `try/except` to swallow failures — narrow exception types, fix root cause. Same for `# type: ignore` / `# noqa`.
