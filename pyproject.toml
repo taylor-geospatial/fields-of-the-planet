@@ -24,10 +24,8 @@ classifiers = [
 dependencies = [
   "ftw-tools>=2.0.0b5",
   "geopandas",
-  "hydra-core",
   "lightning",
   "numpy",
-  "omegaconf",
   "planet>=2",
   "pyarrow>=19",
   "python-dotenv",

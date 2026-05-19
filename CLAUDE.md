@@ -20,9 +20,9 @@ make clean
 ## Layout
 
 - `src/ftw_planet/` — package. Modules: `datasets.py`, `datamodules.py`, `trainers.py`, `losses.py`, `pipeline.py`, `planet.py`, `ftw.py`.
-- `scripts/` — pipeline (`search_shard.py`, `activate_global.py`, `extract_shard.py`, `resample.py`, `udm2_fill.py`, `rasterize_labels.py`, ...) + `train.py` / `eval_planet.py` / `polygon_metrics_eval.py` / `postprocess_eval.py` / `viz_predictions.py`.
-- `scripts/slurm/*.sbatch` — SLURM wrappers, one per phase.
-- `configs/prue/*.yaml` — Hydra/Lightning configs for training (PRUE = Planet R UNet Experiments).
+- `scripts/` — pipeline (`search_shard.py`, `activate_global.py`, `extract_shard.py`, `resample.py`, `udm2_fill.py`, `rasterize_labels.py`, ...) + eval (`eval_planet.py`, `polygon_metrics_eval.py`, `postprocess_eval.py`, `viz_predictions.py`).
+- `scripts/slurm/*.sbatch` — SLURM wrappers, one per phase. Training: `train_prue.sbatch` invokes `ftw model fit -c <config>`.
+- `configs/prue/*.yaml` — LightningCLI configs for training (PRUE = Planet R UNet Experiments).
 - `data/` — gitignored. Planet artifacts under `data/planet/<country>/`, `_global/` for manifests + caches.
 - `logs/` — gitignored. W&B runs + checkpoints under `logs/prue/<run_name>/`.
 - `paper/` — LaTeX source. Owned by other agents — do not touch unless asked.

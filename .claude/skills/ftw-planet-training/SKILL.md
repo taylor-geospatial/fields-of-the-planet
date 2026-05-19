@@ -1,14 +1,14 @@
 ______________________________________________________________________
 
-## name: ftw-planet-training description: Train and evaluate field-boundary segmentation models on the FTW-Planet dataset. Covers the hydra config layout under configs/prue/, lightning trainer entrypoint at scripts/train.py, eval scripts (eval_planet.py, evaluate.py, polygon_metrics_eval.py, postprocess_eval.py), and the metrics that actually matter (object F1, polygon quality > pixel IoU). Use when the user asks to train a new model, run evals, sweep configs, or interpret metrics.
+## name: ftw-planet-training description: Train and evaluate field-boundary segmentation models on the FTW-Planet dataset. Covers the LightningCLI config layout under configs/prue/, training via `ftw model fit`, eval scripts (eval_planet.py, polygon_metrics_eval.py, postprocess_eval.py, viz_predictions.py), and the metrics that actually matter (object F1, polygon quality > pixel IoU). Use when the user asks to train a new model, run evals, sweep configs, or interpret metrics.
 
 # FTW-Planet Training & Eval
 
-PRUE = Planet R UNet Experiments. Lightning + Hydra. UNet w/ timm efficientnet encoders. Targets: 3-class (bg / field / boundary) + optional SDF head.
+PRUE = Planet R UNet Experiments. LightningCLI + timm efficientnet encoders, UNet decoder. Targets: 3-class (bg / field / boundary) + optional SDF head.
 
 ## Training launch
 
-`scripts/train.py` is a thin Hydra wrapper (`config_path=../configs`, `config_name=train`). Configs live under `configs/prue/`. The production training driver actually invoked by the SLURM template is `ftw model fit -c <config>` from `ftw-tools` — the same Lightning CLI everything is built against.
+Training driver is `ftw model fit -c <config>` from `ftw-tools` — the LightningCLI everything is built against. Configs live under `configs/prue/`.
 
 SLURM (preferred):
 
@@ -64,7 +64,6 @@ Pick by what you want to measure:
 | `eval_planet.py`          | Per-country **pixel IoU/precision/recall + object P/R/F1**. CSV.          | Sanity-check checkpoint; matches `ftw-baselines/run_eval.py` schema.  |
 | `postprocess_eval.py`     | Object P/R/F1 **with/without** watershed + TTA, side-by-side.             | Postproc ablation (SDF-driven or boundary-EDT watershed, D4 TTA).     |
 | `polygon_metrics_eval.py` | **PQ / SQ / RQ**, **AP@[0.5:0.05:0.95]**, polygon-count delta, chamfer-m. | Polygon-level quality. **This is the headline metric** for the paper. |
-| `evaluate.py`             | Hydra wrapper (thin).                                                     | Rarely used directly; prefer the above three.                         |
 | `viz_predictions.py`      | Per-patch PNG renders.                                                    | Qualitative inspection.                                               |
 
 Example:

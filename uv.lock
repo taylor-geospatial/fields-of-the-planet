@@ -1050,10 +1050,8 @@ source = { editable = "." }
 dependencies = [
     { name = "ftw-tools" },
     { name = "geopandas" },
-    { name = "hydra-core" },
     { name = "lightning" },
     { name = "numpy" },
-    { name = "omegaconf" },
     { name = "planet" },
     { name = "pyarrow" },
     { name = "python-dotenv" },
@@ -1081,10 +1079,8 @@ dev = [
 requires-dist = [
     { name = "ftw-tools", specifier = ">=2.0.0b5" },
     { name = "geopandas" },
-    { name = "hydra-core" },
     { name = "lightning" },
     { name = "numpy" },
-    { name = "omegaconf" },
     { name = "planet", specifier = ">=2" },
     { name = "pyarrow", specifier = ">=19" },
     { name = "python-dotenv" },

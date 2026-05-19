@@ -10,7 +10,7 @@ PlanetScope (~3 m) companion to **Fields of the World v2**. Build paired SR+UDM2
 
 - Python 3.13, [uv](https://docs.astral.sh/uv/) for deps
 - ruff (format + lint), ty (types), pytest + pytest-cov, pre-commit
-- lightning + torchgeo-style trainers; hydra/omegaconf for configs
+- lightning + torchgeo-style trainers; LightningCLI YAML configs; training via `ftw model fit -c <config>` (`ftw-tools`)
 - Planet Python SDK v2, rasterio, geopandas, pyarrow
 
 ## Commands
@@ -28,7 +28,7 @@ Run anything Python via `uv run ...` — never plain `python`.
 
 ```
 src/ftw_planet/   datamodules, datasets (FTWPlanet), trainers, losses, planet/pipeline helpers
-scripts/          dataset pipeline + train.py + eval scripts
+scripts/          dataset pipeline + eval scripts (training via `ftw model fit`)
 scripts/slurm/    SLURM wrappers, one per pipeline phase
 configs/prue/     LightningCLI-style YAML configs (efnet3/5/7, crop sizes, loss variants)
 data/             FTW patches + Planet outputs (gitignored)

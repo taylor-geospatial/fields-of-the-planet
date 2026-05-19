@@ -144,13 +144,13 @@ Full search → activate → extract → rasterize pipeline lives in `scripts/` 
 
 ## Training
 
-`scripts/train.py` is a Hydra entrypoint over `configs/`. Pick a PRUE config by name (no `.yaml`):
+Training is driven by `ftw model fit` (from `ftw-tools`) with a LightningCLI config from `configs/prue/`:
 
 ```bash
-uv run scripts/train.py --config-name=prue/ftw_planet_efnet3_crop512_v3_augmax
+uv run ftw model fit -c configs/prue/ftw_planet_efnet3_crop512_v3_augmax.yaml
 ```
 
-Override fields inline, e.g. `trainer.max_epochs=50 data.batch_size=16`. Configs in `configs/prue/` cover backbones (efnet3/5/7), crop sizes, and loss variants (cldice, boundary, sdf, framefield, augmax).
+On SLURM, submit `scripts/slurm/train_prue.sbatch` (set `CONFIG=...` to pick a config; `CKPT_PATH=...` to resume). Configs in `configs/prue/` cover backbones (efnet3/5/7), crop sizes, and loss variants (cldice, boundary, sdf, framefield, augmax).
 
 ## Evaluation
 
