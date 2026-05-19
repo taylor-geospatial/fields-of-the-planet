@@ -47,12 +47,12 @@
 \end{figure*}
 \begin{abstract}
 Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which is too coarse to see the smallest fields. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}. The dataset covers 25 countries and 134{,}267 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads. We release imagery, labels, and code at \url{https://source.coop/taylor-geospatial/ftw-hd}.\footnote{URL will resolve at camera-ready; staging copy available to reviewers on request.}
-We also train a baseline. An EfficientNet-B3 \cite{tan2019efficientnet} U-Net \cite{ronneberger2015unet} with our \emph{augmax} augmentation recipe -- the FTW PRUE recipe plus per-band gamma and affine jitter, single-window dropout, small-angle rotation and shear, Gaussian blur and noise, and boundary-thickness jitter -- beats the released FTW S2 PRUE-B7 (trained on all 25 countries) on every metric that is not biased by pixel grid: PQ \cite{kirillov2019panoptic} 0.324 vs 0.283, AP\,[0.5:0.95] 0.263 vs 0.225, and mean boundary error in meters 7.4 vs 14.8. Our model uses a $4\times$ smaller backbone. Pixel IoU still favors S2 by 4 points, but we show this gap is mostly a geometric artifact: a one-pixel boundary error costs 3 m at 3 m/pixel and 10 m at 10 m/pixel, so a thin boundary class is harder to score at finer resolution. The recipe also helps S2 itself, though PlanetScope's 3$\times$ GSD compounds the gain in Nordic and smallholder regions specifically.
+We also train a baseline. An EfficientNet-B3 \cite{tan2019efficientnet} U-Net \cite{ronneberger2015unet} with our \emph{augmax} augmentation recipe -- the FTW PRUE recipe plus per-band gamma and affine jitter, single-window dropout, small-angle rotation and shear, Gaussian blur and noise, and boundary-thickness jitter -- beats the released FTW S2 PRUE-B7 (trained on all 25 countries) on every metric that is not biased by pixel grid: PQ \cite{kirillov2019panoptic} 0.324 vs 0.283, AP\,[0.5:0.95] 0.263 vs 0.225, and mean boundary error in meters 7.4 vs 14.8. Our model uses a $4\times$ smaller backbone. Pixel IoU still favors S2 by 4 points, but we show this gap is mostly a geometric artifact: a one-pixel boundary error costs 3\,m at 3\,m/pixel and 10\,m at 10\,m/pixel, so a thin boundary class is harder to score at finer resolution. The recipe also helps S2 itself, but PlanetScope's $3\times$ finer GSD amplifies the gain most in Nordic and smallholder regions, where field size is closest to the S2 resolution floor.
 \end{abstract}
 
 \section{Introduction}
 
-Field boundaries feed downstream pipelines for crop-yield estimation, irrigation accounting, and subsidy verification. The dominant public benchmark, \emph{Fields of The World} (FTW)~\cite{kerner2024ftw}, packages about 1.6 million parcel polygons across 25 countries paired with 10\,m Sentinel-2 imagery. Ten meters is the ceiling for resolving smallholder fields and several papers~\cite{persello2019delineation,wang2020unified} have argued this directly: a field smaller than $\sim$3 pixels per side cannot be reliably delineated at S2 resolution. Existing PlanetScope benchmarks are either national in scope~\cite{wang2022unified} or use proprietary labels~\cite{khallaghi2025multitemporal}, and the global smallholder benchmark AI4SmallFarms~\cite{tetteh2021ai4smallfarms} stops at 10\,m too.
+Field boundaries feed downstream pipelines for crop-yield estimation, irrigation accounting, subsidy verification, and global food-security monitoring~\cite{beckerreshef2020geoglam,defourny2019sen2agri}. They matter most where they are hardest to see: smallholder farms account for roughly 84\% of the world's farms and produce a disproportionate share of the food consumed in low- and middle-income regions~\cite{lowder2016farms,samberg2016smallholder}. The dominant public benchmark, \emph{Fields of The World} (FTW)~\cite{kerner2024ftw}, packages about 1.6 million parcel polygons across 25 countries paired with 10\,m Sentinel-2 imagery~\cite{drusch2012sentinel2}. Ten meters is the ceiling for resolving smallholder fields, and several authors~\cite{persello2019delineation,wang2020unified,garciapedrero2017boundary} have argued this directly: a field smaller than $\sim$3 pixels per side cannot be reliably delineated at S2 resolution. Existing PlanetScope benchmarks are either national in scope~\cite{wang2022unified,dandrimont2021parcel} or use proprietary labels~\cite{khallaghi2025multitemporal,estes2022smallholder}, and the global smallholder benchmark AI4SmallFarms~\cite{tetteh2021ai4smallfarms} stops at 10\,m too.
 
 This paper takes a simple position. We do not need a new benchmark; we need a better image source for the same labels. We pair PlanetScope's 3\,m surface-reflectance imagery~\cite{planetlabs2023psscene} with every FTW patch (the polygon ground truth, the season windows, the country splits) and call the result \textbf{FTW-HD}. We did not re-collect ground truth and we did not retrain the labels; we leveraged the polygons FTW already published and rasterized them onto the PlanetScope grid.
 
@@ -79,7 +79,7 @@ Wang et al.~\cite{wang2022unified} use 3\,m PlanetScope for French parcels but g
 Cloud-Optimized GeoTIFF~\cite{cogspec} lets a client byte-range-read just the tiles overlapping a region. STAC~\cite{stacspec} exposes the pattern in modern catalogs. PlanetScope's catalog requires an extra step: assets must be \emph{activated} (woken from cold storage) before each scene's signed URL becomes readable, which we describe in~\Cref{sec:pipeline}.
 
 \paragraph{Augmentation, instance separation, and metrics.}
-Our augmentation recipe layers per-band gamma, affine, Gaussian noise and blur, single-window dropout, small-angle rotation and shear, and boundary jitter on top of the FTW PRUE recipe~\cite{kerner2024ftw}; the YOLO9000~\cite{redmon2017yolo9000} ablation-list format is the model for how we report which knobs helped. CutMix~\cite{yun2019cutmix} did not help us. For instance separation we use marker-controlled watershed~\cite{beucher1993watershed}. For evaluation we report Panoptic Quality~\cite{kirillov2019panoptic} and COCO-style averaged AP~\cite{lin2014coco}, plus a meter-scale boundary chamfer that is invariant to pixel-grid resolution.
+Our augmentation recipe layers per-band gamma, affine, Gaussian noise and blur, single-window dropout, small-angle rotation and shear, and boundary jitter on top of the FTW PRUE recipe~\cite{kerner2024ftw}. CutMix~\cite{yun2019cutmix} did not help us. For instance separation we use marker-controlled watershed~\cite{beucher1993watershed}. For evaluation we report Panoptic Quality~\cite{kirillov2019panoptic} and COCO-style averaged AP~\cite{lin2014coco}, plus a meter-scale boundary chamfer that is invariant to pixel-grid resolution. We adopt the ``things that helped / things that did not'' ablation-list format from YOLO9000~\cite{redmon2017yolo9000}.
 
 \section{Dataset}
 \label{sec:dataset}
@@ -181,7 +181,7 @@ We summarize practical lessons in case other groups attempt similar releases aga
 \begin{table}[t]
     \centering
     \small
-    \caption{Build cost for the full FTW-HD release (134{,}267 patch--window pairs, $\sim$6{,}113 unique PlanetScope scenes). All phases run on the \texttt{cpu\_amd} partition (AMD EPYC 7452/7453); no GPUs are used. Node-hours are summed across array tasks.}
+    \caption{\textbf{Pipeline build cost for the full FTW-HD release.} 134{,}267 patch--window pairs assembled from $\sim$6{,}113 unique PlanetScope scenes. All phases run on the \texttt{cpu\_amd} partition (AMD EPYC 7452/7453); no GPUs are used. Node-hours are summed across array tasks. \emph{Activation} dominates wall-time; \emph{Extract} dominates node-hours.}
     \label{tab:pipeline_cost}
     \begin{tabular}{lrrr}
     \toprule
@@ -379,8 +379,8 @@ does not separate them into individual fields.
 \begin{table}[t]
     \centering
     \small
-    \caption{Full-data comparison to released FTW PRUE S2 checkpoints
-    (CC-BY-NC trained on all 25 countries; CC-BY trained on 14 of 25).
+    \caption{\textbf{Full-data comparison to released FTW PRUE S2 checkpoints.}
+    CC-BY-NC checkpoints are trained on all 25 countries; CC-BY on 14 of 25.
     All numbers macro-averaged per country on the FTW full-data test
     set (22 dense-label countries) under the official
     \texttt{ftw model test -{}-countries full\_data} protocol.}
@@ -391,12 +391,12 @@ does not separate them into individual fields.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{Per-country pixel IoU on the 11 held-out countries:
-    S2 CC-BY (B3) vs FTW-HD B3 \textbf{augmax} full + watershed +
-    D4 TTA (our best). S2 model trained on CC-BY 14-country split; ours
-    on the full 25-country split. Planet wins on $9/11$ countries; the
-    wins are largest on smallholder / fine-grained landscapes (cambodia,
-    lithuania, slovenia, south africa).}
+    \caption{\textbf{Per-country pixel IoU on the 11 held-out countries.}
+    S2 CC-BY (B3) vs FTW-HD B3 \emph{augmax} full + watershed + D4 TTA
+    (our best). The S2 model is trained on the CC-BY 14-country split;
+    ours on the full 25-country split. Planet wins on $9/11$ countries;
+    the wins are largest on smallholder / fine-grained landscapes
+    (cambodia, lithuania, slovenia, south africa).}
     \label{tab:heldout_pc}
     \input{figs/heldout_per_country.tex}
 \end{table*}
@@ -404,18 +404,14 @@ does not separate them into individual fields.
 \begin{figure*}[t]
     \centering
     \includegraphics[width=\linewidth]{figs/per_country_bars.pdf}
-    \caption{\textbf{Per-country deltas, full\_data} (Planet B3 augmax
-    full $-$ S2 PRUE-B7 full). Olive = Planet wins, sienna = S2 wins.
-    Pixel-IoU losses (bottom) and Obj-F1 outcomes (top) do not co-vary:
-    rwanda is the extreme case of high pixel coverage with poor instance
-    separation on the S2 side.}
+    \caption{\textbf{Per-country deltas on the FTW \texttt{full\_data} test split} (Planet B3 \emph{augmax} full $-$ S2 PRUE-B7 full). Olive = Planet wins, sienna = S2 wins. Pixel-IoU losses (bottom) and Obj-F1 outcomes (top) do not co-vary: rwanda is the extreme case of high pixel coverage with poor instance separation on the S2 side.}
     \label{fig:per_country_bars}
 \end{figure*}
 
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Polygon-level evaluation, 11-country held-out, WS+TTA.} PQ\,$=$\,SQ$\times$RQ. AP$_{[.5:.95]}$ averages F1 across IoU thresholds. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundary pixels, in meters (GSD-invariant). Best in bold.}
+    \caption{\textbf{Polygon-level evaluation on the 9-country held-out set (WS\,+\,TTA inference).} PQ\,$=$\,SQ$\times$RQ. AP$_{[.5:.95]}$ averages F1 across IoU thresholds $\{0.5,0.55,\ldots,0.95\}$. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundary pixels, in meters (GSD-invariant). Best per column in \textbf{bold}.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -446,7 +442,7 @@ does not separate them into individual fields.
 
 \section{Limitations and future work}
 
-\textbf{Coverage.} 5{,}715 (4.1\%) of (patch, window) targets never produced a usable URL despite repeated reactivation; another 343 (0.2\%) hit hard Planet-side asset failures. These patches still have their original FTW Sentinel-2 imagery but no PlanetScope companion in this release.
+\textbf{Coverage.} 5{,}715 (4.1\%) of (patch, window) targets never produced a usable URL despite repeated reactivation, leaving $95.9\%$ with an extracted PlanetScope SR tif. A further 343 (0.2\%) extracted successfully but contained only low-quality imagery (heavy cloud, shadow, or unusable per UDM2) for which the resampling tool found no acceptable alternative scene within the season, and are dropped from the final release. The net yield is $95.7\%$ of targets (\Cref{tab:scope}). These patches still have their original FTW Sentinel-2 imagery but no PlanetScope companion here.
 
 \textbf{Temporal misalignment.} Our PlanetScope acquisition date is the closest cloud-free match to the FTW season midpoint, not to the exact Sentinel-2 acquisition date. The gap is usually under two weeks but can exceed a month in cloudy regions.
 
