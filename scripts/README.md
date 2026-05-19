@@ -85,6 +85,23 @@ MAX_CC=0.05 SC=64 sbatch slurm/search.sbatch
 MAX_CANDS=10 sbatch slurm/resample.sbatch
 ```
 
+## Training
+
+`slurm/train_prue.sbatch` wraps `ftw model fit -c <config>`. Override the config
+with `CONFIG=...`, resume with `CKPT_PATH=...`, and run a multi-seed sweep with
+`SEED=<int>` (overrides `seed_everything` in the YAML and tags the W&B run
+name plus `default_root_dir` with `_seed<N>` to keep checkpoints/logs apart):
+
+```bash
+CONFIG=configs/prue/ftw_planet_efnet3_crop512_v3_augmax.yaml
+for S in 7 13 42; do
+    SEED=$S CONFIG=$CONFIG sbatch scripts/slurm/train_prue.sbatch
+done
+```
+
+Mechanism: extra args pass through click's `CLI_ARGS` to LightningCLI after a
+`--` separator, so any nested key works (e.g. `--trainer.max_epochs=50`).
+
 ## Lessons learned / references
 
 - `docs/profiling.md` — per-phase wall-clock + throughput numbers from the 140k-patch run.
