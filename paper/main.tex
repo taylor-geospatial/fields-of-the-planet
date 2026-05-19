@@ -416,6 +416,18 @@ $+14.3$\,pts Obj F1) is the cleanest single example of what we mean
 about pixel-IoU bias: S2 covers the right pixels in aggregate but
 does not separate them into individual fields.
 
+\paragraph{Does the 3\,m GSD advantage track field size?}
+Figure~\ref{fig:smallholder_scatter} plots $\Delta$ Obj F1 against
+per-country median FTW field area for all 22 \texttt{full\_data}
+countries. The trend is positive but modest (Pearson
+$r$ $=$ $+0.30$ on log-hectares, Spearman $\rho$ $=$ $+0.25$). The
+largest Planet wins sit on smallholder landscapes (rwanda
+$+14.3$\,pts at $1.4$\,ha median; lithuania $+5.2$ at $1.4$\,ha), but
+the relationship is not deterministic: cambodia has the smallest
+median field of any country ($0.15$\,ha) and is the largest single
+Planet \emph{loss} ($-8.6$\,pts), and large-field germany also goes
+to S2 ($-7.1$). Field size is a tendency, not a rule.
+
 \begin{table}[t]
     \centering
     \small
@@ -452,6 +464,25 @@ does not separate them into individual fields.
     \caption{\textbf{Per-country deltas on the FTW \texttt{full\_data} test split} (Planet B3 \emph{augmax} full $-$ S2 PRUE-B7 full). Olive = Planet wins, sienna = S2 wins. Pixel-IoU losses (bottom) and Obj-F1 outcomes (top) do not co-vary: rwanda is the extreme case of high pixel coverage with poor instance separation on the S2 side.}
     \label{fig:per_country_bars}
 \end{figure*}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figs/smallholder_scatter.pdf}
+    \caption{\textbf{Where the $3\times$ GSD advantage shows up.}
+    Per-country median FTW polygon area (hectares, log scale; computed
+    by reprojecting WGS84 polygons to EPSG:6933 equal-area) vs
+    $\Delta$ Obj F1 (Planet B3 \emph{augmax} full WS+TTA $-$ S2 PRUE-B7
+    full) on the FTW \texttt{full\_data} 22-country test split.
+    Positive $y$ means Planet wins. Countries with median field
+    $<2$\,ha (sienna) follow the smallholder threshold from
+    \citet{lowder2016farms}; the remainder are olive. Pearson
+    $r$ $=$ $+0.30$ on $\log_{10}$(ha), Spearman $\rho$ $=$ $+0.25$,
+    $n$ $=$ 22. Rwanda ($+14.3$) and lithuania ($+5.2$) anchor the
+    small-field Planet wins, but cambodia (smallest median field of
+    all, $0.15$\,ha) is the largest single Planet loss
+    ($-8.6$\,pts).}
+    \label{fig:smallholder_scatter}
+\end{figure}
 
 \begin{table*}[t]
     \centering
