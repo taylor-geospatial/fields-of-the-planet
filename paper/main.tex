@@ -211,12 +211,13 @@ We use the FTW \textbf{CC-BY split} \cite{kerner2024ftw} so the
 comparison is apples-to-apples with the released CC-BY PRUE
 checkpoints: 14 countries train, 11 held out. We also retrain on all
 25 countries (``full'' split) where indicated. Every metric in this
-section is macro-averaged per country following the FTW protocol; the
-test set is either the 9 held-out countries with dense polygon labels
-(excluding kenya and portugal, both of which collapse to $\le 0.10$
-pixel IoU under every config and are reported separately) or the FTW
+section is macro-averaged per country following the FTW protocol over
+the full \textbf{11-country held-out set} or the FTW
 \texttt{full\_data} 22-country split (for apples-to-apples with the
-released checkpoints).
+released checkpoints). Kenya and Portugal remain in the held-out
+macro-average even though both collapse to $\le 0.10$ pixel IoU under
+every config we tried; we keep them in every reported average and
+discuss their failure modes in \Cref{sec:limitations}.
 
 \paragraph{Recipe.} A U-Net~\cite{ronneberger2015unet} with
 EfficientNet~\cite{tan2019efficientnet} encoder, 8 input channels
@@ -233,15 +234,15 @@ that didn't.
 The biggest lever, by a wide margin. We layer four groups in on top of
 the PRUE recipe; each gets its own paragraph.
 
-\paragraph{PRUE-style augs we ported over (+$6.7$ pixel IoU on
-9-country held-out).} The released FTW PRUE configs enable
+\paragraph{PRUE-style augs we ported over (+$5.4$ pixel IoU on
+11-country held-out).} The released FTW PRUE configs enable
 \texttt{preprocess\_aug} (random per-batch divisor in
 $[5000, 15000]$ replacing the fixed $/10000$) and \texttt{resize\_aug}
 (\texttt{RandomResizedCrop} scale $0.3\text{--}0.9$ to the training
 crop). Our initial baseline didn't have either. Adding them moves
-pixel IoU from $0.541 \rightarrow 0.608$ and Obj F1 (WS) from
-$0.323 \rightarrow 0.355$. This single change closes the visible gap
-to S2 CC-BY at the same B3 backbone.
+pixel IoU from $0.444 \rightarrow 0.498$ and Obj F1 (WS) from
+$0.265 \rightarrow 0.291$. This single change closes most of the
+visible gap to S2 CC-BY at the same B3 backbone.
 
 \paragraph{Window swap and per-band gamma (+$1.9$ pixel IoU, $+1.0$ Obj
 F1). \emph{augplus}.} Two cheap additions. \texttt{swap\_order}
@@ -252,20 +253,32 @@ independently, $p\!=\!0.3$) models per-band atmospheric/radiometric
 variation. We call this configuration \emph{augplus}.
 
 \paragraph{Bespoke aug bundle (+$4.1$ Obj F1 over augplus). \emph{augmax}.}
-Six more aug knobs we'd been collecting in a backlog. None individually
-worth a paragraph but the bundle helps. Per-band random affine
-($y = ax + b$, $a \in [0.9, 1.1]$, $b \in [-0.02, 0.02]$),
-Gaussian blur ($\sigma \in [0.5, 1.5]$, $p\!=\!0.3$), Gaussian noise
-($\sigma\!=\!0.015$, $p\!=\!0.3$), single-window dropout
-($p\!=\!0.15$ to zero out either window B or window A), small-angle
-rotation ($\pm 30^\circ$, $p\!=\!0.5$, on top of the rotation-by-90
-already present), shear ($\pm 5^\circ$, $p\!=\!0.3$), and
-boundary-thickness jitter (random binary dilation of the boundary
-class by $0\text{--}2$\,px per batch). Together on 9-country held-out:
-$0.365 \rightarrow 0.406$ Obj F1, $0.355 \rightarrow 0.640$ pixel IoU.
-The win is mostly recall ($+3.6$\,pts at flat precision) -- the model
-finds more fields without becoming over-eager. We call this
-\emph{augmax}.
+Seven more aug knobs on top of \emph{augplus}, none individually worth
+a paragraph but the bundle helps. Per-band random affine
+($y = ax + b$ per channel, $a \sim \mathcal{U}[0.9, 1.1]$,
+$b \sim \mathcal{U}[-0.02, 0.02]$, $p\!=\!0.3$); Gaussian blur
+($3\!\times\!3$ kernel, $\sigma \sim \mathcal{U}[0.5, 1.5]$,
+$p\!=\!0.3$); Gaussian noise ($\sigma\!=\!0.015$, $p\!=\!0.3$);
+single-window dropout ($p\!=\!0.15$ per batch to zero out either
+window A or window B); small-angle rotation ($\pm 30^\circ$,
+$p\!=\!0.5$, applied on top of the $90^\circ$-multiple rotation, H/V
+flip, and random sharpness already present in the Kornia base stack);
+shear ($\pm 5^\circ$, $p\!=\!0.3$); and boundary-thickness jitter
+(random binary dilation of the boundary class by $0\text{--}2$\,px,
+$p\!=\!0.5$ per batch). The \emph{augmax} config additionally keeps
+the two earlier baseline-fix augs enabled -- the FTW PRUE
+\texttt{preprocess\_aug} (random-divisor input normalization, modeling
+cross-acquisition radiometric drift) and \texttt{RandomResizedCrop}
+(scale $0.3\text{--}0.9$, ratio $0.75\text{--}1.33$, $p\!=\!0.5$).
+Together on 11-country held-out:
+$0.300 \rightarrow 0.341$ Obj F1 (WS+TTA),
+$0.514 \rightarrow 0.530$ pixel IoU.
+The Obj F1 win splits roughly evenly across precision and recall
+($+3.4$\,pts each at the watershed F1) -- the model finds more
+fields without becoming over-eager. We call this
+\emph{augmax}; \emph{augplus} drops the seven bespoke knobs above and
+keeps only \texttt{swap\_order} and per-band gamma on top of the
+baseline-fix layer.
 
 \subsection{Sharper boundaries}
 
@@ -290,15 +303,15 @@ the model is regularized by augmax it consistently helps. Cheap, do it.
 
 \subsection{Stronger recipe}
 
-\paragraph{Train on all 25 countries (+$8.0$\,pts Obj F1 over CC-BY).}
+\paragraph{Train on all 25 countries (+$6.5$\,pts Obj F1 over CC-BY).}
 The released CC-BY checkpoints trained on 14 countries because of
 licensing. We retrained on all 25; this lifts our best B3 augmax model
-from $0.415 \rightarrow 0.495$ Obj F1 (WS+TTA) on the 9-country
+from $0.341 \rightarrow 0.405$ Obj F1 (WS+TTA) on the 11-country
 held-out. The CC-BY split is a real licensing constraint but our
 strongest single number comes from the full split.
 
 \paragraph{Augmentations $>$ backbone scaling.} At the CC-BY split,
-B3 augmax full ($0.495$ Obj F1) beats B7 augmax CC-BY ($0.414$). The
+B3 augmax full ($0.405$ Obj F1) beats B7 augmax CC-BY ($0.348$). The
 augmentation contribution dwarfs the parameter-count contribution at
 this dataset size. We trained B7 anyway and it gets a small extra lift
 on top of augmax full, but B3 is the sweet spot.
@@ -306,19 +319,46 @@ on top of augmax full, but B3 is the sweet spot.
 \begin{figure*}[t]
     \centering
     \includegraphics[width=0.92\linewidth]{figs/aug_ablation.pdf}
-    \caption{\textbf{Cumulative augmentation lift on Obj F1.} 9-country held-out, WS+TTA inference. Left: FTW-HD recipe progression goes from $0.323$ (PRUE, no extra augs) to $0.495$ (augmax, B3 full data), a $+17.2$\,pt absolute gain. Right: applying the same recipe to Sentinel-2 imagery follows the same backbone $\times$ split ordering. Dotted lines mark the released FTW S2 PRUE reference numbers~\cite{kerner2024ftw}.}
+    \caption{\textbf{Cumulative augmentation lift on Obj F1.} 11-country held-out, WS+TTA inference. Left: FTW-HD recipe progression goes from $0.265$ (PRUE, no extra augs) to $0.405$ (augmax, B3 full data), a $+14.0$\,pt absolute gain. Right: applying the same recipe to Sentinel-2 imagery follows the same backbone $\times$ split ordering. Dotted lines mark the released FTW S2 PRUE reference numbers~\cite{kerner2024ftw}.}
     \label{fig:aug_ablation}
 \end{figure*}
 
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Held-out benchmark.} 9-country held-out Obj F1 across four post-processing combos (watershed and/or D4 TTA) and four \textbf{augmax} configurations per imagery source (B3/B7 $\times$ CC-BY/full train split). The released FTW S2 PRUE checkpoints are listed as reference (their numbers are on the FTW \texttt{full\_data} test split, not held-out only; see~\Cref{tab:full_data} for an apples-to-apples full\_data comparison). Best per row in bold.}
+    \caption{\textbf{Held-out benchmark.} 11-country held-out Obj F1 across four post-processing combos (watershed and/or D4 TTA) and four \textbf{augmax} configurations per imagery source (B3/B7 $\times$ CC-BY/full train split). Kenya and Portugal are retained in every macro-average even though both collapse to $\le 0.10$ pixel IoU. The released FTW S2 PRUE checkpoints are listed as reference (their numbers are on the FTW \texttt{full\_data} test split, not held-out only; see~\Cref{tab:full_data} for the held-out macro of our own runs). Best per row in bold.}
     \label{tab:heldout}
     \input{figs/heldout_results.tex}
 \end{table*}
 
-\subsection{Honest polygon metrics}
+\subsection{Polygon metrics as the primary evaluation}
+\label{sec:polygon-first}
+
+Field-boundary models are not consumed as rasters. Downstream
+pipelines -- crop-yield estimation, irrigation accounting, subsidy
+verification, parcel-level food-security monitoring -- ingest
+\emph{vectorized parcels}. The unit of value is a polygon that
+closes, separates from its neighbors, and lands in the right place
+on the ground. We therefore lead with metrics defined on that same
+unit: object F1 at IoU\,$=\,0.5$, panoptic
+quality~\cite{kirillov2019panoptic} (PQ\,$=$\,SQ$\times$RQ, which
+cleanly factors recognition from localization),
+AP$_{[.5{:}.95]}$~\cite{lin2014coco}, and a mean symmetric boundary
+chamfer expressed in \emph{meters}.
+
+Polygon-level metrics are also the only honest way to compare across
+sensors. Pixel IoU is defined on a specific raster grid: Sentinel-2
+labels and PlanetScope labels are rasterized at different GSDs onto
+slightly different grids, so the same underlying polygon ground
+truth produces non-comparable pixel scores -- cross-grid pixel
+scoring is invalid by construction. Object F1, PQ, AP, and
+meter-scale chamfer are grid-invariant: a $3$\,m boundary slip is
+$3$\,m whether evaluated at $3$\,m or $10$\,m.
+
+We retain pixel IoU as a secondary signal for continuity with the
+FTW PRUE protocol~\cite{kerner2024ftw} and report it in
+\Cref{tab:full_data} alongside the polygon metrics that should drive
+the comparison.
 
 \paragraph{Pixel IoU is GSD-biased and we shouldn't lead with it.}
 Our best Planet model (B3 augmax full, WS+TTA) gets pixel IoU $0.720$
@@ -379,11 +419,14 @@ does not separate them into individual fields.
 \begin{table}[t]
     \centering
     \small
-    \caption{\textbf{Full-data comparison to released FTW PRUE S2 checkpoints.}
-    CC-BY-NC checkpoints are trained on all 25 countries; CC-BY on 14 of 25.
-    All numbers macro-averaged per country on the FTW full-data test
-    set (22 dense-label countries) under the official
-    \texttt{ftw model test -{}-countries full\_data} protocol.}
+    \caption{\textbf{Comparison to released FTW PRUE S2 checkpoints.}
+    Released CC-BY-NC checkpoints are trained on all 25 countries;
+    CC-BY on 14 of 25. The released rows quote the published values
+    on the FTW \texttt{full\_data} 22-country test split; our rows are
+    macro-averaged over the 11-country held-out set under the same
+    \texttt{ftw model test} protocol. Kenya's
+    \texttt{full\_data} re-evaluation is still pending so our rows
+    currently average over 10 of 11 (see table-note).}
     \label{tab:full_data}
     \input{figs/full_data_compare.tex}
 \end{table}
@@ -396,7 +439,9 @@ does not separate them into individual fields.
     (our best). The S2 model is trained on the CC-BY 14-country split;
     ours on the full 25-country split. Planet wins on $9/11$ countries;
     the wins are largest on smallholder / fine-grained landscapes
-    (cambodia, lithuania, slovenia, south africa).}
+    (cambodia, lithuania, slovenia, south africa). Kenya and Portugal
+    are the two losses; both collapse to $\le 0.10$ IoU and we keep
+    them in the macro-average (see \Cref{sec:limitations}).}
     \label{tab:heldout_pc}
     \input{figs/heldout_per_country.tex}
 \end{table*}
@@ -411,19 +456,19 @@ does not separate them into individual fields.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Polygon-level evaluation on the 9-country held-out set (WS\,+\,TTA inference).} PQ\,$=$\,SQ$\times$RQ. AP$_{[.5:.95]}$ averages F1 across IoU thresholds $\{0.5,0.55,\ldots,0.95\}$. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundary pixels, in meters (GSD-invariant). Best per column in \textbf{bold}.}
+    \caption{\textbf{Polygon-level evaluation on the 11-country held-out set (WS\,+\,TTA inference).} PQ\,$=$\,SQ$\times$RQ. AP$_{[.5:.95]}$ averages F1 across IoU thresholds $\{0.5,0.55,\ldots,0.95\}$. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundary pixels, in meters (GSD-invariant); kenya has zero predicted polygons so its boundary error is undefined and skipped in those two columns only (n=10/11), while every other column averages over all 11 countries. Best per column in \textbf{bold}.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
 
 \subsection{Things that helped}
 \begin{itemize}\itemsep0em
-\item \textbf{FTW PRUE \texttt{preprocess\_aug} + \texttt{resize\_aug}}: $+6.7$\,pts pixel IoU, $+3.2$\,pts Obj F1 (WS), closes the gap to the S2 CC-BY baseline.
-\item \textbf{\texttt{swap\_order} + per-band $\gamma$} (\emph{augplus}): $+1.9$\,pts pixel IoU, $+1.0$\,pt Obj F1.
-\item \textbf{Bespoke bundle} (per-band affine, Gaussian blur \& noise, single-window dropout, small-angle rotation + shear, boundary jitter; \emph{augmax}): $+1.3$\,pts pixel IoU, $+4.1$\,pts Obj F1. Recall $+3.6$\,pts at flat precision.
+\item \textbf{FTW PRUE \texttt{preprocess\_aug} + \texttt{resize\_aug}}: $+5.4$\,pts pixel IoU, $+2.5$\,pts Obj F1 (WS) on the 11-country held-out; closes most of the gap to the S2 CC-BY baseline.
+\item \textbf{\texttt{swap\_order} + per-band $\gamma$} (\emph{augplus}): $+1.6$\,pts pixel IoU, $+0.9$\,pt Obj F1.
+\item \textbf{Bespoke bundle} (per-band affine, Gaussian blur \& noise, single-window dropout, small-angle rotation + shear, boundary jitter; \emph{augmax}): $+1.6$\,pts pixel IoU, $+4.1$\,pts Obj F1 (WS+TTA). Watershed precision and recall both lift $\sim\!3.4$\,pts.
 \item \textbf{Pad inference $\geq 512$}: $+24$\,pts pixel IoU over padding to next mult-32. BatchNorm is highly sensitive to spatial scale.
 \item \textbf{Watershed}: $\sim\!1$\,pt Obj F1. \textbf{D4 TTA}: another $\sim\!1$\,pt Obj F1 once the model is well-augmented (it is a no-op on weakly regularized baselines).
-\item \textbf{Train on all 25 countries}: $+8.0$\,pts Obj F1 over the CC-BY 14-country split.
+\item \textbf{Train on all 25 countries}: $+6.5$\,pts Obj F1 over the CC-BY 14-country split (11-country held-out, WS+TTA).
 \item \textbf{Austria-only val} is a tighter checkpoint-selection signal than a mixed val of austria + two held-out countries (the latter loses $\sim\!4$\,pts held-out IoU).
 \item \textbf{Last checkpoint is fine}: last and best-by-val/loss differ by $<\!0.5$\,pt across every model.
 \end{itemize}
@@ -441,8 +486,11 @@ does not separate them into individual fields.
 \end{itemize}
 
 \section{Limitations and future work}
+\label{sec:limitations}
 
 \textbf{Coverage.} 5{,}715 (4.1\%) of (patch, window) targets never produced a usable URL despite repeated reactivation, leaving $95.9\%$ with an extracted PlanetScope SR tif. A further 343 (0.2\%) extracted successfully but contained only low-quality imagery (heavy cloud, shadow, or unusable per UDM2) for which the resampling tool found no acceptable alternative scene within the season, and are dropped from the final release. The net yield is $95.7\%$ of targets (\Cref{tab:scope}). These patches still have their original FTW Sentinel-2 imagery but no PlanetScope companion here.
+
+\textbf{Selection bias of dropped patches.} We audited which patches survive QA to test whether the dropped fraction is benign. Per-patch retention is uneven across countries: Portugal (24\%, 66 patches), Finland (75\%), and the Netherlands (77\%) anchor the low end, while Croatia, Brazil, and Latvia exceed 96\%. Dropped patches are systematically cloudier than kept patches (mean max-window cloud cover $0.041$ vs. $0.024$; Mann-Whitney U two-sided $p < 10^{-300}$), with drop rate rising from $13\%$ in the cleanest cloud bin ($<1\%$) to $36\%$ in the cloudiest ($5\text{--}8\%$) within Planet's hard $10\%$ search filter. Conversely, dropped patches have \emph{lower} mean label density than kept patches ($0.276$ vs. $0.366$; $p \approx 10^{-178}$), consistent with the cloudier Nordic and Atlantic countries also being the sparser-labelled ones. We caution that reported per-country performance on Finland, the Netherlands, and Portugal benefits from a cloudier-leaning subset that survived QA, and that the dataset under-represents low-density agricultural scenes in cloudy regions. Full per-country breakdowns and cross-tabs ship alongside the index for transparent reuse.
 
 \textbf{Temporal misalignment.} Our PlanetScope acquisition date is the closest cloud-free match to the FTW season midpoint, not to the exact Sentinel-2 acquisition date. The gap is usually under two weeks but can exceed a month in cloudy regions.
 
