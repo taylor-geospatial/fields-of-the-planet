@@ -6,8 +6,6 @@ Layout:
 
 - `scripts/*.py` — production pipeline scripts (run in the order below).
 - `scripts/slurm/*.sbatch` — production SLURM wrappers (one per phase).
-- `scripts/legacy/` — ad-hoc / iteration-era scripts kept for historical reference.
-- `scripts/slurm/legacy/` — matching ad-hoc SLURM wrappers.
 
 All artifacts land under `data/`. Planet outputs live in `data/planet/`.
 
@@ -92,7 +90,3 @@ MAX_CANDS=10 sbatch slurm/resample.sbatch
 - `docs/profiling.md` — per-phase wall-clock + throughput numbers from the 140k-patch run.
 - `docs/planet-api-issues.md` — Planet-side reliability gotchas (broken activation URLs, cold-storage thaw tails, regional dead assets, 429 patterns).
 - `/u/isaaccorley/.claude/skills/planet-bulk-download/SKILL.md` — distilled reference for future Planet bulk runs (search/activate/extract architecture, COG range-reads vs Orders API, GDAL config, retry logic, concurrency budgets).
-
-## Legacy
-
-`scripts/legacy/` and `scripts/slurm/legacy/` hold the ad-hoc scripts written during the iterative buildout of this pipeline. They are kept for historical reference only and are not part of the reproducible pipeline above.

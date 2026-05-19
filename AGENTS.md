@@ -1,49 +1,69 @@
 # AGENTS.md
 
-Research repo template. Python package in `src/mypackage/`, tests in `tests/`, paper in `paper/`, slides in `slides/`.
+Notes for Claude Code / coding agents working in this repo.
+
+## What this is
+
+PlanetScope (~3 m) companion to **Fields of the World v2**. Build paired SR+UDM2 imagery for FTW patches across 25 countries; train segmentation models for ~3 m field boundaries. Pipeline + package + paper in one repo.
 
 ## Stack
 
-- **Python >=3.13**, managed by [uv](https://docs.astral.sh/uv/)
-- **Linting/formatting**: ruff, ty (type checker), pre-commit
-- **Testing**: pytest + pytest-cov
-- **LaTeX**: TeX Live (tlmgr), latexmk, tex-fmt
+- Python 3.13, [uv](https://docs.astral.sh/uv/) for deps
+- ruff (format + lint), ty (types), pytest + pytest-cov, pre-commit
+- lightning + torchgeo-style trainers; hydra/omegaconf for configs
+- Planet Python SDK v2, rasterio, geopandas, pyarrow
 
-## Development
+## Commands
 
 ```bash
 make install   # uv sync --all-extras
-make check     # pre-commit run --all-files (ruff, ty, typos, pyproject-fmt, mdformat, etc.)
+make check     # pre-commit run --all-files (ruff, ty, ...)
 make test      # pytest --cov=src tests/
-make clean     # remove build artifacts
+make clean
 ```
 
-## Paper (`paper/`)
+Run anything Python via `uv run ...` — never plain `python`.
 
-NeurIPS 2025 template. Requires TeX Live + tex-fmt.
+## Layout
 
-```bash
-cd paper
-make install   # tlmgr install required LaTeX packages
-make check     # tex-fmt --check on .tex files
-make build     # latexmk -pdf (produces main.pdf)
-make watch     # latexmk -pvc (live rebuild on save)
-make clean     # remove build artifacts
+```
+src/ftw_planet/   datamodules, datasets (FTWPlanet), trainers, losses, planet/pipeline helpers
+scripts/          dataset pipeline + train.py + eval scripts
+scripts/slurm/    SLURM wrappers, one per pipeline phase
+configs/prue/     LightningCLI-style YAML configs (efnet3/5/7, crop sizes, loss variants)
+data/             FTW patches + Planet outputs (gitignored)
+logs/             checkpoints + W&B (gitignored)
+paper/            LaTeX source
+docs/             profiling.md, planet-api-issues.md
 ```
 
-## Slides (`slides/`)
+## Pipeline
 
-Beamer presentation template.
+End-to-end search → activate → extract → rasterize → prune. Full phase table, artifact layout, and SLURM invocations in [`scripts/README.md`](scripts/README.md). Don't duplicate it.
 
-```bash
-cd slides
-make install   # tlmgr install required LaTeX packages
-make check     # tex-fmt --check on .tex files
-make build     # latexmk -pdf (produces main.pdf)
-make watch     # latexmk -pvc (live rebuild on save)
-make clean     # remove build artifacts
-```
+## Conventions
 
-## CI
+- **Never** `from __future__ import annotations`.
+- Keep files <500 LOC. Split / refactor when they grow.
+- Conventional Commits (`feat|fix|refactor|build|ci|chore|docs|style|perf|test`).
+- Telegraph style in docs. No filler.
+- No silent `try/except` to swallow failures — narrow exception types, fix root cause. Same for `# type: ignore` / `# noqa`.
+- Run `make check` before handoff. CI red → `gh run list/view`, fix, repeat til green.
 
-GitHub Actions runs `make check` and `make test` on push/PR to `main`. Release to PyPI on version tags (`v*`).
+## Metrics
+
+Field-boundary work: **lead with object F1 + polygon metrics**. Pixel IoU is secondary. See `scripts/polygon_metrics_eval.py`, `scripts/eval_planet.py`.
+
+## HPC notes (TGI RAILS cluster)
+
+- SLURM account: `--account=bgtj-tgirails` (required on all sbatch/srun).
+- Heavy I/O / pipeline jobs (search, activate, extract, rasterize): prefer `--partition=cpu` or `--partition=cpu_amd`. Keep them off GPU partitions.
+- Training: GPU partition. Configs default to `bf16-mixed`.
+- Planet downloads: watch for 429s and broken-URL activations — see `docs/planet-api-issues.md`.
+
+## Pointers
+
+- Pipeline: [`scripts/README.md`](scripts/README.md)
+- Planet API gotchas: [`docs/planet-api-issues.md`](docs/planet-api-issues.md)
+- Profiling notes: [`docs/profiling.md`](docs/profiling.md)
+- Dataset card: see "Dataset" section in root `README.md`

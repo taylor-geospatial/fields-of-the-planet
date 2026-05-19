@@ -244,5 +244,7 @@ __marimo__/
 paper/main.pdf
 slides/*.pdf
 
-# Claude Code
-.claude/
+# Claude Code: ignore everything except project-shared skills
+!.claude/
+.claude/*
+!.claude/skills/
