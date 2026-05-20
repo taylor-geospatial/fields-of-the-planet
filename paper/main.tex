@@ -1,8 +1,8 @@
 \documentclass[10pt,twocolumn,letterpaper]{article}
 
-% WACV 2026 style (anonymous review mode by default; call
-% \wacvfinalcopy in the camera-ready version to show authors).
-\usepackage{wacv}
+% WACV 2027 style (Applications track, review mode). Drop the `review`
+% option for the camera-ready version.
+\usepackage[review,applications]{wacv}
 
 \usepackage{microtype}
 \usepackage{graphicx}
@@ -546,7 +546,7 @@ The four big-effect rows: \textbf{augmax} (+4.1 over \emph{augplus}; per-band af
 FTW-HD is a 3\,m PlanetScope companion to Fields of The World. We did the boring engineering -- range-read the COGs, reactivate the broken URLs, rasterize the labels onto the new grid -- so that others don't have to. We also showed that a small B3 model trained with the right augmentations does as well as or better than the released $4\times$ larger Sentinel-2 baseline on every metric that does not bake in a pixel-grid bias. Field boundaries are where most of the loss happens, and a 3$\times$ finer grid is the cheapest way to localize them.
 
 {\small
-\bibliographystyle{ieee_fullname}
+\bibliographystyle{ieeenat_fullname}
 \bibliography{refs}
 }
 
