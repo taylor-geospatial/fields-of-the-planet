@@ -41,7 +41,13 @@ def parse_args():
         "--udm2-quality", type=Path, default=Path("../data/planet/_global/udm2_quality.jsonl")
     )
     p.add_argument("--out", type=Path, default=Path("hero.pdf"))
-    p.add_argument("--n", type=int, default=12, help="Number of triplets to include.")
+    p.add_argument("--n", type=int, default=8, help="Number of triplets to include.")
+    p.add_argument(
+        "--triplets-per-row",
+        type=int,
+        default=4,
+        help="Number of (S2, Planet, label) triplets per row.",
+    )
     p.add_argument(
         "--min-field-pct",
         type=float,
@@ -129,8 +135,8 @@ def _candidate_patches(args: argparse.Namespace) -> list[tuple[str, str, str]]:
         c, pid, w = r.get("country"), r.get("id"), r.get("window")
         if not (c and pid and w):
             continue
-        sr = args.planet_root / c / f"{pid}_{w}.tif"
-        lbl = args.planet_root / c / f"{pid}_{w}_label.tif"
+        sr = args.planet_root / c / f"window_{w}" / f"{pid}.tif"
+        lbl = args.planet_root / c / "labels" / f"{pid}.tif"
         s2 = args.ftw_root / c / "s2_images" / f"window_{w}" / f"{pid}.tif"
         if sr.exists() and lbl.exists() and s2.exists():
             out.append((c, pid, w))
@@ -139,7 +145,7 @@ def _candidate_patches(args: argparse.Namespace) -> list[tuple[str, str, str]]:
 
 def _label_field_fraction(planet_root: Path, country: str, pid: str, window: str) -> float:
     """Return the fraction of label pixels that are class 1 (field interior)."""
-    p = planet_root / country / f"{pid}_{window}_label.tif"
+    p = planet_root / country / "labels" / f"{pid}.tif"
     try:
         with rasterio.open(p) as src:
             lbl = src.read(1)
@@ -208,13 +214,15 @@ def main() -> int:
     for c, pid, w in picks:
         print(f"  {c:14s} {pid}_{w}")
 
-    # Layout: each row holds 2 triplets = 6 cells; with n=12 -> 6 rows
-    triplets_per_row = 2
+    # Layout: each row holds `triplets_per_row` triplets (3 cells each).
+    # Defaults to 4 triplets/row x 2 rows = 8 triplets, producing a wide
+    # banner suitable for a page-1 hero spanning both columns.
+    triplets_per_row = args.triplets_per_row
     n_rows = (len(picks) + triplets_per_row - 1) // triplets_per_row
     _fig, axes = plt.subplots(
         n_rows,
         triplets_per_row * 3,
-        figsize=(triplets_per_row * 3 * 1.4, n_rows * 1.4),
+        figsize=(triplets_per_row * 3 * 1.1, n_rows * 1.25),
     )
     if n_rows == 1:
         axes = axes.reshape(1, -1)
@@ -236,8 +244,8 @@ def main() -> int:
                     axes[r, base_col + c].axis("off")
                 continue
             country, pid, w = picks[idx]
-            sr = args.planet_root / country / f"{pid}_{w}.tif"
-            lbl = args.planet_root / country / f"{pid}_{w}_label.tif"
+            sr = args.planet_root / country / f"window_{w}" / f"{pid}.tif"
+            lbl = args.planet_root / country / "labels" / f"{pid}.tif"
             s2 = args.ftw_root / country / "s2_images" / f"window_{w}" / f"{pid}.tif"
             rgb_s2 = _load_s2_on_planet_grid(s2, sr, SQUARE_PX)
             rgb_pl = _load_planet_rgb(sr, SQUARE_PX)
@@ -254,7 +262,8 @@ def main() -> int:
                 axes[r, base_col + 2].set_title("Label", fontsize=8, pad=2)
             axes[r, base_col + 0].set_ylabel(country.replace("_", " "), fontsize=7)
 
-    plt.tight_layout(pad=0.2, h_pad=0.2, w_pad=0.05)
+    plt.tight_layout(pad=0.1, h_pad=0.05, w_pad=0.02)
+    plt.subplots_adjust(wspace=0.02, hspace=0.04)
     plt.savefig(args.out, bbox_inches="tight", dpi=140)
     plt.close()
     print(f"wrote {args.out}")

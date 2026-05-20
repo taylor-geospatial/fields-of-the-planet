@@ -27,7 +27,7 @@ mpl.rcParams.update(
     }
 )
 
-FIGS = Path(__file__).parent / "figs"
+FIGS = Path(__file__).parent.parent / "figs"
 FIGS.mkdir(exist_ok=True, parents=True)
 
 s2_files = [f for f in sorted(glob.glob("logs/ftw_official/b7_*.csv")) if "per_country" not in f]
@@ -42,55 +42,72 @@ pl = pl[["country", "pixel_level_iou", "object_ws_f1"]].rename(
 )
 
 m = s2.merge(pl, on="country", how="inner").copy()
-m["d_iou"] = m.iou_pl - m.iou_s2
-m["d_f1"] = m.f1_pl - m.f1_s2
+# Express everything in percentage points (multiply by 100) for readability.
+m["d_iou"] = (m.iou_pl - m.iou_s2) * 100.0
+m["d_f1"] = (m.f1_pl - m.f1_s2) * 100.0
 m = m.sort_values("d_f1", ascending=True).reset_index(drop=True)
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7.5, 5.0), sharex=True)
+# Two side-by-side panels keep the figure short. Shared y-axis = same
+# country order across F1 and IoU.
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7.0, 3.3), sharey=True)
 y = np.arange(len(m))
 
-# Top: Δ Obj F1
+
+def _annotate(ax, vals, xlim, fmt="{:+.1f}"):
+    """Place a text label at each bar tip, clipping outliers to the axis edge
+    and prefixing them with an arrow so the reader knows they go further."""
+    lo, hi = xlim
+    pad = (hi - lo) * 0.01
+    for yi, v in zip(y, vals):
+        if v < lo:
+            ax.text(lo + pad, yi, f"← {fmt.format(v)}", va="center", ha="left",
+                    fontsize=6, color="white", fontweight="bold")
+        elif v > hi:
+            ax.text(hi - pad, yi, f"{fmt.format(v)} →", va="center", ha="right",
+                    fontsize=6, color="white", fontweight="bold")
+        else:
+            ax.text(v + (pad if v >= 0 else -pad), yi, fmt.format(v),
+                    va="center", ha="left" if v >= 0 else "right", fontsize=6)
+
+
+# Left: Δ Obj F1 (percentage points)
 colors_f1 = ["#8b3a1f" if d < 0 else "#5b7026" for d in m.d_f1]
+xlim_f1 = (-10.0, 16.0)
 ax1.barh(y, m.d_f1, color=colors_f1, edgecolor="black", linewidth=0.4)
 ax1.axvline(0, color="black", linewidth=0.6)
-ax1.set_xlabel(r"$\Delta$ Obj F1 (Planet B3 augmax full $-$ S2 PRUE-B7 full)")
+ax1.set_xlabel(r"$\Delta$ Obj F1 (pp)")
 ax1.set_yticks(y)
 ax1.set_yticklabels(m.country.str.replace("_", " "))
 ax1.grid(axis="x", linewidth=0.4, alpha=0.5)
-for yi, v in zip(y, m.d_f1):
-    ax1.text(
-        v + (0.003 if v >= 0 else -0.003),
-        yi,
-        f"{v:+.3f}",
-        va="center",
-        ha="left" if v >= 0 else "right",
-        fontsize=7,
-    )
-ax1.set_xlim(-0.1, 0.16)
+ax1.set_xlim(*xlim_f1)
+_annotate(ax1, m.d_f1, xlim_f1)
 
-# Bottom: Δ Pixel IoU (same country order)
+# Right: Δ Pixel IoU (percentage points). Kenya/Portugal collapse well
+# beyond the typical range; clip to a readable window and annotate
+# out-of-bounds bars (arrow + value text) so the reader knows the magnitude.
 colors_iou = ["#8b3a1f" if d < 0 else "#5b7026" for d in m.d_iou]
-ax2.barh(y, m.d_iou, color=colors_iou, edgecolor="black", linewidth=0.4)
+xlim_iou = (-15.0, 15.0)
+# Visually saturate bars that would extend off the panel; the text
+# annotation still reports the true delta.
+clipped_iou = np.clip(m.d_iou, xlim_iou[0] + 0.05, xlim_iou[1] - 0.05)
+ax2.barh(y, clipped_iou, color=colors_iou, edgecolor="black", linewidth=0.4)
 ax2.axvline(0, color="black", linewidth=0.6)
-ax2.set_xlabel(r"$\Delta$ Pixel IoU (Planet B3 augmax full $-$ S2 PRUE-B7 full)")
-ax2.set_yticks(y)
-ax2.set_yticklabels(m.country.str.replace("_", " "))
+ax2.set_xlabel(r"$\Delta$ Pixel IoU (pp)")
 ax2.grid(axis="x", linewidth=0.4, alpha=0.5)
-for yi, v in zip(y, m.d_iou):
-    ax2.text(
-        v + (0.005 if v >= 0 else -0.005),
-        yi,
-        f"{v:+.3f}",
-        va="center",
-        ha="left" if v >= 0 else "right",
-        fontsize=7,
-    )
-ax2.set_xlim(-0.55, 0.15)
+ax2.set_xlim(*xlim_iou)
+_annotate(ax2, m.d_iou, xlim_iou)
+
+# Identify and call out the saturated cases in a small caption inside the panel.
+outliers = [(c, v) for c, v in zip(m.country, m.d_iou) if v < xlim_iou[0] or v > xlim_iou[1]]
+if outliers:
+    note = "; ".join(f"{c.replace('_', ' ')}: {v:+.0f} pp" for c, v in outliers)
+    ax2.text(0.99, 0.02, f"clipped: {note}",
+             transform=ax2.transAxes, ha="right", va="bottom", fontsize=6,
+             style="italic", color="#555555")
 
 fig.suptitle(
-    "FTW-Planet (3 m) vs Sentinel-2 PRUE-B7 full (10 m) --- full_data per-country deltas\n"
-    "(blue = Planet wins, red = Planet loses)",
-    fontsize=9,
+    r"FTW-HD (3\,m) vs Sentinel-2 PRUE-B7 full (10\,m): per-country deltas (olive = Planet wins, sienna = S2 wins)",
+    fontsize=8,
 )
 fig.tight_layout(pad=0.4)
 fig.savefig(FIGS / "per_country_bars.pdf", bbox_inches="tight")

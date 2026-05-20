@@ -1,24 +1,23 @@
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{llcc}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}l@{\hspace{4pt}}l@{\hspace{4pt}}c@{\hspace{4pt}}c@{}}
 \toprule
 Model & Train countries & Pix IoU & Obj F1 \\
 \midrule
 \multicolumn{4}{l}{\textit{S2 PRUE CC-BY-NC (released by \cite{kerner2024ftw})}} \\
-S2 PRUE-B3 (full) & all 25 & 0.74 & 0.43 \\
-S2 PRUE-B5 (full) & all 25 & 0.75 & 0.46 \\
-S2 PRUE-B7 (full) & all 25 & 0.76 & \textbf{0.47} \\
+PRUE-B3 (S2, full) & all 25 & 0.74 & 0.43 \\
+PRUE-B5 (S2, full) & all 25 & 0.75 & 0.46 \\
+PRUE-B7 (S2, full) & all 25 & 0.76 & \textbf{0.47} \\
 \midrule
 \multicolumn{4}{l}{\textit{S2 PRUE CC-BY (released by \cite{kerner2024ftw})}} \\
-S2 PRUE-B3 (CC-BY) & 14 & 0.76 & 0.39 \\
-S2 PRUE-B5 (CC-BY) & 14 & 0.76 & 0.41 \\
-S2 PRUE-B7 (CC-BY) & 14 & \textbf{0.77} & 0.44 \\
+PRUE-B3 (S2, CC-BY) & 14 & 0.76 & 0.39 \\
+PRUE-B5 (S2, CC-BY) & 14 & 0.76 & 0.41 \\
+PRUE-B7 (S2, CC-BY) & 14 & \textbf{0.77} & 0.44 \\
 \midrule
-\multicolumn{4}{l}{\textit{Ours (FTW-Planet, 11-country held-out macro)}} \\
-FTW-Planet B3 \emph{augmax} & 14 & 0.58 & 0.37 \\
-FTW-Planet B3 \emph{augmax} & all 25 & 0.69 & 0.45 \\
-FTW-Planet B7 \emph{augmax} & 14 & 0.58 & 0.38 \\
+\multicolumn{4}{l}{\textit{Ours (PRUE-HD, 11-country held-out macro)}} \\
+PRUE-HD-B3 \emph{augmax} & 14 & 0.58 & 0.37 \\
+PRUE-HD-B3 \emph{augmax} & all 25 & 0.69 & 0.45 \\
+PRUE-HD-B7 \emph{augmax} & 14 & 0.58 & 0.38 \\
 \bottomrule
 \end{tabular}
 
-\vspace{0.3em}
-\noindent\footnotesize $^*$Our numbers are macro-averaged over 10 of the 11 dense-label held-out countries. Kenya pending re-evaluation under the \texttt{full\_data} protocol and will be folded in once the missing CSV row is regenerated. Released FTW PRUE rows are the published values on the FTW \texttt{full\_data} 22-country test split (not directly comparable to our 11-country held-out macro; kept for orientation).
