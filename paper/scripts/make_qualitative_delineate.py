@@ -29,7 +29,9 @@ from make_qualitative_v8 import (
     _watershed_instances,
 )
 from scipy.ndimage import label as cc_label
-from ultralytics import YOLO
+from ultralytics import (
+    YOLO,  # ultralytics not in main CI deps; paper-scripts only
+)
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 

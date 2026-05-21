@@ -12,8 +12,10 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from adjustText import adjust_text
+import seaborn as sns  # seaborn not in main CI deps; paper-scripts only
+from adjustText import (
+    adjust_text,  # adjustText not in main CI deps; paper-scripts only
+)
 
 # Seaborn notebook context with whitegrid -- subtle grid, larger axis text.
 sns.set_theme(context="notebook", style="whitegrid", font="Nimbus Roman", font_scale=0.65)

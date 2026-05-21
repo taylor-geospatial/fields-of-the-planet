@@ -20,7 +20,7 @@ Output: paper/figs/patches_on_basemap.pdf  (multi-country grid).
 import argparse
 from pathlib import Path
 
-import contextily as ctx
+import contextily as ctx  # contextily not in main CI deps; paper-scripts only
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np

@@ -14,7 +14,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+import seaborn as sns  # seaborn not in main CI deps; paper-scripts only
 
 sns.set_theme(context="notebook", style="whitegrid", font="Nimbus Roman", font_scale=0.65)
 mpl.rcParams.update(

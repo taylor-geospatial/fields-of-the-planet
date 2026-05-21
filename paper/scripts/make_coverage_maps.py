@@ -15,7 +15,7 @@ the rest of the paper.
 import argparse
 from pathlib import Path
 
-import contextily as ctx
+import contextily as ctx  # contextily not in main CI deps; paper-scripts only
 import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.patches as mpatches

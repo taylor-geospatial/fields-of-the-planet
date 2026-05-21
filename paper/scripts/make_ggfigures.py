@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import plotnine as p9
+import plotnine as p9  # plotnine not in main CI deps; paper-scripts only
 
 FIGS = Path(__file__).parent.parent / "figs"
 FIGS.mkdir(exist_ok=True, parents=True)

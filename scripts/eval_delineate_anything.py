@@ -44,7 +44,9 @@ from polygon_metrics_eval import (
 from postprocess_eval import COUNTRIES
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from ultralytics import YOLO
+from ultralytics import (
+    YOLO,  # ultralytics is an optional dep not installed in base CI env
+)
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
