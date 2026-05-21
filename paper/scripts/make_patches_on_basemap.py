@@ -25,7 +25,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
-from rasterio.warp import Resampling, reproject, calculate_default_transform
+from rasterio.warp import Resampling, calculate_default_transform, reproject
 
 mpl.rcParams.update(
     {
@@ -41,7 +41,7 @@ mpl.rcParams.update(
 
 WM = "EPSG:3857"
 NORM_DIVISOR = 3000.0  # match the hero stretch
-THUMB_PX = 64           # final reprojected size per patch
+THUMB_PX = 64  # final reprojected size per patch
 
 
 def _load_thumb(path: Path, dst_size: int = THUMB_PX):
@@ -54,8 +54,13 @@ def _load_thumb(path: Path, dst_size: int = THUMB_PX):
         # Blue, Green, Red, NIR (per PSScene 4-band spec).  RGB = (3, 2, 1).
         bgr = src.read([3, 2, 1])
         dst_transform, dst_w, dst_h = calculate_default_transform(
-            src_crs, WM, src.width, src.height, *src_bounds,
-            dst_width=dst_size, dst_height=dst_size,
+            src_crs,
+            WM,
+            src.width,
+            src.height,
+            *src_bounds,
+            dst_width=dst_size,
+            dst_height=dst_size,
         )
         out = np.zeros((3, dst_size, dst_size), dtype=np.float32)
         for i in range(3):
@@ -82,17 +87,22 @@ def _load_thumb(path: Path, dst_size: int = THUMB_PX):
 def _country_patches(planet_root: Path, country: str, max_patches: int | None = None):
     """Yield all window_a SR tifs for a country (one per patch_id)."""
     fs = sorted((planet_root / country / "window_a").glob("*.tif"))
-    if max_patches:
+    if max_patches and len(fs) > max_patches:
         # Sample evenly across the file list so we keep geographic spread,
         # rather than just taking the first N (which would be one cluster).
-        if len(fs) > max_patches:
-            step = len(fs) / max_patches
-            fs = [fs[int(i * step)] for i in range(max_patches)]
+        step = len(fs) / max_patches
+        fs = [fs[int(i * step)] for i in range(max_patches)]
     return fs
 
 
-def _render_country(ax, planet_root: Path, country: str, max_patches: int,
-                    title: str | None = None, basemap_zoom: int | None = None):
+def _render_country(
+    ax,
+    planet_root: Path,
+    country: str,
+    max_patches: int,
+    title: str | None = None,
+    basemap_zoom: int | None = None,
+):
     files = _country_patches(planet_root, country, max_patches=max_patches)
     thumbs = []
     extents = []
@@ -116,8 +126,7 @@ def _render_country(ax, planet_root: Path, country: str, max_patches: int,
     ys = [e[2] for e in extents] + [e[3] for e in extents]
     pad_x = (max(xs) - min(xs)) * 0.04
     pad_y = (max(ys) - min(ys)) * 0.04
-    extent_bm = (min(xs) - pad_x, max(xs) + pad_x,
-                 min(ys) - pad_y, max(ys) + pad_y)
+    extent_bm = (min(xs) - pad_x, max(xs) + pad_x, min(ys) - pad_y, max(ys) + pad_y)
     ax.set_xlim(extent_bm[0], extent_bm[1])
     ax.set_ylim(extent_bm[2], extent_bm[3])
 
@@ -130,8 +139,12 @@ def _render_country(ax, planet_root: Path, country: str, max_patches: int,
         else:
             basemap_zoom = 5
     try:
-        ctx.add_basemap(ax, source=ctx.providers.Esri.WorldImagery,
-                        zoom=basemap_zoom, attribution=False)
+        ctx.add_basemap(
+            ax,
+            source=ctx.providers.Esri.WorldImagery,  # ty: ignore[unresolved-attribute]  # xyzservices stubs incomplete
+            zoom=basemap_zoom,
+            attribution=False,
+        )
     except Exception as err:
         print(f"  basemap unavailable for {country}: {err}")
 
@@ -149,20 +162,24 @@ def _render_country(ax, planet_root: Path, country: str, max_patches: int,
         ax.imshow(
             rgb,
             extent=(xc - dx, xc + dx, yc - dy, yc + dy),
-            origin="upper", interpolation="bilinear", zorder=10,
+            origin="upper",
+            interpolation="bilinear",
+            zorder=10,
         )
         # Thin outline helps the chip read against busy basemap regions
         # (forest canopy, cropland).
         ax.plot(
             [xc - dx, xc + dx, xc + dx, xc - dx, xc - dx],
             [yc - dy, yc - dy, yc + dy, yc + dy, yc - dy],
-            color="white", linewidth=0.4, alpha=0.7, zorder=11,
+            color="white",
+            linewidth=0.4,
+            alpha=0.7,
+            zorder=11,
         )
 
     n = len(thumbs)
     label = title or country.replace("_", " ").title()
-    ax.set_title(f"{label}  ·  n={n:,} patches",
-                 fontsize=9.5, fontweight="bold", pad=4, loc="left")
+    ax.set_title(f"{label}  ·  n={n:,} patches", fontsize=9.5, fontweight="bold", pad=4, loc="left")
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -175,33 +192,39 @@ def main():
         nargs="+",
         default=["cambodia", "rwanda", "south_africa", "vietnam"],
     )
-    p.add_argument("--max-patches", type=int, default=500,
-                   help="Per-country patch cap (subsampled evenly).")
-    p.add_argument("--out", type=Path,
-                   default=Path("paper/figs/patches_on_basemap.pdf"))
+    p.add_argument(
+        "--max-patches", type=int, default=500, help="Per-country patch cap (subsampled evenly)."
+    )
+    p.add_argument("--out", type=Path, default=Path("paper/figs/patches_on_basemap.pdf"))
     p.add_argument("--cols", type=int, default=2)
     args = p.parse_args()
 
     n = len(args.countries)
     rows = (n + args.cols - 1) // args.cols
-    fig, axes = plt.subplots(rows, args.cols,
-                             figsize=(args.cols * 4.2, rows * 4.0))
+    fig, axes = plt.subplots(rows, args.cols, figsize=(args.cols * 4.2, rows * 4.0))
     axes = np.atleast_2d(axes).flatten()
     for ax, country in zip(axes, args.countries):
         print(f"rendering {country}...")
         _render_country(ax, args.planet_root, country, args.max_patches)
-    for ax in axes[len(args.countries):]:
+    for ax in axes[len(args.countries) :]:
         ax.set_axis_off()
     fig.suptitle(
         "FTW-HD covers each country with a sparse scatter of 3 m chips",
-        fontsize=12, fontweight="bold", x=0.04, ha="left", y=0.985,
+        fontsize=12,
+        fontweight="bold",
+        x=0.04,
+        ha="left",
+        y=0.985,
     )
     # Secondary line for the disclaimer about display-scale exaggeration.
     fig.text(
-        0.04, 0.962,
+        0.04,
+        0.962,
         "PlanetScope SR (RGB) overlaid on Esri World Imagery basemap. "
         "Chip footprints are exaggerated 6× for visibility; true centroids preserved.",
-        fontsize=8.5, color="#555555", ha="left",
+        fontsize=8.5,
+        color="#555555",
+        ha="left",
     )
     plt.tight_layout(rect=(0, 0, 1, 0.95), pad=0.6)
     args.out.parent.mkdir(exist_ok=True, parents=True)

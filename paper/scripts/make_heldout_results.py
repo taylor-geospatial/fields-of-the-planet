@@ -121,9 +121,7 @@ def main() -> None:
         cells: list[str] = []
         for i, v in enumerate(vals):
             s = f"{v:.3f}"
-            if i == 3 and v == planet_best_wstta:
-                s = rf"\textbf{{{s}}}"
-            elif v == max(vals):
+            if (i == 3 and v == planet_best_wstta) or v == max(vals):
                 s = rf"\textbf{{{s}}}"
             cells.append(s)
         iou_s = f"{pix_iou:.3f}"
@@ -141,8 +139,7 @@ def main() -> None:
     for (label, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_S2, s2_vals):
         if nc != ne:
             raise RuntimeError(
-                f"S2 config {label}: macro over {nc}/{ne} countries; "
-                f"expected all 11 of HELDOUT_11."
+                f"S2 config {label}: macro over {nc}/{ne} countries; expected all 11 of HELDOUT_11."
             )
         cells = []
         best = max(vals)

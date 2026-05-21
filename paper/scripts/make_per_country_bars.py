@@ -60,14 +60,36 @@ def _annotate(ax, vals, xlim, fmt="{:+.1f}"):
     pad = (hi - lo) * 0.01
     for yi, v in zip(y, vals):
         if v < lo:
-            ax.text(lo + pad, yi, f"← {fmt.format(v)}", va="center", ha="left",
-                    fontsize=6, color="white", fontweight="bold")
+            ax.text(
+                lo + pad,
+                yi,
+                f"← {fmt.format(v)}",
+                va="center",
+                ha="left",
+                fontsize=6,
+                color="white",
+                fontweight="bold",
+            )
         elif v > hi:
-            ax.text(hi - pad, yi, f"{fmt.format(v)} →", va="center", ha="right",
-                    fontsize=6, color="white", fontweight="bold")
+            ax.text(
+                hi - pad,
+                yi,
+                f"{fmt.format(v)} →",
+                va="center",
+                ha="right",
+                fontsize=6,
+                color="white",
+                fontweight="bold",
+            )
         else:
-            ax.text(v + (pad if v >= 0 else -pad), yi, fmt.format(v),
-                    va="center", ha="left" if v >= 0 else "right", fontsize=6)
+            ax.text(
+                v + (pad if v >= 0 else -pad),
+                yi,
+                fmt.format(v),
+                va="center",
+                ha="left" if v >= 0 else "right",
+                fontsize=6,
+            )
 
 
 # Left: Δ Obj F1 (percentage points)
@@ -101,9 +123,17 @@ _annotate(ax2, m.d_iou, xlim_iou)
 outliers = [(c, v) for c, v in zip(m.country, m.d_iou) if v < xlim_iou[0] or v > xlim_iou[1]]
 if outliers:
     note = "; ".join(f"{c.replace('_', ' ')}: {v:+.0f} pp" for c, v in outliers)
-    ax2.text(0.99, 0.02, f"clipped: {note}",
-             transform=ax2.transAxes, ha="right", va="bottom", fontsize=6,
-             style="italic", color="#555555")
+    ax2.text(
+        0.99,
+        0.02,
+        f"clipped: {note}",
+        transform=ax2.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=6,
+        style="italic",
+        color="#555555",
+    )
 
 fig.suptitle(
     r"FTW-HD (3\,m) vs Sentinel-2 PRUE-B7 full (10\,m): per-country deltas (olive = Planet wins, sienna = S2 wins)",

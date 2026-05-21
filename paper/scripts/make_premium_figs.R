@@ -322,7 +322,7 @@ f1_bars_v2 <- ggplot(deltas_v2,
   )
 
 ggsave("paper/figs/per_country_bars_premium_v2.pdf", f1_bars_v2,
-       width = 3.0, height = 4.0, device = cairo_pdf)
+       width = 2.75, height = 3.6, device = cairo_pdf)
 cat("wrote paper/figs/per_country_bars_premium_v2.pdf\n")
 
 # --- Scatter v2 ------------------------------------------------------------
@@ -468,5 +468,5 @@ aug_plot <- ggplot(planet_df, aes(x = factor(idx), y = obj_f1,
   )
 
 ggsave("paper/figs/aug_ablation_premium.pdf", aug_plot,
-       width = 3.0, height = 3.2, device = cairo_pdf)
+       width = 2.75, height = 2.9, device = cairo_pdf)
 cat("wrote paper/figs/aug_ablation_premium.pdf\n")

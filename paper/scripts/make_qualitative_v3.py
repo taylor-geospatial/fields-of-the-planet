@@ -32,11 +32,13 @@ from rasterio.warp import Resampling, reproject
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
-mpl.rcParams.update({
-    "font.family": "sans-serif",
-    "font.sans-serif": ["Nimbus Sans", "Helvetica", "Arial"],
-    "font.size": 8,
-})
+mpl.rcParams.update(
+    {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Nimbus Sans", "Helvetica", "Arial"],
+        "font.size": 8,
+    }
+)
 
 OVERLAY_FIELD = np.array([0.94, 0.86, 0.55])
 OVERLAY_BOUND = np.array([0.92, 0.45, 0.10])
@@ -101,8 +103,9 @@ def _load_planet_sample(country, pid):
     return rgb, y, x.float(), sample
 
 
-def _load_s2_rgb_aligned_to_planet(ftw_root: Path, planet_root: Path,
-                                   country: str, pid: str, window: str):
+def _load_s2_rgb_aligned_to_planet(
+    ftw_root: Path, planet_root: Path, country: str, pid: str, window: str
+):
     """Read FTW S2 chip and reproject to the matching Planet patch's grid for
     a visually aligned RGB thumbnail."""
     s2 = ftw_root / country / "s2_images" / f"window_{window}" / f"{pid}.tif"
@@ -142,7 +145,6 @@ def _load_task(ckpt, device):
 def _predict_s2(model_s2, country: str, pid: str, device):
     """Run the S2 model on the FTW S2 sample for this patch, reproject the
     prediction onto the Planet grid so it can be overlaid on the Planet RGB."""
-    from ftw_tools.training.datamodules import FTWDataModule  # local import (heavy)
     # Simpler path: load the FTW S2 sample directly via rasterio + the same
     # 8-channel stacking (window B then A) that the S2 trainer expects.
     ftw_root = Path("data/ftw")
@@ -150,7 +152,7 @@ def _predict_s2(model_s2, country: str, pid: str, device):
     s2_b = ftw_root / country / "s2_images" / "window_b" / f"{pid}.tif"
     with rasterio.open(s2_b) as src_b:
         b_arr = src_b.read().astype(np.float32) / 10000.0
-        b_crs, b_tr, b_h, b_w = src_b.crs, src_b.transform, src_b.height, src_b.width
+        b_crs, b_tr, _b_h, _b_w = src_b.crs, src_b.transform, src_b.height, src_b.width
     with rasterio.open(s2_a) as src_a:
         a_arr = src_a.read().astype(np.float32) / 10000.0
     # Stack window B then A (matches FTW trainer convention).
@@ -212,7 +214,7 @@ def main():
         country, pid = parts[0], parts[1]
         window = parts[2] if len(parts) > 2 else "a"
         print(f"  {country}:{pid} (window {window})")
-        rgb, gt, x, sample = _load_planet_sample(country, pid)
+        rgb, gt, x, _sample = _load_planet_sample(country, pid)
         s2_rgb = _load_s2_rgb_aligned_to_planet(ftw_root, planet_root, country, pid, window)
         pred_pl = _predict(model_pl, x, device)
         pred_s2 = _predict_s2(model_s2, country, pid, device)
@@ -220,8 +222,9 @@ def main():
 
     n = len(rows)
     cols = 5
-    fig, axes = plt.subplots(n, cols, figsize=(cols * 1.65, n * 1.7),
-                             gridspec_kw={"wspace": 0.04, "hspace": 0.08})
+    _fig, axes = plt.subplots(
+        n, cols, figsize=(cols * 1.65, n * 1.7), gridspec_kw={"wspace": 0.04, "hspace": 0.08}
+    )
     if n == 1:
         axes = axes[None, :]
 
@@ -233,9 +236,9 @@ def main():
         "Baseline (S2)",
     ]
     for i, (country, pid, rgb, s2_rgb, gt, pred_pl, pred_s2) in enumerate(rows):
-        gt_ov   = _overlay(rgb,    gt)
-        pl_ov   = _overlay(rgb,    pred_pl)
-        s2_pred = _overlay(rgb,    pred_s2)
+        gt_ov = _overlay(rgb, gt)
+        pl_ov = _overlay(rgb, pred_pl)
+        s2_pred = _overlay(rgb, pred_s2)
         axes[i, 0].imshow(rgb)
         axes[i, 1].imshow(s2_rgb)
         axes[i, 2].imshow(gt_ov)
@@ -247,8 +250,7 @@ def main():
             for s in ax.spines.values():
                 s.set_linewidth(0.35)
                 s.set_color("#444444")
-        axes[i, 0].set_ylabel(country.replace("_", " "),
-                              fontsize=8.5, fontweight="bold")
+        axes[i, 0].set_ylabel(country.replace("_", " "), fontsize=8.5, fontweight="bold")
         if i == 0:
             for j, t in enumerate(col_titles):
                 axes[i, j].set_title(t, fontsize=8.5, fontweight="bold", pad=3)

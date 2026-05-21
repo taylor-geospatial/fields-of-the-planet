@@ -25,11 +25,13 @@ from scipy.ndimage import binary_dilation
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
-mpl.rcParams.update({
-    "font.family": "serif",
-    "font.serif": ["Nimbus Roman", "Times"],
-    "font.size": 8,
-})
+mpl.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.serif": ["Nimbus Roman", "Times"],
+        "font.size": 8,
+    }
+)
 
 S2_NORM_DIVISOR = 3000.0
 PLASMA = plt.get_cmap("plasma")
@@ -68,9 +70,9 @@ def _plasma_overlay(rgb, mask, alpha=0.55, boundary_color=(0.93, 0.20, 0.10)):
     out[fmask] = (1 - alpha) * out[fmask] + alpha * field_color
     # Boundary as thin contour
     bmask = mask == 2
-    edge = bmask & ~binary_dilation(bmask, iterations=0)  # always full bmask = thin already
+    bmask & ~binary_dilation(bmask, iterations=0)  # always full bmask = thin already
     # Lay it slightly thicker for visibility
-    edge = binary_dilation(bmask, iterations=0) | bmask
+    binary_dilation(bmask, iterations=0) | bmask
     bcolor = np.array(boundary_color)
     out[bmask] = bcolor
     return np.clip(out, 0, 1)
@@ -123,10 +125,15 @@ def _load_s2_rgb(ftw_root, planet_root, country, pid, window):
         bands = src.read([1, 2, 3])
         out = np.zeros((3, h, w), dtype=bands.dtype)
         for i in range(3):
-            reproject(source=bands[i], destination=out[i],
-                      src_transform=src.transform, src_crs=src.crs,
-                      dst_transform=dst_transform, dst_crs=dst_crs,
-                      resampling=Resampling.bilinear)
+            reproject(
+                source=bands[i],
+                destination=out[i],
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=dst_transform,
+                dst_crs=dst_crs,
+                resampling=Resampling.bilinear,
+            )
     rgb = np.transpose(out, (1, 2, 0)).astype(np.float32) / S2_NORM_DIVISOR
     return _stretch(np.clip(rgb, 0, 1))
 
@@ -137,7 +144,7 @@ def _predict_s2(model_s2, country, pid, device):
     s2_b = ftw_root / country / "s2_images" / "window_b" / f"{pid}.tif"
     with rasterio.open(s2_b) as src_b:
         b_arr = src_b.read().astype(np.float32)
-        b_crs, b_tr, b_h, b_w = src_b.crs, src_b.transform, src_b.height, src_b.width
+        b_crs, b_tr, _b_h, _b_w = src_b.crs, src_b.transform, src_b.height, src_b.width
     with rasterio.open(s2_a) as src_a:
         a_arr = src_a.read().astype(np.float32)
     x = torch.from_numpy(np.concatenate([b_arr, a_arr], axis=0))
@@ -147,23 +154,40 @@ def _predict_s2(model_s2, country, pid, device):
     with rasterio.open(planet_sr) as dst:
         dst_crs, dst_tr, dst_h, dst_w = dst.crs, dst.transform, dst.height, dst.width
     out = np.zeros((dst_h, dst_w), dtype=np.uint8)
-    reproject(source=pred_s2, destination=out,
-              src_transform=b_tr, src_crs=b_crs,
-              dst_transform=dst_tr, dst_crs=dst_crs,
-              resampling=Resampling.nearest)
+    reproject(
+        source=pred_s2,
+        destination=out,
+        src_transform=b_tr,
+        src_crs=b_crs,
+        dst_transform=dst_tr,
+        dst_crs=dst_crs,
+        resampling=Resampling.nearest,
+    )
     return out
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--ckpt-planet",
-                   default="logs/prue/ftw_planet-unet-efnet3-crop512-v3-augmax-full/ftw-planet/mt6mdnl7/checkpoints/last.ckpt")
-    p.add_argument("--ckpt-s2",
-                   default="logs/prue/ftw_s2-unet-efnet7-crop256-s2-v3-augmax-b7-full/ftw-s2/2x26jpwu/checkpoints/last.ckpt")
-    p.add_argument("--rows", nargs="+",
-                   default=["south_africa:g1_00010_17:a", "lithuania:g11_00037_4:a",
-                            "sweden:g6-0_00031_11:a", "denmark:g22_00013_4:a",
-                            "latvia:g25_00013_14:a", "lithuania:g11_00040_9:b"])
+    p.add_argument(
+        "--ckpt-planet",
+        default="logs/prue/ftw_planet-unet-efnet3-crop512-v3-augmax-full/ftw-planet/mt6mdnl7/checkpoints/last.ckpt",
+    )
+    p.add_argument(
+        "--ckpt-s2",
+        default="logs/prue/ftw_s2-unet-efnet7-crop256-s2-v3-augmax-b7-full/ftw-s2/2x26jpwu/checkpoints/last.ckpt",
+    )
+    p.add_argument(
+        "--rows",
+        nargs="+",
+        default=[
+            "south_africa:g1_00010_17:a",
+            "lithuania:g11_00037_4:a",
+            "sweden:g6-0_00031_11:a",
+            "denmark:g22_00013_4:a",
+            "latvia:g25_00013_14:a",
+            "lithuania:g11_00040_9:b",
+        ],
+    )
     p.add_argument("--out", default="paper/figs/qualitative_v5.pdf")
     args = p.parse_args()
 
@@ -189,20 +213,30 @@ def main():
         np.save(f"/tmp/qual_diag_{country}_{pid}_planet.npy", pred_pl)
         np.save(f"/tmp/qual_diag_{country}_{pid}_s2.npy", pred_s2)
         np.save(f"/tmp/qual_diag_{country}_{pid}_gt.npy", gt)
-        print(f"    shape rgb={rgb.shape} gt={gt.shape} pred_pl={pred_pl.shape} pred_s2={pred_s2.shape}")
-        print(f"    gt class counts {np.bincount(gt.ravel(), minlength=4)} "
-              f"pred_pl {np.bincount(pred_pl.ravel(), minlength=4)} "
-              f"pred_s2 {np.bincount(pred_s2.ravel(), minlength=4)}")
+        print(
+            f"    shape rgb={rgb.shape} gt={gt.shape} pred_pl={pred_pl.shape} pred_s2={pred_s2.shape}"
+        )
+        print(
+            f"    gt class counts {np.bincount(gt.ravel(), minlength=4)} "
+            f"pred_pl {np.bincount(pred_pl.ravel(), minlength=4)} "
+            f"pred_s2 {np.bincount(pred_s2.ravel(), minlength=4)}"
+        )
         rows.append((country, pid, rgb, s2_rgb, gt, pred_pl, pred_s2))
 
     n = len(rows)
     cols = 5
-    fig, axes = plt.subplots(n, cols, figsize=(cols * 1.7, n * 1.75),
-                             gridspec_kw={"wspace": 0.03, "hspace": 0.06})
+    _fig, axes = plt.subplots(
+        n, cols, figsize=(cols * 1.7, n * 1.75), gridspec_kw={"wspace": 0.03, "hspace": 0.06}
+    )
     if n == 1:
         axes = axes[None, :]
-    col_titles = ["Planet RGB (3 m)", "S2 RGB (10 m)", "Ground truth",
-                  "PRUE-HD-B3 (ours)", "PRUE-B7 (S2 baseline)"]
+    col_titles = [
+        "Planet RGB (3 m)",
+        "S2 RGB (10 m)",
+        "Ground truth",
+        "PRUE-HD-B3 (ours)",
+        "PRUE-B7 (S2 baseline)",
+    ]
     for i, (country, pid, rgb, s2_rgb, gt, pred_pl, pred_s2) in enumerate(rows):
         axes[i, 0].imshow(rgb)
         axes[i, 1].imshow(s2_rgb)

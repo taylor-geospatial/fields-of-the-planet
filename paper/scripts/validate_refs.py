@@ -38,11 +38,17 @@ def parse_bib(path: Path):
         year = _field(e, "year")
         venue = _field(e, "booktitle") or _field(e, "journal")
         is_arxiv = bool(re.search(r"arxiv|arXiv", e))
-        out.append({
-            "key": key, "kind": kind, "title": title, "year": year,
-            "current_venue": venue, "looks_arxiv": is_arxiv,
-            "raw": e,
-        })
+        out.append(
+            {
+                "key": key,
+                "kind": kind,
+                "title": title,
+                "year": year,
+                "current_venue": venue,
+                "looks_arxiv": is_arxiv,
+                "raw": e,
+            }
+        )
     return out
 
 
@@ -60,11 +66,10 @@ def _field(entry: str, name: str) -> str | None:
         elif c == "}":
             depth -= 1
             if depth == 0:
-                inner = entry[start + 1:i]
+                inner = entry[start + 1 : i]
                 # Strip nested braces and collapse whitespace.
                 inner = re.sub(r"[{}]", "", inner)
-                inner = re.sub(r"\s+", " ", inner).strip()
-                return inner
+                return re.sub(r"\s+", " ", inner).strip()
     return None
 
 
@@ -105,9 +110,7 @@ def classify(s2_hit: dict | None) -> tuple[str, str, str]:
     journal = (s2_hit.get("journal") or {}).get("name") or ""
     types = s2_hit.get("publicationTypes") or []
     external = s2_hit.get("externalIds") or {}
-    is_arxiv_only = "ArXiv" in external and not any(
-        external.get(k) for k in ("DOI", "DBLP", "MAG")
-    )
+    is_arxiv_only = "ArXiv" in external and not any(external.get(k) for k in ("DOI", "DBLP", "MAG"))
     final_venue = pub_venue or venue or journal
     kind = "preprint" if is_arxiv_only else "venue"
     return kind, final_venue, ",".join(types)
@@ -118,17 +121,38 @@ def main():
     OUT.parent.mkdir(exist_ok=True, parents=True)
     with OUT.open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow([
-            "key", "current_kind", "current_year", "current_venue",
-            "currently_arxiv", "s2_match_title", "s2_year", "s2_venue",
-            "s2_pub_types", "swap_suggested",
-        ])
+        w.writerow(
+            [
+                "key",
+                "current_kind",
+                "current_year",
+                "current_venue",
+                "currently_arxiv",
+                "s2_match_title",
+                "s2_year",
+                "s2_venue",
+                "s2_pub_types",
+                "swap_suggested",
+            ]
+        )
         for e in entries:
             print(f"checking {e['key']}...")
             hit = search_s2(e["title"])
             if not hit:
-                w.writerow([e["key"], e["kind"], e["year"], e["current_venue"],
-                            e["looks_arxiv"], "", "", "", "", "no_match"])
+                w.writerow(
+                    [
+                        e["key"],
+                        e["kind"],
+                        e["year"],
+                        e["current_venue"],
+                        e["looks_arxiv"],
+                        "",
+                        "",
+                        "",
+                        "",
+                        "no_match",
+                    ]
+                )
                 continue
             kind, s2_venue, s2_types = classify(hit)
             swap = ""
@@ -136,14 +160,26 @@ def main():
                 swap = f"swap_to:{s2_venue}"
             elif not e["looks_arxiv"] and kind == "preprint":
                 swap = "downgrade_to_arxiv"
-            elif kind == "venue" and s2_venue and s2_venue.lower() not in (e["current_venue"] or "").lower():
+            elif (
+                kind == "venue"
+                and s2_venue
+                and s2_venue.lower() not in (e["current_venue"] or "").lower()
+            ):
                 swap = f"verify_venue:{s2_venue}"
-            w.writerow([
-                e["key"], e["kind"], e["year"], e["current_venue"],
-                e["looks_arxiv"],
-                hit.get("title", ""), hit.get("year", ""), s2_venue, s2_types,
-                swap,
-            ])
+            w.writerow(
+                [
+                    e["key"],
+                    e["kind"],
+                    e["year"],
+                    e["current_venue"],
+                    e["looks_arxiv"],
+                    hit.get("title", ""),
+                    hit.get("year", ""),
+                    s2_venue,
+                    s2_types,
+                    swap,
+                ]
+            )
             time.sleep(1.1)  # S2 unauthenticated rate limit
     print(f"wrote {OUT}")
 

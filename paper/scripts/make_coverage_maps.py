@@ -44,12 +44,18 @@ SPLIT_COLORS = {
 def _load_country(ftw_root: Path, country: str) -> gpd.GeoDataFrame:
     p = ftw_root / country / f"chips_{country}.parquet"
     g = gpd.read_parquet(p)
-    g = g.to_crs(3857)  # web-mercator to match the tile provider
-    return g
+    return g.to_crs(3857)  # web-mercator to match the tile provider
 
 
-def _plot_country(ax, gdf: gpd.GeoDataFrame, title: str, *, alpha: float = 0.45,
-                  edge_lw: float = 0.15, basemap_zoom: int | None = None) -> None:
+def _plot_country(
+    ax,
+    gdf: gpd.GeoDataFrame,
+    title: str,
+    *,
+    alpha: float = 0.45,
+    edge_lw: float = 0.15,
+    basemap_zoom: int | None = None,
+) -> None:
     for split, color in SPLIT_COLORS.items():
         sub = gdf[gdf["split"] == split]
         if sub.empty:
@@ -71,14 +77,18 @@ def _plot_country(ax, gdf: gpd.GeoDataFrame, title: str, *, alpha: float = 0.45,
         # Brazil (continental).
         xmin, ymin, xmax, ymax = ax.axis()
         extent_m = max(xmax - xmin, ymax - ymin)
-        if extent_m < 2.5e5:        # < 250 km
+        if extent_m < 2.5e5:  # < 250 km
             basemap_zoom = 9
-        elif extent_m < 1.5e6:      # < 1500 km
+        elif extent_m < 1.5e6:  # < 1500 km
             basemap_zoom = 7
         else:
             basemap_zoom = 5
     try:
-        ctx.add_basemap(ax, source=ctx.providers.Esri.WorldImagery, zoom=basemap_zoom)
+        ctx.add_basemap(
+            ax,
+            source=ctx.providers.Esri.WorldImagery,  # ty: ignore[unresolved-attribute]  # xyzservices stubs incomplete
+            zoom=basemap_zoom,
+        )
     except Exception as err:
         print(f"  basemap unavailable for {title}: {err}")
     ax.set_title(title, fontsize=9, pad=4)
@@ -112,8 +122,7 @@ def make_single(ftw_root: Path, country: str, out: Path) -> None:
     print(f"wrote {out}")
 
 
-def make_grid(ftw_root: Path, countries: list[str], out: Path,
-              n_cols: int = 3) -> None:
+def make_grid(ftw_root: Path, countries: list[str], out: Path, n_cols: int = 3) -> None:
     n = len(countries)
     n_rows = (n + n_cols - 1) // n_cols
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 2.4, n_rows * 2.4))
@@ -127,7 +136,7 @@ def make_grid(ftw_root: Path, countries: list[str], out: Path,
             alpha=0.55,
             edge_lw=0.1,
         )
-    for ax in axes[len(countries):]:
+    for ax in axes[len(countries) :]:
         ax.axis("off")
     _shared_legend(fig, ncol=3)
     fig.tight_layout(rect=(0, 0.04, 1, 1), pad=0.4)

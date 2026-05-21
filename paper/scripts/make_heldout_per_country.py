@@ -14,7 +14,6 @@ Run::
 from pathlib import Path
 
 import pandas as pd
-
 from _aggregate import HELDOUT_11
 
 HERE = Path(__file__).parent
@@ -65,9 +64,7 @@ def main() -> None:
             s2_cell = rf"\textbf{{{s2_iou:.3f}}}"
             pl_cell = f"{pl_iou:.3f}"
         c_pretty = c.replace("_", " ")
-        rows.append(
-            f"{c_pretty} & {s2_cell} & {pl_cell} & {delta:+.3f} & {pl_f1:.3f} \\\\"
-        )
+        rows.append(f"{c_pretty} & {s2_cell} & {pl_cell} & {delta:+.3f} & {pl_f1:.3f} \\\\")
 
     n = len(HELDOUT_11)
     rows.append(r"\midrule")

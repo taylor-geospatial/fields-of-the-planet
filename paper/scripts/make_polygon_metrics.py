@@ -15,8 +15,6 @@ Run::
 
 from pathlib import Path
 
-import pandas as pd
-
 from _aggregate import HELDOUT_11, load_and_filter
 
 HERE = Path(__file__).parent
@@ -50,9 +48,7 @@ def main() -> None:
     for _, _, csv_name, _ in ROWS:
         sub = load_and_filter(SRC / csv_name, HELDOUT_11)
         if len(sub) != len(HELDOUT_11):
-            raise RuntimeError(
-                f"{csv_name}: macro over {len(sub)}/{len(HELDOUT_11)} countries"
-            )
+            raise RuntimeError(f"{csv_name}: macro over {len(sub)}/{len(HELDOUT_11)} countries")
         agg = {c: float(sub[c].mean(skipna=True)) for c in COLS}
         agg["_bnd_n"] = int(sub["boundary_error_m_mean"].notna().sum())
         aggregates.append(agg)
@@ -74,9 +70,7 @@ def main() -> None:
     lines: list[str] = []
     lines.append(r"\begin{tabular}{llccccccc}")
     lines.append(r"\toprule")
-    lines.append(
-        r"& & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{Boundary err (m)} \\"
-    )
+    lines.append(r"& & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{Boundary err (m)} \\")
     lines.append(r"\cmidrule(lr){3-5} \cmidrule(lr){8-9}")
     lines.append(
         r"Imagery & Recipe & PQ & SQ & RQ & AP$_{[.5:.95]}$ "

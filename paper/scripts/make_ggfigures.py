@@ -78,7 +78,7 @@ def per_country_bars(df: pd.DataFrame) -> None:
         )
         + p9.geom_hline(yintercept=0, color="black", size=0.4)
         + p9.scale_x_discrete(limits=order)
-        + p9.scale_fill_manual(values=PALETTE, guide=p9.guide_legend(title=""))
+        + p9.scale_fill_manual(values=PALETTE, guide=p9.guide_legend(title=""))  # ty: ignore[invalid-argument-type]  # plotnine stubs too strict
         + p9.facet_wrap("~metric", scales="free_x")
         + p9.coord_flip()
         + p9.theme_minimal(base_size=8)
@@ -126,8 +126,8 @@ def smallholder_scatter() -> None:
             breaks=[0.1, 0.3, 1, 3, 10, 30, 100],
             labels=lambda x: [f"{v:g}" for v in x],
         )
-        + p9.scale_fill_manual(values=PALETTE, guide=p9.guide_legend(title=""))
-        + p9.scale_size_continuous(range=[2, 6], guide=None)
+        + p9.scale_fill_manual(values=PALETTE, guide=p9.guide_legend(title=""))  # ty: ignore[invalid-argument-type]  # plotnine stubs too strict
+        + p9.scale_size_continuous(range=(2, 6), guide=None)  # plotnine stubs expect tuple not list
         + p9.theme_minimal(base_size=8)
         + p9.theme(
             figure_size=(5.6, 3.6),

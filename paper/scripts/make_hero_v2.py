@@ -18,7 +18,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
-from rasterio.warp import Resampling, reproject
 from skimage.transform import resize
 
 NORM_DIVISOR = 3000.0
@@ -163,7 +162,7 @@ def main():
 
     pairs_per_row = args.pairs_per_row
     n_rows = (len(picks) + pairs_per_row - 1) // pairs_per_row
-    fig, axes = plt.subplots(
+    _fig, axes = plt.subplots(
         n_rows,
         pairs_per_row * 2,
         figsize=(pairs_per_row * 2 * 1.4, n_rows * 1.55),
@@ -198,9 +197,7 @@ def main():
             if r == 0 and k == 0:
                 axes[r, base + 0].set_title("Planet (3 m)", fontsize=8, pad=2)
                 axes[r, base + 1].set_title("+ label overlay", fontsize=8, pad=2)
-            axes[r, base + 0].set_ylabel(
-                f"{country.replace('_', ' ')}\n{pid}", fontsize=6.5
-            )
+            axes[r, base + 0].set_ylabel(f"{country.replace('_', ' ')}\n{pid}", fontsize=6.5)
 
     plt.tight_layout(pad=0.2, h_pad=0.25, w_pad=0.05)
     plt.savefig(args.out, bbox_inches="tight", dpi=140)

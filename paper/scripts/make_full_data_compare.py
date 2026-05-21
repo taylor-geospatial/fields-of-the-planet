@@ -56,9 +56,7 @@ def main() -> None:
         f1s = rf"\textbf{{{f1:.2f}}}" if bold else f"{f1:.2f}"
         rows.append(f"{name} & {train} & {iou:.2f} & {f1s} \\\\")
     rows.append(r"\midrule")
-    rows.append(
-        r"\multicolumn{4}{l}{\textit{S2 PRUE CC-BY (released by \cite{kerner2024ftw})}} \\"
-    )
+    rows.append(r"\multicolumn{4}{l}{\textit{S2 PRUE CC-BY (released by \cite{kerner2024ftw})}} \\")
     for name, train, iou, f1 in RELEASED[3:]:
         bold_iou = "B7" in name and "(CC-BY)" in name
         ious = rf"\textbf{{{iou:.2f}}}" if bold_iou else f"{iou:.2f}"
