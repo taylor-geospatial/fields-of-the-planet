@@ -19,9 +19,12 @@ import kornia.augmentation as K
 import torch
 from lightning import LightningDataModule
 from torch import Tensor
-from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, WeightedRandomSampler
 
-from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
+from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet, FTWPlanetAlignedDataset
+
+_PLANET_SCALE: float = float(PLANET_SR_SCALE)
+_S2_SCALE: float = 3000.0
 
 
 def _ftw_s2_dataset(
@@ -618,3 +621,234 @@ class FTWPlanetDataModule(LightningDataModule):
             if self.cutmix_aug:
                 batch = self._cutmix_with_buffer(batch)
         return batch
+
+
+# ---------------------------------------------------------------------------
+# Joint Planet + Sentinel-2 training
+# ---------------------------------------------------------------------------
+
+
+class _NormWrapper:
+    """Dataset wrapper: divides ``image`` by ``scale`` (normalises to
+    reflectance), optionally bilinear-upsamples spatial dims, and tags each
+    sample with ``_gsd_m`` (GSD in metres) for the joint datamodule.
+
+    Band ordering is assumed correct by the caller:
+    * Planet samples come from :class:`FTWPlanetAlignedDataset`, which
+      already reorders bands from PSScene BGR(N) to RGB(N).
+    * S2 samples from ``_ftw_s2_dataset`` are already in RGB(N) order.
+    """
+
+    def __init__(
+        self,
+        base: Any,
+        scale: float,
+        upsample_to: int | None = None,
+        gsd_m: float = 0.0,
+    ) -> None:
+        self._base = base
+        self._scale = float(scale)
+        self._upsample_to = upsample_to
+        self._gsd_m = float(gsd_m)
+
+    def __len__(self) -> int:
+        return len(self._base)
+
+    def __getitem__(self, i: int) -> dict:
+        s = dict(self._base[i])
+        img = s["image"]
+        msk = s["mask"]
+        if not isinstance(img, Tensor):
+            img = torch.as_tensor(img).float()
+        if not isinstance(msk, Tensor):
+            msk = torch.as_tensor(msk)
+        s["image"] = img.float() / self._scale
+        s["mask"] = msk.to(torch.int64)
+        if self._upsample_to is not None and img.shape[-1] != self._upsample_to:
+            t = self._upsample_to
+            s["image"] = torch.nn.functional.interpolate(
+                s["image"].unsqueeze(0),
+                size=(t, t),
+                mode="bilinear",
+                align_corners=False,
+            ).squeeze(0)
+            s["mask"] = (
+                torch.nn.functional.interpolate(
+                    s["mask"].unsqueeze(0).unsqueeze(0).float(),
+                    size=(t, t),
+                    mode="nearest",
+                )
+                .squeeze(0)
+                .squeeze(0)
+                .to(torch.int64)
+            )
+        s["_gsd_m"] = self._gsd_m
+        return s
+
+
+class FTWJointDataModule(FTWPlanetDataModule):
+    """Mix PlanetScope (3 m) and Sentinel-2 (10 m) samples during training.
+
+    Both modalities share the 8-channel structure (B, G, R, NIR x 2 temporal
+    windows).  S2 native 256x256 chips are bilinear-upsampled to
+    ``planet_crop_size`` (= ``crop_size``) so both enter the model at the same
+    pixel grid.
+
+    Normalisation is handled per-modality inside :class:`_NormWrapper` before
+    batching (Planet /10 000, S2 /3 000 → both nominally in [0, 0.5]).  The
+    parent batch-level aug is therefore built with ``_data_scale=1.0``
+    (K.Normalize std=1 ≡ identity); ``preprocess_aug=True`` then adds a ±50 %
+    random scale jitter on already-normalised reflectance values.
+
+    Validation and test use the **Planet dataset only** so metrics stay
+    consistent with single-modality evals.
+
+    Note: ``return_sdf`` is forced to *False*; S2 has no SDF targets and
+    mixed batches cannot collate heterogeneous keys.
+    """
+
+    _PLANET_GSD_M: float = 3.0
+    _S2_GSD_M: float = 10.0
+
+    def __init__(
+        self,
+        s2_root: str = "data/ftw",
+        s2_train_countries: tuple[str, ...] | list[str] = ("austria",),
+        planet_weight: float = 0.5,
+        s2_crop_size: int = 256,
+        **planet_kwargs: Any,
+    ) -> None:
+        # Drop any caller-supplied dataset_backend; we control it here.
+        planet_kwargs.pop("dataset_backend", None)
+        # Pass dataset_backend="s2" + s2_data_scale=1.0 so the parent builds
+        # the aug pipeline with _data_scale=1.0 → K.Normalize(std=1) = identity.
+        # Per-modality normalisation is done by _NormWrapper in __getitem__.
+        super().__init__(dataset_backend="s2", s2_data_scale=1.0, **planet_kwargs)
+        # Override backend back to "planet" so val/test routing is correct.
+        self.dataset_backend = "planet"
+        self.s2_root = s2_root
+        self.s2_train_countries = list(s2_train_countries)
+        self.planet_weight = float(planet_weight)
+        self.s2_crop_size = int(s2_crop_size)
+        # SDF unsupported: S2 has no SDF targets; mixed batches can't collate
+        # heterogeneous keys.
+        self.return_sdf = False
+
+    # ------------------------------------------------------------------
+    # setup
+    # ------------------------------------------------------------------
+
+    def setup(self, stage: str) -> None:
+        crop_val = _make_crop_transform(self.crop_size, train=False, pad_mode=self.pad_mode)
+
+        if stage in ("fit", "validate"):
+            val_ds = FTWPlanet(
+                root=self.root,
+                countries=self.val_countries,
+                split="val",
+                transforms=crop_val,
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
+                boundary_dilate_px=0,
+                return_sdf=False,
+                swap_order=False,
+            )
+            self.val_dataset = _NormWrapper(val_ds, _PLANET_SCALE, gsd_m=self._PLANET_GSD_M)
+            print(f"[joint] val:  {len(self.val_dataset):,} Planet samples")
+
+        if stage == "test":
+            test_ds = FTWPlanet(
+                root=self.root,
+                countries=self.test_countries,
+                split="test",
+                transforms=crop_val,
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
+                boundary_dilate_px=0,
+                return_sdf=False,
+                swap_order=False,
+            )
+            self.test_dataset = _NormWrapper(test_ds, _PLANET_SCALE, gsd_m=self._PLANET_GSD_M)
+            print(f"[joint] test: {len(self.test_dataset):,} Planet samples")
+
+        if stage == "fit":
+            # Planet: FTWPlanetAlignedDataset reprojects each window to S2's
+            # CRS+extent at Planet's native ~3m GSD (~853 px for a 2560 m chip).
+            # bands are reordered BGR(N)→RGB(N) internally.  The crop transform
+            # (512 px) is passed as `transforms` so __getitem__ returns exactly
+            # (8, 512, 512); no downsampling occurs since 853 > 512.
+            planet_ds = FTWPlanetAlignedDataset(
+                planet_root=self.root,
+                s2_root=self.s2_root,
+                countries=self.train_countries,
+                split="train",
+                transforms=_make_crop_transform(self.crop_size, train=True, pad_mode=self.pad_mode),
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
+                swap_order=self.swap_order,
+            )
+            # _NormWrapper: divide by PLANET_SR_SCALE; no upsample needed.
+            planet_wrapped = _NormWrapper(planet_ds, _PLANET_SCALE, gsd_m=self._PLANET_GSD_M)
+
+            # S2: native 256x256 chips upsampled to crop_size (512) so both
+            # modalities enter the model at the same pixel grid size.
+            s2_raw = _ftw_s2_dataset(
+                root=self.s2_root,
+                countries=self.s2_train_countries,
+                split="train",
+                transforms=_make_crop_transform(self.s2_crop_size, train=True),
+                load_boundaries=self.load_boundaries,
+                swap_order=self.swap_order,
+            )
+            s2_wrapped = _NormWrapper(
+                s2_raw,
+                _S2_SCALE,
+                upsample_to=self.crop_size,
+                gsd_m=self._S2_GSD_M,
+            )
+
+            n_pl, n_s2 = len(planet_wrapped), len(s2_wrapped)
+            # WeightedRandomSampler: per-sample weight so ~planet_weight fraction
+            # of each batch comes from Planet.
+            w_pl = self.planet_weight / n_pl
+            w_s2 = (1.0 - self.planet_weight) / n_s2
+            weights = torch.cat(
+                [
+                    torch.full((n_pl,), w_pl, dtype=torch.float64),
+                    torch.full((n_s2,), w_s2, dtype=torch.float64),
+                ]
+            )
+            # One epoch = 2 x max(n_pl, n_s2) so neither dataset is starved.
+            num_samples = 2 * max(n_pl, n_s2)
+            self.train_dataset = ConcatDataset([planet_wrapped, s2_wrapped])  # ty: ignore[invalid-argument-type]  # _NormWrapper satisfies the Dataset protocol at runtime; torch stubs too strict
+            self._train_sampler = WeightedRandomSampler(
+                weights,  # ty: ignore[invalid-argument-type]  # WeightedRandomSampler accepts Tensor at runtime; stub expects Sequence[float]
+                num_samples=num_samples,
+                replacement=True,
+            )
+            print(f"[joint] train: {n_pl:,} Planet + {n_s2:,} S2 → {num_samples:,} samples/epoch")
+
+    # ------------------------------------------------------------------
+    # dataloaders
+    # ------------------------------------------------------------------
+
+    def train_dataloader(self) -> DataLoader:
+        kw: dict[str, Any] = {
+            "batch_size": self.batch_size,
+            "sampler": self._train_sampler,
+            "num_workers": self.num_workers,
+            "pin_memory": True,
+            "persistent_workers": self.num_workers > 0,
+        }
+        if self.num_workers > 0:
+            kw["prefetch_factor"] = 4
+        return DataLoader(self.train_dataset, **kw)
+
+    # ------------------------------------------------------------------
+    # on_after_batch_transfer: pop _gsd_m, run parent augs
+    # ------------------------------------------------------------------
+
+    def on_after_batch_transfer(self, batch: dict, dataloader_idx: int = 0) -> dict:
+        # Pop _gsd_m before parent aug pipeline; kornia must not see it.
+        batch.pop("_gsd_m", None)
+        return super().on_after_batch_transfer(batch, dataloader_idx)
