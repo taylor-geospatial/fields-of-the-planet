@@ -175,27 +175,23 @@ _PLANET_BGR_TO_RGB: list[int] = [2, 1, 0, 3]
 
 
 class FTWPlanetAlignedDataset:
-    """Planet imagery reprojected on-the-fly onto the S2 chip's grid.
+    """Planet imagery pre-aligned to the corresponding S2 chip's grid.
 
-    For each ``patch_id`` that has both a Planet SR pair and a corresponding
-    S2 chip, this dataset:
+    Reads pre-computed TIFs produced by ``scripts/precompute_aligned_planet.py``
+    — no on-the-fly reprojection.  Each TIF is already in S2 CRS+bounds at
+    Planet's native ~3 m GSD (~853 px) with bands reordered to RGB(NIR).
 
-    1. Opens S2 window-B to obtain the target CRS and bounding box.
-    2. Reprojects each of the two Planet windows (PSScene native UTM) into
-       that CRS+bbox at Planet's native GSD (~853 px for a 2560 m S2 chip).
-    3. Reorders bands from PSScene BGR(NIR) to RGB(NIR) so the channel
-       semantics match the S2 dataset.
-    4. Uses the S2 3-class label as the mask (resized to Planet's native pixel
-       grid with nearest-neighbour interpolation so class IDs stay exact).
+    Pre-computed layout::
+
+        <planet_root>/aligned_window_a/<country>/<patch_id>.tif
+        <planet_root>/aligned_window_b/<country>/<patch_id>.tif
+
+    S2 label layout (ftw_tools convention)::
+
+        <s2_root>/<country>/label_masks/semantic_3class/<patch_id>.tif
 
     The output dict mirrors :class:`FTWPlanet`:
-    ``{image: Tensor(8, T, T), mask: Tensor(T, T), country: str}``.
-
-    ``S2 layout`` (ftw_tools convention)::
-
-        <s2_root>/<country>/s2_images/window_a/<patch_id>.tif
-        <s2_root>/<country>/s2_images/window_b/<patch_id>.tif
-        <s2_root>/<country>/label_masks/semantic_3class/<patch_id>.tif
+    ``{image: Tensor(8, H, W), mask: Tensor(H, W), country: str}``.
     """
 
     valid_splits = ("train", "val", "test")
@@ -224,6 +220,8 @@ class FTWPlanetAlignedDataset:
 
         pl_root = Path(planet_root) / "planet"
         ftw_root = Path(s2_root)
+        aligned_a_root = pl_root / "aligned_window_a"
+        aligned_b_root = pl_root / "aligned_window_b"
 
         idx = __import__("geopandas").read_parquet(pl_root / "index.parquet")
         idx = idx[idx["country"].isin(countries)].copy()
@@ -245,26 +243,24 @@ class FTWPlanetAlignedDataset:
             sub = idx.merge(chips, on=["country", "patch_id"], how="inner")
             for r in sub.to_dict(orient="records"):
                 pid = str(r["patch_id"])
-                s2_a = ftw_root / country / "s2_images" / "window_a" / f"{pid}.tif"
-                s2_b = ftw_root / country / "s2_images" / "window_b" / f"{pid}.tif"
+                al_a = aligned_a_root / country / f"{pid}.tif"
+                al_b = aligned_b_root / country / f"{pid}.tif"
                 s2_lbl = ftw_root / country / "label_masks" / "semantic_3class" / f"{pid}.tif"
-                # Only keep patches where all S2 files exist.
-                if not (s2_a.exists() and s2_b.exists() and s2_lbl.exists()):
+                if not (al_a.exists() and al_b.exists() and s2_lbl.exists()):
                     continue
                 records.append(
                     {
                         "country": country,
                         "patch_id": pid,
-                        "planet_window_a": str(pl_root / r["image_a_path"]),
-                        "planet_window_b": str(pl_root / r["image_b_path"]),
-                        "s2_window_b": str(s2_b),
-                        "s2_label": str(s2_lbl),
+                        "window_a": str(al_a),
+                        "window_b": str(al_b),
+                        "label": str(s2_lbl),
                     }
                 )
         if not records:
             raise RuntimeError(
                 f"FTWPlanetAlignedDataset: no samples for split={split} "
-                f"countries={countries} (check S2 paths exist under {s2_root})"
+                f"countries={countries}. Run scripts/precompute_aligned_planet.py first."
             )
         self.records: list[dict[str, str]] = records
 
@@ -272,67 +268,30 @@ class FTWPlanetAlignedDataset:
         return len(self.records)
 
     def __getitem__(self, index: int) -> dict[str, Any]:
-        import rasterio
-        from rasterio.transform import from_bounds as _from_bounds
-        from rasterio.warp import Resampling, calculate_default_transform, reproject
-
         r = self.records[index]
 
-        # Reference S2 chip: provides target CRS and bounding box.
-        with rasterio.open(r["s2_window_b"]) as s2:
-            s2_crs = s2.crs
-            s2_bounds = s2.bounds  # (left, bottom, right, top) in s2_crs
+        # Pre-computed TIFs: already in S2 CRS+bounds, RGB(NIR) band order,
+        # float32 DN (not yet divided by PLANET_SR_SCALE — normalisation is
+        # applied by _NormWrapper in the datamodule).
+        with rasterio.open(r["window_a"]) as src:
+            a = src.read().astype(np.float32)  # (4, H, W) RGB(N)
+        with rasterio.open(r["window_b"]) as src:
+            b = src.read().astype(np.float32)  # (4, H, W) RGB(N)
+        with rasterio.open(r["label"]) as src:
+            lbl = src.read(1).astype(np.int64)
 
-        # Compute Planet's native GSD projected into s2_crs, then derive the
-        # output pixel grid that covers the S2 extent at Planet resolution.
-        # This avoids any downsampling: ~853 px for a 2560 m S2 patch at 3 m.
-        with rasterio.open(r["planet_window_b"]) as pl_ref:
-            native_xform, _, _ = calculate_default_transform(
-                pl_ref.crs,
-                s2_crs,
-                pl_ref.width,
-                pl_ref.height,
-                *pl_ref.bounds,
-            )
-        native_gsd = abs(native_xform.a)  # pixel width in s2_crs units
-        out_w = max(1, round((s2_bounds.right - s2_bounds.left) / native_gsd))
-        out_h = max(1, round((s2_bounds.top - s2_bounds.bottom) / native_gsd))
-        out_transform = _from_bounds(
-            s2_bounds.left, s2_bounds.bottom, s2_bounds.right, s2_bounds.top, out_w, out_h
-        )
-
-        # S2 3-class label (source of truth for both modalities).
-        # Resize to match Planet's native pixel grid (NN so class ids stay exact).
-        with rasterio.open(r["s2_label"]) as lbl_src:
-            lbl = lbl_src.read(1).astype(np.int64)
-        if lbl.shape[0] != out_h or lbl.shape[1] != out_w:
+        # Label is S2 native 256x256; resize to match Planet's pixel grid (NN).
+        if lbl.shape != (a.shape[1], a.shape[2]):
             lbl_t = torch.from_numpy(lbl.astype(np.float32)).unsqueeze(0).unsqueeze(0)
             lbl = (
-                torch.nn.functional.interpolate(lbl_t, size=(out_h, out_w), mode="nearest")
+                torch.nn.functional.interpolate(
+                    lbl_t, size=(a.shape[1], a.shape[2]), mode="nearest"
+                )
                 .squeeze(0)
                 .squeeze(0)
                 .numpy()
                 .astype(np.int64)
             )
-
-        def _warp_planet(path: str) -> np.ndarray:
-            """Reproject one 4-band Planet window → (4, out_h, out_w) float32."""
-            with rasterio.open(path) as src:
-                out = np.zeros((src.count, out_h, out_w), dtype=np.float32)
-                for band_i in range(src.count):
-                    reproject(
-                        source=rasterio.band(src, band_i + 1),
-                        destination=out[band_i],
-                        src_transform=src.transform,
-                        src_crs=src.crs,
-                        dst_transform=out_transform,
-                        dst_crs=s2_crs,
-                        resampling=Resampling.bilinear,
-                    )
-            return out
-
-        a = _warp_planet(r["planet_window_a"])[_PLANET_BGR_TO_RGB]  # RGB(N)
-        b = _warp_planet(r["planet_window_b"])[_PLANET_BGR_TO_RGB]  # RGB(N)
 
         # [window_b, window_a] default; swap_order randomly flips (p=0.5).
         if self.swap_order and np.random.rand() < 0.5:
