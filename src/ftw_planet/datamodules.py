@@ -818,8 +818,8 @@ class FTWJointDataModule(FTWPlanetDataModule):
                     torch.full((n_s2,), w_s2, dtype=torch.float64),
                 ]
             )
-            # One epoch = 2 x max(n_pl, n_s2) so neither dataset is starved.
-            num_samples = 2 * max(n_pl, n_s2)
+            # One epoch = max(n_pl, n_s2) — matches single-modality epoch length.
+            num_samples = max(n_pl, n_s2)
             self.train_dataset = ConcatDataset([planet_wrapped, s2_wrapped])  # ty: ignore[invalid-argument-type]  # _NormWrapper satisfies the Dataset protocol at runtime; torch stubs too strict
             self._train_sampler = WeightedRandomSampler(
                 weights,  # ty: ignore[invalid-argument-type]  # WeightedRandomSampler accepts Tensor at runtime; stub expects Sequence[float]

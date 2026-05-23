@@ -43,8 +43,8 @@ model:
 data:
   class_path: ftw_planet.datamodules.FTWJointDataModule
   init_args:
-    batch_size: 32
-    num_workers: 20
+    batch_size: 64
+    num_workers: 32
     crop_size: 512
     s2_crop_size: 256
     load_boundaries: true
