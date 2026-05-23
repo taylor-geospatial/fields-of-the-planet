@@ -57,7 +57,6 @@ data:
     small_angle_rotation_aug: true
     shear_aug: true
     boundary_jitter_aug: true
-    gsd_channel: false
     train_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
     val_countries: [austria]
     test_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
