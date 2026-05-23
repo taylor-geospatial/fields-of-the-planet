@@ -13,6 +13,57 @@ plain Dice or CE term.
 import torch
 import torch.nn.functional as F
 
+# ---------------------------------------------------------------------------
+# VICReg alignment loss
+# ---------------------------------------------------------------------------
+
+
+def _off_diagonal(mat: torch.Tensor) -> torch.Tensor:
+    """Return all off-diagonal elements of a square matrix as a 1-D tensor."""
+    n = mat.size(0)
+    return mat.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+
+
+def vicreg_loss(
+    z1: torch.Tensor,
+    z2: torch.Tensor,
+    lambda_: float = 25.0,
+    mu: float = 25.0,
+    nu: float = 1.0,
+    eps: float = 1e-4,
+) -> torch.Tensor:
+    """VICReg loss (Bardes et al., 2022) between two (B, D) embeddings.
+
+    Three terms:
+    * **Invariance** (lambda_): MSE between z1 and z2 — alignment.
+    * **Variance** (mu): hinge loss pushing per-dim std above 1 — collapse prevention.
+    * **Covariance** (nu): penalises off-diagonal covariance — decorrelation.
+
+    Default weights match the original paper.
+    """
+    N, D = z1.shape
+    # Invariance: direct embedding alignment
+    inv = F.mse_loss(z1, z2)
+
+    # Variance: each embedding dimension should have std > 1
+    std1 = (z1.var(dim=0) + eps).sqrt()
+    std2 = (z2.var(dim=0) + eps).sqrt()
+    var = (F.relu(1.0 - std1).mean() + F.relu(1.0 - std2).mean()) / 2.0
+
+    # Covariance: decorrelate embedding dimensions
+    z1c = z1 - z1.mean(dim=0)
+    z2c = z2 - z2.mean(dim=0)
+    cov1 = (z1c.T @ z1c) / (N - 1)
+    cov2 = (z2c.T @ z2c) / (N - 1)
+    cov = (_off_diagonal(cov1).pow(2).sum() + _off_diagonal(cov2).pow(2).sum()) / D
+
+    return lambda_ * inv + mu * var + nu * cov
+
+
+# ---------------------------------------------------------------------------
+# clDice loss
+# ---------------------------------------------------------------------------
+
 
 def _soft_erode(x: torch.Tensor) -> torch.Tensor:
     # min-pool via -maxpool(-x), with kernel=3, stride=1, pad=1

@@ -21,7 +21,12 @@ from lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import ConcatDataset, DataLoader, WeightedRandomSampler
 
-from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet, FTWPlanetAlignedDataset
+from ftw_planet.datasets import (
+    PLANET_SR_SCALE,
+    FTWPairedDataset,
+    FTWPlanet,
+    FTWPlanetAlignedDataset,
+)
 
 _PLANET_SCALE: float = float(PLANET_SR_SCALE)
 _S2_SCALE: float = 3000.0
@@ -852,3 +857,175 @@ class FTWJointDataModule(FTWPlanetDataModule):
         # Pop _gsd_m before parent aug pipeline; kornia must not see it.
         batch.pop("_gsd_m", None)
         return super().on_after_batch_transfer(batch, dataloader_idx)
+
+
+# ---------------------------------------------------------------------------
+# Paired Planet + S2 datamodule with per-modality VICReg-ready batches
+# ---------------------------------------------------------------------------
+
+
+class FTWPairedDataModule(FTWPlanetDataModule):
+    """Datamodule for paired Planet (3 m) + S2 (10 m) VICReg joint training.
+
+    Each training batch contains **paired** samples: the same patch at both
+    resolutions.  This enables a cross-resolution VICReg alignment loss on the
+    encoder bottleneck (applied in the trainer, not here).
+
+    Differences from :class:`FTWJointDataModule`:
+
+    * Batch keys: ``planet_image``, ``planet_mask``, ``s2_image``, ``s2_mask``,
+      ``country`` — the trainer uses both pairs.
+    * S2 images are bilinearly upsampled to ``crop_size`` (default 512) so both
+      branches feed the same spatial grid into the encoder.
+    * Augmentations are applied **independently** to each modality: the same
+      kornia pipeline runs on ``{image, mask}`` sub-dicts for planet and s2
+      separately, giving different photometric views of the same scene — exactly
+      the multi-view setup VICReg was designed for.
+    * Validation/test: Planet only (``{image, mask}``) for consistent metrics.
+    * ``return_sdf`` forced False (no SDF targets for S2; mixed keys can't collate).
+    """
+
+    def __init__(
+        self,
+        s2_root: str = "data/ftw",
+        s2_train_countries: tuple[str, ...] | list[str] = ("austria",),
+        s2_crop_size: int = 256,
+        **planet_kwargs: Any,
+    ) -> None:
+        planet_kwargs.pop("dataset_backend", None)
+        # Build the parent aug pipeline with scale=1.0 (per-modality norm is in
+        # _NormWrapper; the aug pipeline just sees already-normalised [0,~1] values).
+        super().__init__(dataset_backend="s2", s2_data_scale=1.0, **planet_kwargs)
+        self.dataset_backend = "planet"
+        self.s2_root = s2_root
+        self.s2_train_countries = list(s2_train_countries)
+        self.s2_crop_size = int(s2_crop_size)
+        self.return_sdf = False
+
+    # ------------------------------------------------------------------
+    # setup
+    # ------------------------------------------------------------------
+
+    def setup(self, stage: str) -> None:
+        crop_val = _make_crop_transform(self.crop_size, train=False, pad_mode=self.pad_mode)
+
+        if stage in ("fit", "validate"):
+            val_ds = FTWPlanet(
+                root=self.root,
+                countries=self.val_countries,
+                split="val",
+                transforms=crop_val,
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
+                boundary_dilate_px=0,
+                return_sdf=False,
+                swap_order=False,
+            )
+            self.val_dataset = _NormWrapper(val_ds, _PLANET_SCALE)
+            print(f"[paired] val:  {len(self.val_dataset):,} Planet samples")
+
+        if stage == "test":
+            test_ds = FTWPlanet(
+                root=self.root,
+                countries=self.test_countries,
+                split="test",
+                transforms=crop_val,
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
+                boundary_dilate_px=0,
+                return_sdf=False,
+                swap_order=False,
+            )
+            self.test_dataset = _NormWrapper(test_ds, _PLANET_SCALE)
+            print(f"[paired] test: {len(self.test_dataset):,} Planet samples")
+
+        if stage == "fit":
+            self.train_dataset = FTWPairedDataset(
+                planet_root=self.root,
+                s2_root=self.s2_root,
+                countries=self.s2_train_countries,
+                split="train",
+                planet_transforms=_make_crop_transform(
+                    self.crop_size, train=True, pad_mode=self.pad_mode
+                ),
+                s2_transforms=_make_crop_transform(self.s2_crop_size, train=True),
+                load_boundaries=self.load_boundaries,
+                usable_only=self.usable_only,
+                swap_order=self.swap_order,
+            )
+            print(f"[paired] train: {len(self.train_dataset):,} paired samples")
+
+    # ------------------------------------------------------------------
+    # dataloaders
+    # ------------------------------------------------------------------
+
+    def train_dataloader(self) -> DataLoader:
+        kw: dict[str, Any] = {
+            "batch_size": self.batch_size,
+            "shuffle": True,
+            "num_workers": self.num_workers,
+            "pin_memory": True,
+            "persistent_workers": self.num_workers > 0,
+        }
+        if self.num_workers > 0:
+            kw["prefetch_factor"] = 4
+        return DataLoader(self.train_dataset, **kw)
+
+    # ------------------------------------------------------------------
+    # on_after_batch_transfer: normalise + aug each modality independently
+    # ------------------------------------------------------------------
+
+    def on_after_batch_transfer(self, batch: dict, dataloader_idx: int = 0) -> dict:
+        trainer = self.trainer
+        training = trainer is not None and trainer.training
+
+        # Val/test batch: standard {image, mask} from FTWPlanet — delegate to parent.
+        if "planet_image" not in batch:
+            return super().on_after_batch_transfer(batch, dataloader_idx)
+
+        # Training batch: {planet_image, planet_mask, s2_image, s2_mask, country}
+        country = batch.pop("country", None)
+        aug = self.train_aug if training else self.aug
+
+        # Normalise per modality: planet /10000, s2 /3000
+        pl_img = batch["planet_image"].float() / _PLANET_SCALE
+        s2_img = batch["s2_image"].float() / _S2_SCALE
+        # Upsample S2 from s2_crop_size to crop_size (bilinear image, NN mask)
+        if s2_img.shape[-1] != self.crop_size:
+            s2_img = torch.nn.functional.interpolate(
+                s2_img, size=(self.crop_size, self.crop_size), mode="bilinear", align_corners=False
+            )
+            s2_msk = (
+                torch.nn.functional.interpolate(
+                    batch["s2_mask"].unsqueeze(1).float(),
+                    size=(self.crop_size, self.crop_size),
+                    mode="nearest",
+                )
+                .squeeze(1)
+                .to(torch.int64)
+            )
+        else:
+            s2_msk = batch["s2_mask"]
+
+        pl_msk = batch["planet_mask"]
+
+        # Apply kornia aug independently to each modality sub-dict.
+        # Independent photometric jitter = multi-view for VICReg.
+        pl_batch = aug({"image": pl_img, "mask": pl_msk})
+        s2_batch = aug({"image": s2_img, "mask": s2_msk})
+
+        if training:
+            pl_batch["image"] = self._single_window_dropout(pl_batch["image"])
+            s2_batch["image"] = self._single_window_dropout(s2_batch["image"])
+            pl_batch["mask"] = self._random_boundary_jitter(pl_batch["mask"])
+            s2_batch["mask"] = self._random_boundary_jitter(s2_batch["mask"])
+
+        out: dict[str, Any] = {
+            "planet_image": pl_batch["image"],
+            "planet_mask": pl_batch["mask"],
+            "s2_image": s2_batch["image"],
+            "s2_mask": s2_batch["mask"],
+        }
+        if country is not None:
+            out["country"] = country
+        return out

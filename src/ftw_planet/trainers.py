@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 
-from ftw_planet.losses import soft_cldice_boundary
+from ftw_planet.losses import soft_cldice_boundary, vicreg_loss
 
 
 class FTWPlanetSegTask(CustomSemanticSegmentationTask):
@@ -307,4 +307,89 @@ class FrameFieldSegTask(SDFSegTask):
             "train/loss_frame_smooth", frame_smooth, on_step=False, on_epoch=True, sync_dist=True
         )
         self.train_metrics.update(seg, y)
+        return loss
+
+
+# ---------------------------------------------------------------------------
+# Paired Planet + S2 trainer with VICReg bottleneck alignment
+# ---------------------------------------------------------------------------
+
+
+class FTWPairedSegTask(FTWPlanetSegTask):
+    """Joint Planet+S2 segmentation with VICReg cross-resolution alignment.
+
+    Training batches contain paired samples from :class:`FTWPairedDataModule`:
+    ``{planet_image, planet_mask, s2_image, s2_mask}``.  Both branches share
+    the same UNet encoder/decoder.  The loss is:
+
+        seg_loss(planet) + seg_loss(s2) + vicreg_weight * VICReg(z_pl, z_s2)
+
+    where ``z_pl`` and ``z_s2`` are global-average-pooled bottleneck features
+    (last encoder stage).  VICReg's invariance term pulls same-scene embeddings
+    together; variance + covariance terms prevent representation collapse.
+
+    Validation/test use Planet-only batches (``{image, mask}``), identical to
+    :class:`FTWPlanetSegTask`.
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        vicreg_weight: float = 1.0,
+        vicreg_lambda: float = 25.0,
+        vicreg_mu: float = 25.0,
+        vicreg_nu: float = 1.0,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.vicreg_weight = float(vicreg_weight)
+        self.vicreg_lambda = float(vicreg_lambda)
+        self.vicreg_mu = float(vicreg_mu)
+        self.vicreg_nu = float(vicreg_nu)
+        self.save_hyperparameters(ignore=[])
+
+    def _encode_and_decode(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward through encoder+decoder; return (seg_logits, bottleneck_vec).
+
+        ``bottleneck_vec`` is the global-average-pooled last encoder feature map
+        (B, C) — suitable as input to VICReg.
+        """
+        unet = self.model
+        feats = unet.encoder(x)          # list of feature maps, last = bottleneck
+        dec = unet.decoder(feats)
+        seg = unet.segmentation_head(dec)
+        # Global avg pool over spatial dims → (B, C)
+        z = feats[-1].mean(dim=[-2, -1])
+        return seg, z
+
+    def training_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+        pl_x = batch["planet_image"]
+        pl_y = batch["planet_mask"].squeeze(1) if batch["planet_mask"].dim() == 4 else batch["planet_mask"]
+        s2_x = batch["s2_image"]
+        s2_y = batch["s2_mask"].squeeze(1) if batch["s2_mask"].dim() == 4 else batch["s2_mask"]
+
+        pl_logits, z_pl = self._encode_and_decode(pl_x)
+        s2_logits, z_s2 = self._encode_and_decode(s2_x)
+
+        seg_pl = self.criterion(pl_logits, pl_y)
+        seg_s2 = self.criterion(s2_logits, s2_y)
+        seg = seg_pl + seg_s2
+
+        vic = vicreg_loss(
+            z_pl, z_s2,
+            lambda_=self.vicreg_lambda,
+            mu=self.vicreg_mu,
+            nu=self.vicreg_nu,
+        )
+        loss = seg + self.vicreg_weight * vic
+
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log("train/loss_seg", seg, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("train/loss_seg_planet", seg_pl, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("train/loss_seg_s2", seg_s2, on_step=False, on_epoch=True, sync_dist=True)
+        self.log("train/loss_vicreg", vic, on_step=False, on_epoch=True, sync_dist=True)
+        # Track metrics on planet branch (primary eval modality)
+        self.train_metrics.update(pl_logits, pl_y)
         return loss

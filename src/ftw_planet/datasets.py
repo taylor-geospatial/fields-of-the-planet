@@ -314,3 +314,179 @@ class FTWPlanetAlignedDataset:
         if self.transforms is not None:
             sample = self.transforms(sample)
         return sample
+
+
+# ---------------------------------------------------------------------------
+# Paired Planet + S2 dataset (same patch_id, both modalities)
+# ---------------------------------------------------------------------------
+
+
+class FTWPairedDataset:
+    """Paired PlanetScope + Sentinel-2 samples for the same patch_id.
+
+    For each patch, returns:
+    * ``planet_image``: (8, H_pl, W_pl) pre-aligned Planet DN, RGB(N)x2 windows.
+    * ``planet_mask``:  (H_pl, W_pl) 3-class label upsampled to Planet grid (NN).
+    * ``s2_image``:     (8, 256, 256) Sentinel-2 DN, RGB(N)x2 windows.
+    * ``s2_mask``:      (256, 256) 3-class label at native S2 resolution.
+    * ``country``:      str.
+
+    Both modalities share the same label geometry (same AOI); the planet mask
+    is the S2 3-class label NN-resized to the Planet pixel grid so the
+    segmentation loss sees the same semantics at both resolutions.
+
+    ``planet_transforms`` / ``s2_transforms`` are called with
+    ``{"image": ..., "mask": ...}`` sub-dicts and should return the same keys.
+    """
+
+    valid_splits = ("train", "val", "test")
+
+    def __init__(
+        self,
+        planet_root: str = "data",
+        s2_root: str = "data/ftw",
+        countries: Sequence[str] | str | None = None,
+        split: str = "train",
+        planet_transforms: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        s2_transforms: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        load_boundaries: bool = True,
+        usable_only: bool = True,
+        swap_order: bool = False,
+    ) -> None:
+        if countries is None:
+            raise ValueError("Specify countries to load")
+        if isinstance(countries, str):
+            countries = [countries]
+        countries = [c.lower() for c in countries]
+        assert split in self.valid_splits, f"bad split {split}"
+
+        self.planet_transforms = planet_transforms
+        self.s2_transforms = s2_transforms
+        self.load_boundaries = load_boundaries
+        self.swap_order = bool(swap_order)
+
+        pl_root = Path(planet_root) / "planet"
+        ftw_root = Path(s2_root)
+        aligned_a_root = pl_root / "aligned_window_a"
+        aligned_b_root = pl_root / "aligned_window_b"
+
+        idx = __import__("geopandas").read_parquet(pl_root / "index.parquet")
+        idx = idx[idx["country"].isin(countries)].copy()
+        if usable_only:
+            idx = idx[idx["usable_pair"] == True]  # noqa: E712
+        idx["patch_id"] = idx["patch_id"].astype(str)
+
+        records: list[dict[str, str]] = []
+        for country in countries:
+            chips_path = ftw_root / country / f"chips_{country}.parquet"
+            if not chips_path.exists():
+                continue
+            chips = __import__("geopandas").read_parquet(chips_path)
+            chips = chips[chips["split"] == split][["aoi_id"]].rename(
+                columns={"aoi_id": "patch_id"}
+            )
+            chips["patch_id"] = chips["patch_id"].astype(str)
+            chips["country"] = country
+            sub = idx.merge(chips, on=["country", "patch_id"], how="inner")
+            for r in sub.to_dict(orient="records"):
+                pid = str(r["patch_id"])
+                pl_a = aligned_a_root / country / f"{pid}.tif"
+                pl_b = aligned_b_root / country / f"{pid}.tif"
+                s2_a = ftw_root / country / "s2_images" / "window_a" / f"{pid}.tif"
+                s2_b = ftw_root / country / "s2_images" / "window_b" / f"{pid}.tif"
+                lbl = ftw_root / country / "label_masks" / "semantic_3class" / f"{pid}.tif"
+                if not (pl_a.exists() and pl_b.exists() and s2_a.exists() and s2_b.exists() and lbl.exists()):
+                    continue
+                records.append(
+                    {
+                        "country": country,
+                        "patch_id": pid,
+                        "planet_a": str(pl_a),
+                        "planet_b": str(pl_b),
+                        "s2_a": str(s2_a),
+                        "s2_b": str(s2_b),
+                        "label": str(lbl),
+                    }
+                )
+        if not records:
+            raise RuntimeError(
+                f"FTWPairedDataset: no samples for split={split} "
+                f"countries={countries}. Ensure precompute_aligned_planet.py has run."
+            )
+        self.records = records
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        r = self.records[index]
+
+        # --- Planet (pre-aligned, already RGB(N)) ---
+        with rasterio.open(r["planet_a"]) as src:
+            pl_a = src.read().astype(np.float32)  # (4, H_pl, W_pl)
+        with rasterio.open(r["planet_b"]) as src:
+            pl_b = src.read().astype(np.float32)
+
+        # --- S2 (native 256x256, RGB(N) per window) ---
+        with rasterio.open(r["s2_a"]) as src:
+            s2_a = src.read().astype(np.float32)  # (4, 256, 256)
+        with rasterio.open(r["s2_b"]) as src:
+            s2_b = src.read().astype(np.float32)
+
+        # --- Shared S2 3-class label ---
+        with rasterio.open(r["label"]) as src:
+            lbl_s2 = src.read(1).astype(np.int64)  # (256, 256)
+
+        # Clip planet to min H/W (independent reprojection can differ by 1 px)
+        h_pl = min(pl_a.shape[1], pl_b.shape[1])
+        w_pl = min(pl_a.shape[2], pl_b.shape[2])
+        pl_a = pl_a[:, :h_pl, :w_pl]
+        pl_b = pl_b[:, :h_pl, :w_pl]
+
+        # Planet label: NN-upsample the S2 label to the planet pixel grid
+        if lbl_s2.shape != (h_pl, w_pl):
+            lbl_t = torch.from_numpy(lbl_s2.astype(np.float32)).unsqueeze(0).unsqueeze(0)
+            lbl_pl = (
+                torch.nn.functional.interpolate(lbl_t, size=(h_pl, w_pl), mode="nearest")
+                .squeeze(0)
+                .squeeze(0)
+                .numpy()
+                .astype(np.int64)
+            )
+        else:
+            lbl_pl = lbl_s2.copy()
+
+        # Temporal window ordering: window_b first by default.
+        # Apply the SAME swap decision to both modalities so temporal order is
+        # consistent across Planet and S2 for the same sample.
+        swap = self.swap_order and np.random.rand() < 0.5
+        planet_image = np.concatenate([pl_a, pl_b] if swap else [pl_b, pl_a], axis=0)
+        s2_image = np.concatenate([s2_a, s2_b] if swap else [s2_b, s2_a], axis=0)
+
+        if not self.load_boundaries:
+            lbl_pl = (lbl_pl > 0).astype(np.int64)
+            lbl_s2 = (lbl_s2 > 0).astype(np.int64)
+
+        sample: dict[str, Any] = {
+            "planet_image": torch.from_numpy(planet_image),
+            "planet_mask": torch.from_numpy(lbl_pl),
+            "s2_image": torch.from_numpy(s2_image),
+            "s2_mask": torch.from_numpy(lbl_s2),
+            "country": r["country"],
+        }
+
+        if self.planet_transforms is not None:
+            pl_sub = self.planet_transforms(
+                {"image": sample["planet_image"], "mask": sample["planet_mask"]}
+            )
+            sample["planet_image"] = pl_sub["image"]
+            sample["planet_mask"] = pl_sub["mask"]
+
+        if self.s2_transforms is not None:
+            s2_sub = self.s2_transforms(
+                {"image": sample["s2_image"], "mask": sample["s2_mask"]}
+            )
+            sample["s2_image"] = s2_sub["image"]
+            sample["s2_mask"] = s2_sub["mask"]
+
+        return sample
