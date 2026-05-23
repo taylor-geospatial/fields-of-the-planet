@@ -877,10 +877,14 @@ class FTWPairedDataModule(FTWPlanetDataModule):
       ``country`` — the trainer uses both pairs.
     * S2 images are bilinearly upsampled to ``crop_size`` (default 512) so both
       branches feed the same spatial grid into the encoder.
-    * Augmentations are applied **independently** to each modality: the same
-      kornia pipeline runs on ``{image, mask}`` sub-dicts for planet and s2
-      separately, giving different photometric views of the same scene — exactly
-      the multi-view setup VICReg was designed for.
+    * Augmentations are split into geometric (shared) + photometric (independent):
+      - ``geo_aug_train``: rotation/flip/shear/crop — applied with identical
+        parameters to both modalities via ``forward_parameters`` so the spatial
+        transform is consistent.
+      - ``photo_aug_train``: normalisation, gamma, affine, blur, noise — applied
+        independently, giving different photometric views (the VICReg multi-view
+        signal) while halving the expensive ``grid_sample`` calls vs. running the
+        full pipeline twice.
     * Validation/test: Planet only (``{image, mask}``) for consistent metrics.
     * ``return_sdf`` forced False (no SDF targets for S2; mixed keys can't collate).
     """
@@ -901,6 +905,101 @@ class FTWPairedDataModule(FTWPlanetDataModule):
         self.s2_train_countries = list(s2_train_countries)
         self.s2_crop_size = int(s2_crop_size)
         self.return_sdf = False
+        self._build_paired_aug_pipelines()
+
+    # ------------------------------------------------------------------
+    # Paired aug: geo (shared params) + photo (independent per modality)
+    # ------------------------------------------------------------------
+
+    def _build_paired_aug_pipelines(self) -> None:
+        """Split train_aug into geometric (shared) and photometric (independent).
+
+        ``geo_aug_train``: spatial transforms applied with identical
+        ``forward_parameters`` to Planet and S2 so the mask transform is
+        consistent and grid_sample runs once per modality pair rather than
+        being duplicated.
+
+        ``photo_aug_train``: image-only transforms randomised independently
+        per modality — this is the source of multi-view diversity that drives
+        VICReg's invariance term.
+        """
+        _scale = self._data_scale  # = 1.0 (images already normalised before aug)
+
+        # Reconstruct photometric closures (mirrors parent __init__ logic).
+        def random_divisor_normalize(x: Tensor) -> Tensor:
+            if x.dim() != 4:
+                return x
+            divisors = torch.empty(x.size(0), 1, 1, 1, device=x.device, dtype=x.dtype).uniform_(
+                _scale * 0.5, _scale * 1.5
+            )
+            return x / divisors
+
+        _glo, _ghi, _gp = *self.per_band_gamma_range, self.per_band_gamma_p
+
+        def per_band_gamma(x: Tensor) -> Tensor:
+            if x.dim() != 4 or torch.rand(1).item() > _gp:
+                return x
+            B, C = x.shape[0], x.shape[1]
+            g = torch.empty(B, C, 1, 1, device=x.device, dtype=x.dtype).uniform_(_glo, _ghi)
+            return x.clamp(min=1e-6) ** g
+
+        _alo, _ahi = self.per_band_affine_a_range
+        _blo, _bhi = self.per_band_affine_b_range
+        _ap = self.per_band_affine_p
+
+        def per_band_affine(x: Tensor) -> Tensor:
+            if x.dim() != 4 or torch.rand(1).item() > _ap:
+                return x
+            B, C = x.shape[0], x.shape[1]
+            a = torch.empty(B, C, 1, 1, device=x.device, dtype=x.dtype).uniform_(_alo, _ahi)
+            b = torch.empty(B, C, 1, 1, device=x.device, dtype=x.dtype).uniform_(_blo, _bhi)
+            return a * x + b
+
+        # --- Geometric aug (shared between modalities, operates on image+mask) ---
+        geo_augs: list[Any] = [
+            K.RandomRotation(p=0.5, degrees=90),
+            K.RandomHorizontalFlip(p=0.5),
+            K.RandomVerticalFlip(p=0.5),
+        ]
+        if self.small_angle_rotation_aug:
+            geo_augs.append(
+                K.RandomAffine(degrees=self.small_angle_rotation_degrees, p=self.small_angle_rotation_p)
+            )
+        if self.shear_aug:
+            geo_augs.append(K.RandomAffine(degrees=0.0, shear=self.shear_degrees, p=self.shear_p))
+        if self.resize_aug:
+            geo_augs.append(
+                K.RandomResizedCrop(
+                    (self.crop_size, self.crop_size),
+                    scale=(0.3, 0.9),
+                    ratio=(0.75, 1.33),
+                    p=0.5,
+                )
+            )
+        self.geo_aug_train = K.AugmentationSequential(*geo_augs, data_keys=None)
+
+        # --- Photometric aug (independent per modality, image tensor only) ---
+        photo_augs: list[Any] = [
+            kornia.contrib.Lambda(random_divisor_normalize)
+            if self.preprocess_aug
+            else K.Normalize(mean=self.mean, std=self.std),
+            K.RandomSharpness(p=0.5),
+        ]
+        if self.per_band_gamma_aug:
+            photo_augs.append(kornia.contrib.Lambda(per_band_gamma))
+        if self.per_band_affine_aug:
+            photo_augs.append(kornia.contrib.Lambda(per_band_affine))
+        if self.gaussian_blur_aug:
+            photo_augs.append(
+                K.RandomGaussianBlur(
+                    kernel_size=(3, 3), sigma=self.gaussian_blur_sigma, p=self.gaussian_blur_p
+                )
+            )
+        if self.gaussian_noise_aug:
+            photo_augs.append(
+                K.RandomGaussianNoise(mean=0.0, std=self.gaussian_noise_std, p=self.gaussian_noise_p)
+            )
+        self.photo_aug_train = K.AugmentationSequential(*photo_augs, data_keys=None)
 
     # ------------------------------------------------------------------
     # setup
@@ -1017,28 +1116,45 @@ class FTWPairedDataModule(FTWPlanetDataModule):
             s2_img_up = s2_img
             s2_msk = s2_msk_raw
 
-        aug = self.train_aug if training else self.aug
-
-        # Apply kornia aug independently — different random params per modality
-        # gives independent photometric views, the multi-view setup VICReg needs.
-        # Delete pre-aug tensors right after each call so we never hold both
-        # pre-aug and post-aug buffers for both modalities simultaneously.
-        pl_batch = aug({"image": pl_img, "mask": pl_msk})
-        del pl_img, pl_msk
-        s2_batch = aug({"image": s2_img_up, "mask": s2_msk})
-        del s2_img_up, s2_msk
-
         if training:
-            pl_batch["image"] = self._single_window_dropout(pl_batch["image"])
-            s2_batch["image"] = self._single_window_dropout(s2_batch["image"])
-            pl_batch["mask"] = self._random_boundary_jitter(pl_batch["mask"])
-            s2_batch["mask"] = self._random_boundary_jitter(s2_batch["mask"])
+            # --- Geometric aug: shared params via forward_parameters ---
+            # Compute random transform parameters once, replay identically on
+            # both modalities.  This means Planet and S2 get the same spatial
+            # transform (flip/rotate/shear) while photometric aug below remains
+            # independent — halves the expensive grid_sample calls vs. running
+            # the full pipeline twice.
+            geo_params = self.geo_aug_train.forward_parameters(pl_img.shape)
+            pl_geo = self.geo_aug_train({"image": pl_img, "mask": pl_msk}, params=geo_params)
+            del pl_img, pl_msk
+            s2_geo = self.geo_aug_train({"image": s2_img_up, "mask": s2_msk}, params=geo_params)
+            del s2_img_up, s2_msk
+
+            # --- Photometric aug: independent per modality (multi-view signal) ---
+            # Pass as {"image": ...} dict — kornia needs data_keys context.
+            pl_img_out = self.photo_aug_train({"image": pl_geo["image"]})["image"]
+            del pl_geo["image"]  # free pre-photo buffer
+            s2_img_out = self.photo_aug_train({"image": s2_geo["image"]})["image"]
+            del s2_geo["image"]
+
+            pl_img_out = self._single_window_dropout(pl_img_out)
+            s2_img_out = self._single_window_dropout(s2_img_out)
+            pl_msk_out = self._random_boundary_jitter(pl_geo["mask"])
+            s2_msk_out = self._random_boundary_jitter(s2_geo["mask"])
+        else:
+            # Val path (shouldn't reach here — paired keys not in val batch —
+            # but handle gracefully just in case).
+            pl_geo = self.aug({"image": pl_img, "mask": pl_msk})
+            del pl_img, pl_msk
+            s2_geo = self.aug({"image": s2_img_up, "mask": s2_msk})
+            del s2_img_up, s2_msk
+            pl_img_out, pl_msk_out = pl_geo["image"], pl_geo["mask"]
+            s2_img_out, s2_msk_out = s2_geo["image"], s2_geo["mask"]
 
         out: dict[str, Any] = {
-            "planet_image": pl_batch["image"],
-            "planet_mask": pl_batch["mask"],
-            "s2_image": s2_batch["image"],
-            "s2_mask": s2_batch["mask"],
+            "planet_image": pl_img_out,
+            "planet_mask": pl_msk_out,
+            "s2_image": s2_img_out,
+            "s2_mask": s2_msk_out,
         }
         if country is not None:
             out["country"] = country

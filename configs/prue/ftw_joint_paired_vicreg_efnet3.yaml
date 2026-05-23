@@ -44,12 +44,12 @@ model:
     vicreg_lambda: 25.0
     vicreg_mu: 25.0
     vicreg_nu: 1.0
-    grad_checkpointing: true
+    grad_checkpointing: false
 data:
   class_path: ftw_planet.datamodules.FTWPairedDataModule
   init_args:
     batch_size: 64
-    num_workers: 32
+    num_workers: 20
     crop_size: 512         # Planet crop + S2 upsample target
     s2_crop_size: 256      # S2 native crop before upsample
     load_boundaries: true
