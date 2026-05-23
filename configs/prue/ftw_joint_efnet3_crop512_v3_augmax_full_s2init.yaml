@@ -1,5 +1,5 @@
 trainer:
-  max_epochs: 200
+  max_epochs: 100
   log_every_n_steps: 10
   accelerator: gpu
   precision: bf16-mixed
@@ -21,10 +21,9 @@ trainer:
         save_top_k: 1
         save_last: true
         filename: "{epoch}-{val/loss:.2f}"
-# Identical to ftw_joint_efnet3_crop512_v3_augmax_full.yaml but submitted
-# with --ckpt_path pointing at the CCBY S2 PRUE-B3 checkpoint so the model
-# is initialised from S2-trained weights before joint fine-tuning.
-# Submit via: CKPT_PATH=<path> sbatch scripts/slurm/train_joint.sbatch
+# Loads S2-pretrained weights via `weights:` (model state dict only —
+# no optimizer/scheduler state, fresh epoch 0, fresh LR).
+# Do NOT submit with --ckpt_path; weights param handles initialisation.
 model:
   class_path: ftw_planet.trainers.FTWPlanetSegTask
   init_args:
@@ -32,7 +31,7 @@ model:
     loss: "logcoshdice"
     model: "unet"
     backbone: "efficientnet-b3"
-    weights: true
+    weights: logs/prue/ftw_s2-unet-efnet3-crop256-s2-v3-augmax-full/ftw-s2/yf11l4v0/checkpoints/last.ckpt
     patch_weights: false
     in_channels: 8
     num_classes: 3
