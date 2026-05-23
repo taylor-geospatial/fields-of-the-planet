@@ -48,7 +48,7 @@ model:
 data:
   class_path: ftw_planet.datamodules.FTWPairedDataModule
   init_args:
-    batch_size: 48
+    batch_size: 64
     num_workers: 32
     crop_size: 512         # Planet crop + S2 upsample target
     s2_crop_size: 256      # S2 native crop before upsample
