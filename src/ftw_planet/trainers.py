@@ -339,6 +339,7 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         vicreg_lambda: float = 25.0,
         vicreg_mu: float = 25.0,
         vicreg_nu: float = 1.0,
+        grad_checkpointing: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -346,7 +347,28 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         self.vicreg_lambda = float(vicreg_lambda)
         self.vicreg_mu = float(vicreg_mu)
         self.vicreg_nu = float(vicreg_nu)
+        self.grad_checkpointing = bool(grad_checkpointing)
         self.save_hyperparameters(ignore=[])
+
+    def on_fit_start(self) -> None:
+        """Enable gradient checkpointing on the timm backbone if requested.
+
+        Both encoder forward passes share the same weights, so enabling
+        checkpointing here halves the activation memory for encoder internals
+        at the cost of ~33% extra compute (activations recomputed on backward).
+        The UNet decoder skip connections still hold the encoder *outputs*
+        (feature maps at each scale) — checkpointing only removes the
+        intra-block intermediates.
+        """
+        super().on_fit_start()
+        if not self.grad_checkpointing:
+            return
+        enc = self.model.encoder
+        # smp wraps timm as enc.model; timm EfficientNet supports set_grad_checkpointing.
+        timm_backbone = getattr(enc, "model", None)
+        if timm_backbone is not None and hasattr(timm_backbone, "set_grad_checkpointing"):
+            timm_backbone.set_grad_checkpointing(True)
+            print("[FTWPairedSegTask] gradient checkpointing enabled on encoder backbone")
 
     def _encode_and_decode(
         self, x: torch.Tensor
@@ -365,13 +387,21 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         return seg, z
 
     def training_step(self, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
-        pl_x = batch["planet_image"]
-        pl_y = batch["planet_mask"].squeeze(1) if batch["planet_mask"].dim() == 4 else batch["planet_mask"]
-        s2_x = batch["s2_image"]
-        s2_y = batch["s2_mask"].squeeze(1) if batch["s2_mask"].dim() == 4 else batch["s2_mask"]
+        # Pop so the batch dict releases its references; tensors stay alive only
+        # via our locals (and later the autograd graph).
+        pl_x = batch.pop("planet_image")
+        pl_y_raw = batch.pop("planet_mask")
+        s2_x = batch.pop("s2_image")
+        s2_y_raw = batch.pop("s2_mask")
+        pl_y = pl_y_raw.squeeze(1) if pl_y_raw.dim() == 4 else pl_y_raw
+        s2_y = s2_y_raw.squeeze(1) if s2_y_raw.dim() == 4 else s2_y_raw
 
         pl_logits, z_pl = self._encode_and_decode(pl_x)
+        # pl_x is no longer needed as a local — the autograd graph still holds
+        # the underlying tensor; deleting the local just frees the Python ref.
+        del pl_x
         s2_logits, z_s2 = self._encode_and_decode(s2_x)
+        del s2_x
 
         seg_pl = self.criterion(pl_logits, pl_y)
         seg_s2 = self.criterion(s2_logits, s2_y)

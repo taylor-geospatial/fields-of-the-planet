@@ -983,36 +983,50 @@ class FTWPairedDataModule(FTWPlanetDataModule):
         if "planet_image" not in batch:
             return super().on_after_batch_transfer(batch, dataloader_idx)
 
-        # Training batch: {planet_image, planet_mask, s2_image, s2_mask, country}
+        # Training batch: pop all keys immediately so the batch dict holds no
+        # extra references — tensors are freed as soon as our locals go out of scope.
+        pl_img = batch.pop("planet_image")   # float32 (from np.float32 in dataset)
+        pl_msk = batch.pop("planet_mask")
+        s2_img = batch.pop("s2_image")       # float32
+        s2_msk_raw = batch.pop("s2_mask")
         country = batch.pop("country", None)
-        aug = self.train_aug if training else self.aug
 
-        # Normalise per modality: planet /10000, s2 /3000
-        pl_img = batch["planet_image"].float() / _PLANET_SCALE
-        s2_img = batch["s2_image"].float() / _S2_SCALE
-        # Upsample S2 from s2_crop_size to crop_size (bilinear image, NN mask)
+        # Normalise in-place: no extra tensor allocated.
+        # Tensors are already float32; .float() would be a no-op so skip it.
+        pl_img.div_(_PLANET_SCALE)
+        s2_img.div_(_S2_SCALE)
+
+        # Upsample S2 from s2_crop_size → crop_size.
+        # F.interpolate requires a size change so a new allocation is unavoidable;
+        # delete the source tensors immediately after to bound peak memory.
         if s2_img.shape[-1] != self.crop_size:
-            s2_img = torch.nn.functional.interpolate(
-                s2_img, size=(self.crop_size, self.crop_size), mode="bilinear", align_corners=False
+            t = self.crop_size
+            s2_img_up = torch.nn.functional.interpolate(
+                s2_img, size=(t, t), mode="bilinear", align_corners=False
             )
+            del s2_img  # free (B,8,256,256) before holding (B,8,512,512)
             s2_msk = (
                 torch.nn.functional.interpolate(
-                    batch["s2_mask"].unsqueeze(1).float(),
-                    size=(self.crop_size, self.crop_size),
-                    mode="nearest",
+                    s2_msk_raw.unsqueeze(1).float(), size=(t, t), mode="nearest"
                 )
                 .squeeze(1)
                 .to(torch.int64)
             )
+            del s2_msk_raw
         else:
-            s2_msk = batch["s2_mask"]
+            s2_img_up = s2_img
+            s2_msk = s2_msk_raw
 
-        pl_msk = batch["planet_mask"]
+        aug = self.train_aug if training else self.aug
 
-        # Apply kornia aug independently to each modality sub-dict.
-        # Independent photometric jitter = multi-view for VICReg.
+        # Apply kornia aug independently — different random params per modality
+        # gives independent photometric views, the multi-view setup VICReg needs.
+        # Delete pre-aug tensors right after each call so we never hold both
+        # pre-aug and post-aug buffers for both modalities simultaneously.
         pl_batch = aug({"image": pl_img, "mask": pl_msk})
-        s2_batch = aug({"image": s2_img, "mask": s2_msk})
+        del pl_img, pl_msk
+        s2_batch = aug({"image": s2_img_up, "mask": s2_msk})
+        del s2_img_up, s2_msk
 
         if training:
             pl_batch["image"] = self._single_window_dropout(pl_batch["image"])
