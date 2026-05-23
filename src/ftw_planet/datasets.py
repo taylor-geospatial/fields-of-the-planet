@@ -280,12 +280,19 @@ class FTWPlanetAlignedDataset:
         with rasterio.open(r["label"]) as src:
             lbl = src.read(1).astype(np.int64)
 
+        # Windows may differ by 1 px due to independent reprojection rounding;
+        # clip to the common min so the concatenation always succeeds.
+        h = min(a.shape[1], b.shape[1])
+        w = min(a.shape[2], b.shape[2])
+        a = a[:, :h, :w]
+        b = b[:, :h, :w]
+
         # Label is S2 native 256x256; resize to match Planet's pixel grid (NN).
-        if lbl.shape != (a.shape[1], a.shape[2]):
+        if lbl.shape != (h, w):
             lbl_t = torch.from_numpy(lbl.astype(np.float32)).unsqueeze(0).unsqueeze(0)
             lbl = (
                 torch.nn.functional.interpolate(
-                    lbl_t, size=(a.shape[1], a.shape[2]), mode="nearest"
+                    lbl_t, size=(h, w), mode="nearest"
                 )
                 .squeeze(0)
                 .squeeze(0)
