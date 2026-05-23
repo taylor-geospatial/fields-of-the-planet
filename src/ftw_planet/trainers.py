@@ -396,9 +396,11 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         pl_y = pl_y_raw.squeeze(1) if pl_y_raw.dim() == 4 else pl_y_raw
         s2_y = s2_y_raw.squeeze(1) if s2_y_raw.dim() == 4 else s2_y_raw
 
+        # Capture batch size before deleting input tensors; Lightning can't
+        # infer it from the batch after we've popped everything.
+        bs = pl_x.shape[0]
+
         pl_logits, z_pl = self._encode_and_decode(pl_x)
-        # pl_x is no longer needed as a local — the autograd graph still holds
-        # the underlying tensor; deleting the local just frees the Python ref.
         del pl_x
         s2_logits, z_s2 = self._encode_and_decode(s2_x)
         del s2_x
@@ -415,11 +417,12 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         )
         loss = seg + self.vicreg_weight * vic
 
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.log("train/loss_seg", seg, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("train/loss_seg_planet", seg_pl, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("train/loss_seg_s2", seg_s2, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("train/loss_vicreg", vic, on_step=False, on_epoch=True, sync_dist=True)
+        log_kw: dict[str, Any] = {"batch_size": bs, "sync_dist": True}
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, **log_kw)
+        self.log("train/loss_seg", seg, on_step=False, on_epoch=True, **log_kw)
+        self.log("train/loss_seg_planet", seg_pl, on_step=False, on_epoch=True, **log_kw)
+        self.log("train/loss_seg_s2", seg_s2, on_step=False, on_epoch=True, **log_kw)
+        self.log("train/loss_vicreg", vic, on_step=False, on_epoch=True, **log_kw)
         # Track metrics on planet branch (primary eval modality)
         self.train_metrics.update(pl_logits, pl_y)
         return loss
