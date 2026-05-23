@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=ftw-joint
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu_a100
 #SBATCH --account=bgtj-tgirails
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
-#SBATCH --gpus-per-node=h100:1
+#SBATCH --gpus-per-node=a100:1
 #SBATCH --mem=128G
 #SBATCH --time=48:00:00
 #SBATCH --signal=B:USR1@180
