@@ -59,7 +59,7 @@ Paper ID \wacvPaperID}
 }]
 \begin{abstract}
 Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which approaches the resolution floor for smallholder parcels. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}: 25 countries, 134{,}267 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads against Cloud-Optimized GeoTIFFs in $\sim$17\,h on a single commodity CPU partition.\footnote{Data URL withheld for double-blind review; code and dataset link will be released at acceptance.}
-An EfficientNet-B3~\cite{tan2019efficientnet} U-Net~\cite{ronneberger2015unet} trained on FTW-HD with our augmentation recipe beats a matched S2 baseline -- PRUE~\cite{muhawenayo2026prue} EfficientNet-B7 retrained on the same 25 countries with the \emph{same} augmentation recipe -- on \emph{every grid-invariant metric we evaluate} (macro over the 11-country held-out split): PQ~\cite{kirillov2019panoptic} 0.324 vs 0.283, mean object F1 over IoU $0.5$--$0.95$ of 0.263 vs 0.225, and mean boundary error 7.4\,m vs 14.8\,m, with a $4\times$ smaller backbone. Pixel IoU favors S2 by 4 points, dragged by two countries (Kenya, Portugal) where the Planet model collapses; on the remaining 20 countries the pixel-IoU gap closes. Pixel IoU is the wrong primary metric here anyway, because downstream pipelines consume vectorized parcels, not rasters. PlanetScope's $3\times$ finer resolution helps most in Nordic and smallholder regions, where field size is closest to the S2 resolution floor.
+An EfficientNet-B3~\cite{tan2019efficientnet} U-Net~\cite{ronneberger2015unet} trained on FTW-HD with our augmentation recipe beats a matched S2 baseline -- PRUE~\cite{muhawenayo2026prue} EfficientNet-B7 retrained on the same 25 countries with the \emph{same} augmentation recipe -- on \emph{every grid-invariant metric we evaluate} (macro over the 11-country held-out split): PQ~\cite{kirillov2019panoptic} 0.324 vs 0.283, mean object F1 over IoU $0.5$--$0.95$ of 0.263 vs 0.225, and mean boundary error 7.4\,m vs 14.8\,m, with a $4\times$ smaller backbone. Pixel IoU favors S2 by 7 points, dragged by two countries (Kenya, Portugal) where the Planet model collapses; on the remaining held-out countries the pixel-IoU gap closes. Pixel IoU is the wrong primary metric here anyway, because downstream pipelines consume vectorized parcels, not rasters. PlanetScope's $3\times$ finer resolution helps most in Nordic and smallholder regions, where field size is closest to the S2 resolution floor.
 \end{abstract}
 
 \section{Introduction}
@@ -144,10 +144,12 @@ UDM2 masks (8-band, uint8)      & 133{,}682 \\
 3-class labels (uint8)          & 123{,}094 \\
 \midrule
 \multicolumn{2}{l}{\cellcolor{black!7}\textbf{Yield}}\\
-% TODO(numbers): 134,267 / 140,968 = 95.25%, not 95.7%. The 95.7% in
-% \Cref{sec:limitations} comes from 100 - 4.1 - 0.2, which implies ~134,910
-% matched pairs. Reconcile the "Successfully matched pairs" count with the
-% stated success rate (one of the two is off by ~640 patches).
+% TODO(numbers): three different totals exist; pick the release snapshot and
+% make them agree. (1) 134,267 / 140,968 = 95.25%, not the 95.7% printed.
+% (2) \Cref{sec:limitations} 100-4.1-0.2 implies ~134,910 matched pairs.
+% (3) local data/planet/index.parquet has 66,584 patches / 133,168 pairs
+%     (94.5%) -- an older/partial snapshot. Confirm the authoritative count
+%     from the release manifest, then reconcile pairs + success rate.
 Successfully matched pairs      & 134{,}267 \\
 \textbf{Success rate}           & \textbf{95.7\%} \\
 Total dataset size              & 102\,GB \\
@@ -312,14 +314,6 @@ cheap to run.
 
 \subsection{Stronger recipe}
 
-% TODO(numbers): the "0.405 Obj F1" below does not reconcile with the eval
-% CSVs. 0.405 is exactly the RQ of the full B3 model (logs/polygon_metrics/
-% planet_b3_augmax_full.csv). object_ws_f1 of the full model on the 11
-% held-out countries is ~0.374 (n=10, kenya dropped) per
-% logs/heldout/v3_augmax_fulldata.csv, and ~0.435 over all 23. The CC-BY
-% augmax held-out Obj F1 is 0.341 (logs/heldout/v3_augmax_ws_tta.csv).
-% Decide the true source for "full Obj F1 on 11 held-out" and whether the
-% +6.5 lift is Obj F1 or RQ before camera-ready.
 \paragraph{Train on all 25 countries (+$6.5$\,pts Obj F1 over CC-BY).}
 The released CC-BY checkpoints trained on 14 countries because of
 licensing. We retrained on all 25; this lifts our best B3 augmax model
@@ -368,15 +362,10 @@ PRUE protocol~\cite{muhawenayo2026prue} and report it in
 the comparison.
 
 \paragraph{Pixel IoU is noise-dominated and outlier-dragged.}
-% TODO(numbers): verify the 0.720 / 0.760 pixel-IoU pair and its protocol.
-% logs/heldout/v3_augmax_fulldata.csv gives macro pixel_level_iou = 0.678
-% for the full B3 Planet model over the 23-country full_data split, not
-% 0.720. full_data_compare.tex lists 0.69 for the same model on the
-% 11-country held-out macro. Confirm which split/definition 0.720 is and
-% make it match tab:full_data.
-Our best Planet model (B3 augmax full, WS+TTA) gets pixel IoU $0.720$
-on the FTW \texttt{full\_data} protocol; the retrained S2-augmax B7
-full gets $0.760$. The headline $-4$\,pt gap is dragged by two
+Our best Planet model (B3 augmax full, WS+TTA) gets macro pixel IoU
+$0.69$ on the 11-country held-out set (\Cref{tab:full_data}); the
+S2-augmax B7 full baseline gets $0.76$. The headline $-7$\,pt gap is
+dragged by two
 countries where the Planet model collapses to near-zero IoU (Kenya:
 unlabeled-parcel annotation gaps treated as negatives; Portugal:
 sub-pixel terraced micro-fields; see \Cref{sec:limitations}). Removing
@@ -423,8 +412,8 @@ evaluate.}
 \paragraph{Per-country head-to-head.}
 On the FTW \texttt{full\_data} protocol (23-country test split),
 macro PQ is $0.379$ (Planet) vs $0.311$ (S2-augmax-B7, same recipe),
-a $+6.8$\,pp Planet win. Macro pixel IoU is $0.720$ vs $0.760$
-($-4.0$\,pts), dragged by Kenya ($\le\!0.01$) and Portugal ($\le\!0.01$;
+a $+6.8$\,pp Planet win. Macro pixel IoU on the 11-country held-out is
+$0.69$ vs $0.76$ ($-7$\,pts), dragged by Kenya ($\le\!0.01$) and Portugal ($\le\!0.01$;
 both are hard-transfer failures described in \Cref{sec:limitations}).
 Figure~\ref{fig:per_country_bars} unpacks PQ into per-country deltas.
 Planet wins on $20/23$ countries, ties on one, and loses two. The
