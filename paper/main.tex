@@ -58,7 +58,7 @@ Paper ID \wacvPaperID}
 \vspace{12pt}
 }]
 \begin{abstract}
-Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which approaches the resolution floor for smallholder parcels. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}: 25 countries, 134{,}267 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads against Cloud-Optimized GeoTIFFs in $\sim$17\,h on a single commodity CPU partition.\footnote{Data URL withheld for double-blind review; code and dataset link will be released at acceptance.}
+Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which approaches the resolution floor for smallholder parcels. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}: 25 countries, 133{,}168 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads against Cloud-Optimized GeoTIFFs in $\sim$17\,h on a single commodity CPU partition.\footnote{Data URL withheld for double-blind review; code and dataset link will be released at acceptance.}
 An EfficientNet-B3~\cite{tan2019efficientnet} U-Net~\cite{ronneberger2015unet} trained on FTW-HD with our augmentation recipe beats a matched S2 baseline -- PRUE~\cite{muhawenayo2026prue} EfficientNet-B7 retrained on the same 25 countries with the \emph{same} augmentation recipe -- on \emph{every grid-invariant metric we evaluate} (macro over the 11-country held-out split): PQ~\cite{kirillov2019panoptic} 0.324 vs 0.283, mean object F1 over IoU $0.5$--$0.95$ of 0.263 vs 0.225, and mean boundary error 7.4\,m vs 14.8\,m, with a $4\times$ smaller backbone. Pixel IoU favors S2 by 7 points, dragged by two countries (Kenya, Portugal) where the Planet model collapses; on the remaining held-out countries the pixel-IoU gap closes. Pixel IoU is the wrong primary metric here anyway, because downstream pipelines consume vectorized parcels, not rasters. PlanetScope's $3\times$ finer resolution helps most in Nordic and smallholder regions, where field size is closest to the S2 resolution floor.
 \end{abstract}
 
@@ -73,8 +73,8 @@ The hard part was getting the imagery. PlanetScope's Orders API is slow and tile
 \textbf{Contributions.}
 \begin{itemize}
 \itemsep0em
-    \item A paired 3\,m PlanetScope + UDM2 + 3-class label dataset across all 25 FTW countries: 134{,}267 (patch, window) pairs.
-    \item A range-read pipeline that pulls 134k patches off 6{,}113 PlanetScope COGs in $\sim$17\,h wall-time / $\sim$84 CPU-node-h on a commodity AMD EPYC partition, with no Orders API use (\Cref{app:pipeline}).
+    \item A paired 3\,m PlanetScope + UDM2 + 3-class label dataset across all 25 FTW countries: 133{,}168 (patch, window) pairs.
+    \item A range-read pipeline that pulls 133k patches off 6{,}113 PlanetScope COGs in $\sim$17\,h wall-time / $\sim$84 CPU-node-h on a commodity AMD EPYC partition, with no Orders API use (\Cref{app:pipeline}).
     \item Per-patch UDM2 quality stats for the full release, plus a re-sampling tool that searches alternative scenes when a patch is locally cloudy.
     \item A baseline recipe (\emph{augmax}) that demonstrates the headroom in 3\,m: an EfficientNet-B3 U-Net trained on FTW-HD beats a PRUE EfficientNet-B7 (S2, full) baseline retrained with the same recipe~\cite{muhawenayo2026prue} on PQ, mean object F1 over IoU $0.5$--$0.95$, and meter-scale boundary error, at $4\times$ smaller backbone.
 \end{itemize}
@@ -139,19 +139,13 @@ Unique PSScene COGs touched  & 6{,}113 \\
 Mean patches per scene       & 23.0 \\
 \midrule
 \multicolumn{2}{l}{\cellcolor{black!7}\textbf{Released artifacts}}\\
-PlanetScope SR (4-band, uint16) & 134{,}267 \\
-UDM2 masks (8-band, uint8)      & 133{,}682 \\
+PlanetScope SR (4-band, uint16) & 133{,}168 \\
+UDM2 masks (8-band, uint8)      & 133{,}168 \\
 3-class labels (uint8)          & 123{,}094 \\
 \midrule
 \multicolumn{2}{l}{\cellcolor{black!7}\textbf{Yield}}\\
-% TODO(numbers): three different totals exist; pick the release snapshot and
-% make them agree. (1) 134,267 / 140,968 = 95.25%, not the 95.7% printed.
-% (2) \Cref{sec:limitations} 100-4.1-0.2 implies ~134,910 matched pairs.
-% (3) local data/planet/index.parquet has 66,584 patches / 133,168 pairs
-%     (94.5%) -- an older/partial snapshot. Confirm the authoritative count
-%     from the release manifest, then reconcile pairs + success rate.
-Successfully matched pairs      & 134{,}267 \\
-\textbf{Success rate}           & \textbf{95.7\%} \\
+Successfully matched pairs      & 133{,}168 \\
+\textbf{Success rate}           & \textbf{94.5\%} \\
 Total dataset size              & 102\,GB \\
 \bottomrule
 \end{tabular}
@@ -531,7 +525,7 @@ The three big-effect rows: \textbf{augmax} (+4.1 over \emph{augplus}; per-band a
 \section{Limitations and future work}
 \label{sec:limitations}
 
-\textbf{Coverage.} 5{,}715 (4.1\%) of (patch, window) targets never produced a usable URL despite repeated reactivation, leaving $95.9\%$ with an extracted PlanetScope SR tif. A further 343 (0.2\%) extracted successfully but contained only low-quality imagery (heavy cloud, shadow, or unusable per UDM2) for which the resampling tool found no acceptable alternative scene within the season, and are dropped from the final release. The net yield is $95.7\%$ of targets (\Cref{tab:scope}). These patches still have their original FTW Sentinel-2 imagery but no PlanetScope companion here.
+\textbf{Coverage.} 7{,}800 (5.5\%) of (patch, window) targets lack a PlanetScope companion in the released index, leaving a net yield of $94.5\%$ (133{,}168 of 140{,}968 targets; \Cref{tab:scope}). The dominant cause is activation failures that never produced a usable URL despite repeated reactivation; a smaller fraction extracted successfully but contained only low-quality imagery (heavy cloud, shadow, or unusable per UDM2) for which the resampling tool found no acceptable alternative scene within the season. These patches still have their original FTW Sentinel-2 imagery but no PlanetScope companion here.
 
 \textbf{Selection bias of dropped patches.} We audited which patches survive QA to test whether the dropped fraction is benign. Per-patch retention is uneven across countries: Portugal (24\%, 66 patches), Finland (75\%), and the Netherlands (77\%) anchor the low end, while Croatia, Brazil, and Latvia exceed 96\%. Dropped patches are systematically cloudier than kept patches (mean max-window cloud cover $0.041$ vs. $0.024$; Mann-Whitney U two-sided $p < 10^{-300}$), with drop rate rising from $13\%$ in the cleanest cloud bin ($<1\%$) to $36\%$ in the cloudiest ($5\text{--}8\%$) within Planet's hard $10\%$ search filter. Conversely, dropped patches have \emph{lower} mean label density than kept patches ($0.276$ vs. $0.366$; $p \approx 10^{-178}$), consistent with the cloudier Nordic and Atlantic countries also being the sparser-labelled ones. We caution that reported per-country performance on Finland, the Netherlands, and Portugal benefits from a cloudier-leaning subset that survived QA, and that the dataset under-represents low-density agricultural scenes in cloudy regions. Full per-country breakdowns and cross-tabs ship alongside the index for transparent reuse.
 
@@ -580,7 +574,7 @@ The activation step dominates wall-time. Cold-storage scenes thaw in 1--46\,min 
 \begin{table}[h]
     \centering
     \small
-    \caption{\textbf{Pipeline build cost for the full FTW-HD release.} 134{,}267 patch--window pairs assembled from $\sim$6{,}113 unique PlanetScope scenes. All phases run on the \texttt{cpu\_amd} partition (AMD EPYC 7452/7453); no GPUs are used.}
+    \caption{\textbf{Pipeline build cost for the full FTW-HD release.} 133{,}168 patch--window pairs assembled from $\sim$6{,}113 unique PlanetScope scenes. All phases run on the \texttt{cpu\_amd} partition (AMD EPYC 7452/7453); no GPUs are used.}
     \label{tab:pipeline_cost}
     \begin{tabular}{lrrr}
     \toprule
