@@ -370,16 +370,14 @@ class FTWPairedSegTask(FTWPlanetSegTask):
             timm_backbone.set_grad_checkpointing(True)
             print("[FTWPairedSegTask] gradient checkpointing enabled on encoder backbone")
 
-    def _encode_and_decode(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def _encode_and_decode(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward through encoder+decoder; return (seg_logits, bottleneck_vec).
 
         ``bottleneck_vec`` is the global-average-pooled last encoder feature map
         (B, C) — suitable as input to VICReg.
         """
         unet = self.model
-        feats = unet.encoder(x)          # list of feature maps, last = bottleneck
+        feats = unet.encoder(x)  # list of feature maps, last = bottleneck
         dec = unet.decoder(feats)
         seg = unet.segmentation_head(dec)
         # Global avg pool over spatial dims → (B, C)
@@ -410,7 +408,8 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         seg = seg_pl + seg_s2
 
         vic = vicreg_loss(
-            z_pl, z_s2,
+            z_pl,
+            z_s2,
             lambda_=self.vicreg_lambda,
             mu=self.vicreg_mu,
             nu=self.vicreg_nu,

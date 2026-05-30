@@ -963,7 +963,9 @@ class FTWPairedDataModule(FTWPlanetDataModule):
         ]
         if self.small_angle_rotation_aug:
             geo_augs.append(
-                K.RandomAffine(degrees=self.small_angle_rotation_degrees, p=self.small_angle_rotation_p)
+                K.RandomAffine(
+                    degrees=self.small_angle_rotation_degrees, p=self.small_angle_rotation_p
+                )
             )
         if self.shear_aug:
             geo_augs.append(K.RandomAffine(degrees=0.0, shear=self.shear_degrees, p=self.shear_p))
@@ -997,7 +999,9 @@ class FTWPairedDataModule(FTWPlanetDataModule):
             )
         if self.gaussian_noise_aug:
             photo_augs.append(
-                K.RandomGaussianNoise(mean=0.0, std=self.gaussian_noise_std, p=self.gaussian_noise_p)
+                K.RandomGaussianNoise(
+                    mean=0.0, std=self.gaussian_noise_std, p=self.gaussian_noise_p
+                )
             )
         self.photo_aug_train = K.AugmentationSequential(*photo_augs, data_keys=None)
 
@@ -1084,9 +1088,9 @@ class FTWPairedDataModule(FTWPlanetDataModule):
 
         # Training batch: pop all keys immediately so the batch dict holds no
         # extra references — tensors are freed as soon as our locals go out of scope.
-        pl_img = batch.pop("planet_image")   # float32 (from np.float32 in dataset)
+        pl_img = batch.pop("planet_image")  # float32 (from np.float32 in dataset)
         pl_msk = batch.pop("planet_mask")
-        s2_img = batch.pop("s2_image")       # float32
+        s2_img = batch.pop("s2_image")  # float32
         s2_msk_raw = batch.pop("s2_mask")
         country = batch.pop("country", None)
 

@@ -130,5 +130,11 @@ lint.extend-per-file-ignores."tests/**" = [
 ]
 lint.isort.known-first-party = [ "ftw_planet" ]
 
+[tool.ty]
+# Figure-generation and baseline-eval scripts import optional deps (seaborn,
+# contextily, plotnine, ultralytics, adjustText) that are not in the project
+# environment; exclude them from type checking like ruff already does.
+src.exclude = [ "paper/scripts", "scripts/eval_delineate_anything.py" ]
+
 [tool.pytest]
 ini_options.testpaths = [ "tests" ]
