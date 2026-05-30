@@ -27,6 +27,7 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
+import rasterio.coords
 from rasterio.transform import from_bounds as _from_bounds
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 

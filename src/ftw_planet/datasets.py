@@ -23,6 +23,7 @@ import numpy as np
 import rasterio
 import torch
 from torch import Tensor
+from torch.utils.data import Dataset
 from torchgeo.datasets import NonGeoDataset
 
 PLANET_SR_SCALE = 10000.0  # PlanetScope SR DN -> reflectance
@@ -174,7 +175,7 @@ class FTWPlanet(NonGeoDataset):
 _PLANET_BGR_TO_RGB: list[int] = [2, 1, 0, 3]
 
 
-class FTWPlanetAlignedDataset:
+class FTWPlanetAlignedDataset(Dataset):
     """Planet imagery pre-aligned to the corresponding S2 chip's grid.
 
     Reads pre-computed TIFs produced by ``scripts/precompute_aligned_planet.py``
@@ -291,9 +292,7 @@ class FTWPlanetAlignedDataset:
         if lbl.shape != (h, w):
             lbl_t = torch.from_numpy(lbl.astype(np.float32)).unsqueeze(0).unsqueeze(0)
             lbl = (
-                torch.nn.functional.interpolate(
-                    lbl_t, size=(h, w), mode="nearest"
-                )
+                torch.nn.functional.interpolate(lbl_t, size=(h, w), mode="nearest")
                 .squeeze(0)
                 .squeeze(0)
                 .numpy()
@@ -321,7 +320,7 @@ class FTWPlanetAlignedDataset:
 # ---------------------------------------------------------------------------
 
 
-class FTWPairedDataset:
+class FTWPairedDataset(Dataset):
     """Paired PlanetScope + Sentinel-2 samples for the same patch_id.
 
     For each patch, returns:
@@ -395,7 +394,13 @@ class FTWPairedDataset:
                 s2_a = ftw_root / country / "s2_images" / "window_a" / f"{pid}.tif"
                 s2_b = ftw_root / country / "s2_images" / "window_b" / f"{pid}.tif"
                 lbl = ftw_root / country / "label_masks" / "semantic_3class" / f"{pid}.tif"
-                if not (pl_a.exists() and pl_b.exists() and s2_a.exists() and s2_b.exists() and lbl.exists()):
+                if not (
+                    pl_a.exists()
+                    and pl_b.exists()
+                    and s2_a.exists()
+                    and s2_b.exists()
+                    and lbl.exists()
+                ):
                     continue
                 records.append(
                     {
@@ -483,9 +488,7 @@ class FTWPairedDataset:
             sample["planet_mask"] = pl_sub["mask"]
 
         if self.s2_transforms is not None:
-            s2_sub = self.s2_transforms(
-                {"image": sample["s2_image"], "mask": sample["s2_mask"]}
-            )
+            s2_sub = self.s2_transforms({"image": sample["s2_image"], "mask": sample["s2_mask"]})
             sample["s2_image"] = s2_sub["image"]
             sample["s2_mask"] = s2_sub["mask"]
 
