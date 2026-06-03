@@ -5,11 +5,13 @@ UNet–EfficientNet-B3 field-boundary model over **all of Earth's land at 3 m**
 PlanetScope resolution — on H100s today and NVIDIA Blackwell tomorrow — and
 what's the actual bottleneck?
 
-**One-line answer.** The model is tiny; the GPU is *not* the limit — **data
-decode is**. Store the global mosaic as **DEFLATE + horizontal predictor** and
-**decode it on the GPU (nvCOMP)**: that lands at **~112 TB / ~$2,570/mo on S3**
-and a **~2.4 h global pass on a single 8-GPU node**, with the model fully
-compute-bound.
+**One-line answer.** The model is tiny; the GPU is *not* the limit — **getting
+pixels onto it is**. Inference compiles to 95% of the H100 ceiling, but a global
+pass is gated by the data path. Measured options: **uncompressed pre-tiled +
+`torch.compile` → 1,203 p/s (compute-bound, ~2.9 h/8-GPU node) at ~413 TB**, vs
+**DEFLATE+predictor → 112 TB but ~CPU-class throughput** (the off-the-shelf GPU
+decode glue is the wall). Compact *and* fast needs a fused decode kernel (§6a).
+It's a storage ↔ throughput tradeoff, not a free win.
 
 > Every number below was **measured on H100 80GB nodes with real Planet
 > tiles**, not estimated. Reproduction commands are at the bottom. Date: 2026-06.
@@ -93,36 +95,43 @@ suggesting GPU decode could make inference compute-bound. **But see §6a: a real
 end-to-end prototype shows the kernel is only a small slice of the path, and a
 naive implementation does NOT reach the ceiling.**
 
-## 6a. Prototype reality check — GPU decode alone is not the win
+## 6a. GPU read-path prototype & optimization (measured)
 
-A real read-path prototype (`prototype_gpu_readpath.py`: TIFF tile offsets →
-strip zlib wrapper → nvCOMP RAW Deflate → GPU predictor-undo → scene assembly →
-`unfold` → infer, **verified tile-for-tile against rasterio**) measured:
+A real read-path prototype (`prototype_gpu_readpath.py` / `bench_pretiled.py`:
+TIFF tile offsets → strip zlib wrapper → nvCOMP RAW Deflate → GPU predictor-undo
+→ tile/scene assembly → infer, **verified tile-for-tile against rasterio**) was
+built and progressively optimized. Results on H100:
 
-| Stage | patch/s |
-|---|---|
-| decode + assemble | 590 |
-| infer (eager, incl. tiling copies) | 879 |
-| **end-to-end (serial)** | **353** (25% ceiling, **0.8× the CPU path**) |
+| Path | load p/s | infer p/s | end-to-end | % ceiling |
+|---|---|---|---|---|
+| naive scene (decode→assemble→unfold), eager | — | — | 353 | 25% |
+| deflate pre-tiled + nvCOMP, compiled | 765 | 1,354 | 489 | 34% |
+| deflate pre-tiled, grouped 32 / 128 | 37 / 9 | — | 36 / 9 | worse |
+| **uncompressed pre-tiled, compiled** | **10,436** | 1,359 | **1,203** | **84%** |
 
-**The fast nvCOMP kernel (4,853) is a tiny fraction of the path.** The wall is
-**GPU-side data movement**: stacking 256 decoded tiles, predictor-undo, the
-`transpose→reshape` into `(C,H,W)` (~1 GB strided copy/scene), and the
-`unfold→contiguous` (~1.7 GB copy). A naive GPU port nets *nothing* over CPU.
+What was learned:
+- **Inference is solved**: `torch.compile` → ~1,350 p/s (95% of the 1,426
+  ceiling). Pre-tiling (store overlapping 512² patches → decode lands in NHWC =
+  channels_last, no scene-assembly/unfold/strided-transpose) removed the big
+  copies that crippled the naive scene path.
+- **Uncompressed pre-tiled reaches 1,203 p/s (84% ceiling, 2.6× the CPU path)** —
+  load is essentially free (10,436), so it's compute-bound. This is the
+  practical fast path, **off-the-shelf, today**.
+- **Compressed (deflate) GPU decode does NOT pay off with current tooling.** The
+  nvCOMP *kernel* is fast (4,853 p/s) but the **gather of decoded tiles +
+  predictor cumsum** caps the path at ~489 (≈ CPU level). **Grouping patches
+  into larger deflate blocks makes it far worse** (37 / 9 p/s) — deflate is
+  sequential *within* a stream; nvCOMP parallelizes *across many small* streams,
+  so big blocks serialize the decode. Closing this needs a **fused custom CUDA
+  kernel** (decode→contiguous→predictor in one pass) — a real engineering
+  project, not a config.
+- **nvTIFF** (purpose-built GPU TIFF decoder) *correctly* reads our 8-band uint16
+  format but its **GPU decode FAILS on DEFLATE+predictor** (`nvtiffDecodeImageEx
+  code 4` → silent CPU fallback, 65 p/s). Not viable for this format.
 
-Reaching the 1,426 ceiling requires real engineering, not just calling nvCOMP:
-1. a **fused decode→deinterleave→predictor→assemble kernel** (remove the stack +
-   strided-transpose copies — the dominant cost);
-2. **CUDA streams** to overlap memory-bound assembly with compute-bound infer;
-3. **`torch.compile`/TensorRT** on infer (879 → ~1,426+);
-4. or **store pre-tiled overlapping 512² patches** so decode lands directly in
-   inference shape (no scene-assembly/unfold) — ~1.56× storage, removes both big
-   copies.
-
-The codec recommendation below still holds (DEFLATE+predictor is the right,
-GPU-decodable, smallest-practical format); but the throughput win is **future
-optimization work**, not a free result. Treat the "GPU" runtime rows as a
-*target*, not a measured number.
+**Net: it's a storage ↔ throughput tradeoff.** Uncompressed buys compute-bound
+(1,203 p/s) at large storage; deflate stays CPU-class (~489) unless someone
+writes the fused decode kernel.
 
 ## 7. The decision table — storage × runtime × cost
 
@@ -134,13 +143,16 @@ Full global pass, 98 M patches (20% overlap):
 | Uncompressed (GPUDirect, ideal) | 265 TB | $6,095 | — | 1,426 | 19 h | 2.4 h |
 | ZSTD-9 (current) | 135 TB | $3,094 | CPU | 529 | 51 h | 6.4 h |
 | DEFLATE+pred (CPU) | 112 TB | $2,572 | CPU | 516 | 53 h | 6.6 h |
-| DEFLATE+pred (GPU, naive prototype) | 112 TB | $2,572 | GPU | 353 | 77 h | 9.6 h |
-| **DEFLATE+pred (GPU, optimized — TARGET)** | **112 TB** | **$2,572** | **GPU** | **≤1,426** | **≥19 h** | **≥2.4 h** |
+| DEFLATE+pred pre-tiled (GPU/nvCOMP, compiled) | 175 TB | $4,020 | GPU | 489 | 56 h | 7.0 h |
+| **★ Uncompressed pre-tiled (GPU, compiled)** | **413 TB** | **$9,500** | — | **1,203** | **23 h** | **2.9 h** |
+| DEFLATE pre-tiled + fused kernel (TARGET) | 175 TB | $4,020 | GPU | ~1,350 | ~20 h | ~2.5 h |
 
-*(8-GPU CPU rows assume 48 cores/GPU — optimistic; real nodes ~24, so ~2×
-slower. The naive GPU prototype is **measured** and currently slower than CPU;
-the optimized GPU row is a **target** requiring the §6a kernel-fusion work —
-not yet achieved.)*
+*(All GPU rows are **measured** except the last (target). Pre-tiled storage
+carries ~1.56× overlap redundancy (hence 175/413 TB). 8-GPU CPU rows assume 48
+cores/GPU — optimistic; real nodes ~24, so ~2× slower. The DEFLATE-GPU path is
+gather/predictor-bound at ~CPU level; only uncompressed reaches compute-bound
+off-the-shelf — at a steep storage cost. The compact+fast cell (175 TB,
+~1,350 p/s) needs the §6a fused-kernel work.)*
 
 **Verdict — DEFLATE + predictor + GPU decode wins on both axes:**
 - **Uncompressed is a trap** — same CPU-path speed as compressed (read/transfer
@@ -179,21 +191,37 @@ Scale by HBM bandwidth (model is bandwidth-bound), not tensor-core peak:
 
 TensorRT/FP8 stacks on top (compute ceiling rises; decode still free).
 
-## 10. Recommended pipeline
+## 10. Recommendation (measured)
 
-1. **Re-encode** the global mosaic: `COMPRESS=DEFLATE, PREDICTOR=2,
-   TILED=NO (multi-strip rowsperstrip≈512), no overviews`. → ~112 TB.
-2. **Read whole scene → GPU**, decode tiles with **nvCOMP (Deflate)**, undo
-   predictor on-GPU.
-3. **Overlap-tile on GPU** with `torch.Tensor.unfold` (zero-copy view).
-4. Append GSD channel, batch through the model (bf16, channels_last,
-   `torch.compile`; later TensorRT/FP8).
-5. One **8-GPU node** (p5/p6-b200) + **FSx Lustre** does a global pass in
-   **~2.4 h**, fully GPU-bound.
+The model+inference side is solved (`torch.compile` → 95% of ceiling). The whole
+problem is getting pixels onto the GPU without a decode tax. Choose by priority:
 
-**Open follow-ups:** prototype the real nvCOMP read path end-to-end (TIFF tile
-offsets → GPU → nvCOMP → predictor-undo → `unfold`) to confirm the 1,426 p/s;
-TensorRT/FP8 pass to lift the compute ceiling.
+**A. Max throughput, off-the-shelf today — uncompressed pre-tiled.**
+Store overlapping 512² patches uncompressed (NHWC, GSD baked in); read straight
+to GPU, `torch.compile` inference. **Measured 1,203 p/s (84% ceiling, 2.6× CPU),
+~2.9 h/global-pass on one 8-GPU node.** Cost: ~413 TB storage (~$9.5k/mo S3).
+*(Storage-saving variant: uncompressed non-overlap scenes (265 TB) + GPU
+`unfold` — untested, load is still free but adds the unfold copy.)*
+
+**B. Compact storage, accept CPU-class speed — DEFLATE+predictor.**
+112 TB (~$2.6k/mo), but throughput ~460–530 p/s whether decoded on CPU or GPU
+(the GPU gather/predictor glue is the wall). ~6.5 h/8-GPU node.
+
+**C. Compact AND fast — needs engineering.** DEFLATE pre-tiled + a **fused CUDA
+decode kernel** (nvCOMP decode → contiguous → predictor in one pass) targets
+~1,350 p/s at ~175 TB. This is the ideal, but it's a real project (the off-the-
+shelf nvCOMP Python path and nvTIFF do **not** get there — see §6a).
+
+Pipeline regardless of A/B/C: read patch/scene → GPU → (decode if compressed) →
+channels_last → bf16 `torch.compile` inference → argmax/polygonize. Feed via
+**FSx for Lustre** (the dataset won't fit on local NVMe); keep bucket + instance
+**same region** ($0 egress).
+
+**Open follow-ups:** (1) write the §6a fused decode+predictor kernel to make the
+compact path compute-bound; (2) measure uncompressed non-overlap scenes + GPU
+unfold (variant A at 265 TB); (3) TensorRT/FP8 to lift the compute ceiling above
+1,426; (4) re-test nvTIFF on a future release / on Blackwell's HW decompression
+engine.
 
 ---
 
