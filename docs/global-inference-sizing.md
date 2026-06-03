@@ -88,10 +88,41 @@ Notes:
 | **Deflate** | 2.08× | 20.4 GB/s | **4,853** | **3.4×** | 10.6× |
 | GDeflate | 2.06× | 65.0 GB/s | 15,494 | 10.9× | 33.8× |
 
-**Deflate decoded on the GPU runs 3.4× faster than the model can consume.**
-Decode leaves the critical path → inference flips from **decode-bound (459 p/s,
-32%) to compute-bound (1,426 p/s, ~100%)** — a **~3× end-to-end speedup with
-2.4× less storage than uncompressed.**
+The nvCOMP decode *kernel* runs at 4,853 p/s — 3.4× the model's appetite —
+suggesting GPU decode could make inference compute-bound. **But see §6a: a real
+end-to-end prototype shows the kernel is only a small slice of the path, and a
+naive implementation does NOT reach the ceiling.**
+
+## 6a. Prototype reality check — GPU decode alone is not the win
+
+A real read-path prototype (`prototype_gpu_readpath.py`: TIFF tile offsets →
+strip zlib wrapper → nvCOMP RAW Deflate → GPU predictor-undo → scene assembly →
+`unfold` → infer, **verified tile-for-tile against rasterio**) measured:
+
+| Stage | patch/s |
+|---|---|
+| decode + assemble | 590 |
+| infer (eager, incl. tiling copies) | 879 |
+| **end-to-end (serial)** | **353** (25% ceiling, **0.8× the CPU path**) |
+
+**The fast nvCOMP kernel (4,853) is a tiny fraction of the path.** The wall is
+**GPU-side data movement**: stacking 256 decoded tiles, predictor-undo, the
+`transpose→reshape` into `(C,H,W)` (~1 GB strided copy/scene), and the
+`unfold→contiguous` (~1.7 GB copy). A naive GPU port nets *nothing* over CPU.
+
+Reaching the 1,426 ceiling requires real engineering, not just calling nvCOMP:
+1. a **fused decode→deinterleave→predictor→assemble kernel** (remove the stack +
+   strided-transpose copies — the dominant cost);
+2. **CUDA streams** to overlap memory-bound assembly with compute-bound infer;
+3. **`torch.compile`/TensorRT** on infer (879 → ~1,426+);
+4. or **store pre-tiled overlapping 512² patches** so decode lands directly in
+   inference shape (no scene-assembly/unfold) — ~1.56× storage, removes both big
+   copies.
+
+The codec recommendation below still holds (DEFLATE+predictor is the right,
+GPU-decodable, smallest-practical format); but the throughput win is **future
+optimization work**, not a free result. Treat the "GPU" runtime rows as a
+*target*, not a measured number.
 
 ## 7. The decision table — storage × runtime × cost
 
@@ -103,11 +134,13 @@ Full global pass, 98 M patches (20% overlap):
 | Uncompressed (GPUDirect, ideal) | 265 TB | $6,095 | — | 1,426 | 19 h | 2.4 h |
 | ZSTD-9 (current) | 135 TB | $3,094 | CPU | 529 | 51 h | 6.4 h |
 | DEFLATE+pred (CPU) | 112 TB | $2,572 | CPU | 516 | 53 h | 6.6 h |
-| **★ DEFLATE+pred (GPU/nvCOMP)** | **112 TB** | **$2,572** | **GPU** | **1,426** | **19 h** | **2.4 h** |
-| GDeflate (GPU/nvCOMP) | 126 TB | $2,902 | GPU | 1,426 | 19 h | 2.4 h |
+| DEFLATE+pred (GPU, naive prototype) | 112 TB | $2,572 | GPU | 353 | 77 h | 9.6 h |
+| **DEFLATE+pred (GPU, optimized — TARGET)** | **112 TB** | **$2,572** | **GPU** | **≤1,426** | **≥19 h** | **≥2.4 h** |
 
 *(8-GPU CPU rows assume 48 cores/GPU — optimistic; real nodes ~24, so ~2×
-slower. GPU-decode rows are core-independent.)*
+slower. The naive GPU prototype is **measured** and currently slower than CPU;
+the optimized GPU row is a **target** requiring the §6a kernel-fusion work —
+not yet achieved.)*
 
 **Verdict — DEFLATE + predictor + GPU decode wins on both axes:**
 - **Uncompressed is a trap** — same CPU-path speed as compressed (read/transfer
