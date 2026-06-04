@@ -133,6 +133,24 @@ What was learned:
 (1,203 p/s) at large storage; deflate stays CPU-class (~489) unless someone
 writes the fused decode kernel.
 
+### GPU-decode alternatives evaluated (so colleagues don't re-tread)
+
+| Approach | Handles 8-band uint16? | Ratio | GPU decode p/s | Verdict |
+|---|---|---|---|---|
+| torchvision.io (`decode_image`/nvJPEG) | ✗ — JPEG/PNG/WEBP, ≤4-ch uint8 | — | — | can't open our data |
+| NVIDIA DALI GPU decoders | routes to nvImageCodec/nvTIFF; TIFF→CPU | — | — | no unlock for TIFF; orchestration only |
+| nvTIFF (DEFLATE+predictor) | reads format, **GPU decode fails (code 4)** | 2.37× | 65 (CPU fallback) | unsupported codec combo |
+| nvCOMP Deflate (hand-rolled) | ✓ | 2.37× | 489 | gather/predictor-bound ≈ CPU |
+| nvJPEG2000 **lossless** | 4-band only (8-band → 2 JP2/patch) | **3.60×** | 136 | best ratio, *slowest* decode |
+| **uncompressed** | ✓ | 1.00× | **1,203** | only off-the-shelf compute-bound path |
+
+**The structural finding:** for 8-band uint16, *compression ratio and GPU-decode
+speed are inversely related*. Well-compressing codecs (ZSTD, JP2-lossless) decode
+slowly or aren't GPU-supported; the GPU-friendly one (Deflate/nvCOMP) is
+gather-bound. DALI/torchvision are built for ≤4-channel uint8 JPEG/PNG and don't
+apply. So the compact-and-fast quadrant is empty *off-the-shelf* — it requires
+the §6a fused custom kernel.
+
 ## 7. The decision table — storage × runtime × cost
 
 Full global pass, 98 M patches (20% overlap):
