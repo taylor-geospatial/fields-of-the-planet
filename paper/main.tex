@@ -59,7 +59,7 @@ Paper ID \wacvPaperID}
 }]
 \begin{abstract}
 Existing field-boundary benchmarks use 10\,m Sentinel-2 imagery, which approaches the resolution floor for smallholder parcels. We pair every patch in the \emph{Fields of The World} (FTW) benchmark~\cite{kerner2024ftw} with a co-registered 3\,m PlanetScope image and a freshly rasterized 3-class label, and call the result \textbf{FTW-HD}: 25 countries, 133{,}168 (patch, window) pairs, built from $\sim$6{,}100 PlanetScope scenes accessed via HTTP range reads against Cloud-Optimized GeoTIFFs in $\sim$17\,h on a single commodity CPU partition.\footnote{Data URL withheld for double-blind review; code and dataset link will be released at acceptance.}
-An EfficientNet-B3~\cite{tan2019efficientnet} U-Net~\cite{ronneberger2015unet} trained on FTW-HD with our augmentation recipe beats a matched S2 baseline -- PRUE~\cite{muhawenayo2026prue} EfficientNet-B7 retrained on the same 25 countries with the \emph{same} augmentation recipe -- on \emph{every grid-invariant metric we evaluate} (macro over the 11-country held-out split): PQ~\cite{kirillov2019panoptic} 0.324 vs 0.283, mean object F1 over IoU $0.5$--$0.95$ of 0.263 vs 0.225, and mean boundary error 7.4\,m vs 14.8\,m, with a $4\times$ smaller backbone. Pixel IoU favors S2 by 7 points, dragged by two countries (Kenya, Portugal) where the Planet model collapses; on the remaining held-out countries the pixel-IoU gap closes. Pixel IoU is the wrong primary metric here anyway, because downstream pipelines consume vectorized parcels, not rasters. PlanetScope's $3\times$ finer resolution helps most in Nordic and smallholder regions, where field size is closest to the S2 resolution floor.
+An EfficientNet-B3~\cite{tan2019efficientnet} U-Net~\cite{ronneberger2015unet} trained on FTW-HD with our augmentation recipe beats a matched S2 baseline -- PRUE~\cite{muhawenayo2026prue} EfficientNet-B7 retrained on the same 25 countries with the \emph{same} augmentation recipe -- on every headline polygon metric (macro over the 11-country held-out split): PQ~\cite{kirillov2019panoptic} 0.324 vs 0.283, mean object F1 over IoU $0.5$--$0.95$ of 0.263 vs 0.225, and mean boundary error 7.4\,m vs 14.8\,m, with a $4\times$ smaller backbone. Pixel IoU favors S2 by 7 points, dragged by two countries (Kenya, Portugal) where the Planet model collapses; on the remaining held-out countries the pixel-IoU gap closes. We argue polygon-level metrics are the right primary measure: downstream pipelines consume vectorized parcels, not rasters. The PQ gain holds across field sizes and 20 of 23 test countries, not only in smallholder regions.
 \end{abstract}
 
 \section{Introduction}
@@ -156,13 +156,6 @@ Total dataset size              & 102\,GB \\
 \section{Per-patch quality analysis}
 \label{sec:quality}
 
-\begin{figure*}[ht!]
-    \centering
-    \includegraphics[width=\linewidth]{figs/qualitative_v8_main.pdf}
-    \caption{\textbf{Qualitative predictions: PRUE-HD-B3 \emph{augmax} full vs.\ released PRUE-B7 (S2, full)~\cite{muhawenayo2026prue}, before and after post-processing.} Four dense-smallholder rows from countries where $\Delta$ PQ favors PRUE-HD (Croatia, Slovenia, Austria, Lithuania; see \Cref{fig:per_country_bars}). All cells are center-cropped square and resized; both modalities show the \emph{same} season. Columns 1--2: Planet RGB (3\,m) and matched S2 RGB (10\,m, reprojected to the Planet grid). Column 3: 3-class ground truth (green = field interior, black = bg + boundary). Columns 4--5: raw argmax predictions (same color scheme). Columns 6--7: post-processed instance segmentations (D4 TTA + marker-controlled watershed); each color is a distinct field instance (perturbed \texttt{tab20}). PRUE-HD recovers near-complete field coverage and adjacent parcels stay separated after watershed; PRUE-B7 (S2) leaves large black gaps in the raw mask and merges neighboring parcels into single instances after WS. Eight more raw-mask samples in \Cref{fig:qualitative_appx} and eight more instance samples in \Cref{fig:qualitative_post_appx}.}
-    \label{fig:qualitative}
-\end{figure*}
-
 \Cref{tab:udm2} reports per-patch UDM2 statistics across the full 133\,k UDM2 release, computed by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{86.6\%} of patches are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%).
 
 \begin{table}[t]
@@ -189,21 +182,22 @@ The original search filter rejects scenes whose \emph{scene-level} cloud cover e
 
 Per-country usable-patch rates vary widely (Portugal 41\%, Netherlands 77\%, vs Brazil/Croatia $>$98\%); full country breakdown in \Cref{app:udm2_country}.
 
-\begin{figure}[ht!]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figs/aug_ablation_paper.pdf}
-    \caption{\textbf{Cumulative augmentation lift on Obj F1.} 11-country held-out, WS+TTA inference. FTW-HD recipe progression goes from $26.5$ (PRUE, no extra augs) to $44.6$ (augmax, B3 full data), a $+18.1$\,pp absolute gain. Dotted horizontal lines mark the released PRUE-B3 (S2)/B7 reference numbers~\cite{muhawenayo2026prue}; our B3 augmax full beats every S2 baseline at $4\times$ smaller backbone than B7.}
-    \label{fig:aug_ablation}
-\end{figure}
-
 \section{Building a strong PlanetScope baseline}
 \label{sec:benchmark}
+
+\begin{figure*}[t!]
+    \centering
+    \includegraphics[width=\linewidth]{figs/qualitative_v8_main.pdf}
+    \caption{\textbf{Qualitative predictions: PRUE-HD-B3 \emph{augmax} full vs.\ released PRUE-B7 (S2, full)~\cite{muhawenayo2026prue}, before and after post-processing.} Four dense-smallholder rows from countries where $\Delta$ PQ favors PRUE-HD (Croatia, Slovenia, Austria, Lithuania; see \Cref{fig:per_country_bars}). All cells are center-cropped square and resized; both modalities show the \emph{same} season. Columns 1--2: Planet RGB (3\,m) and matched S2 RGB (10\,m, reprojected to the Planet grid). Column 3: 3-class ground truth (green = field interior, black = bg + boundary). Columns 4--5: raw argmax predictions (same color scheme). Columns 6--7: post-processed instance segmentations (D4 TTA + marker-controlled watershed); each color is a distinct field instance (perturbed \texttt{tab20}). PRUE-HD recovers near-complete field coverage and adjacent parcels stay separated after watershed; PRUE-B7 (S2) leaves large black gaps in the raw mask and merges neighboring parcels into single instances after WS. Eight more raw-mask samples in \Cref{fig:qualitative_appx} and eight more instance samples in \Cref{fig:qualitative_post_appx}.}
+    \label{fig:qualitative}
+\end{figure*}
 
 We want a Planet field-boundary model that is at least as good as the
 released FTW Sentinel-2 baselines, ideally better, and we want it on a
 smaller backbone. This section is a list of things we tried, in order,
 on top of the PRUE recipe~\cite{muhawenayo2026prue}. Some helped, some
-didn't. We report both.
+didn't. We report both. \Cref{fig:qualitative} previews the end
+result against the released S2 baseline.
 
 \paragraph{How we measure (polygons first).} We lead with four metrics
 defined on vectorized parcels rather than rasters: object F1 at
@@ -243,8 +237,16 @@ that didn't.
 
 \subsection{Better augmentations}
 
-The biggest lever, by a wide margin. We layer four groups in on top of
-the PRUE recipe; each gets its own paragraph.
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figs/aug_ablation_paper.pdf}
+    \caption{\textbf{Cumulative augmentation lift on Obj F1.} 11-country held-out, WS+TTA inference. FTW-HD recipe progression goes from $26.5$ (PRUE, no extra augs) to $44.6$ (augmax, B3 full data), a $+18.1$\,pp absolute gain. Dotted horizontal lines mark the released PRUE-B3 (S2)/B7 reference numbers~\cite{muhawenayo2026prue}; our B3 augmax full beats every S2 baseline at $4\times$ smaller backbone than B7.}
+    \label{fig:aug_ablation}
+\end{figure}
+
+The biggest lever, by a wide margin (\Cref{fig:aug_ablation}). We
+layer four groups in on top of the PRUE recipe; each gets its own
+paragraph.
 
 \paragraph{PRUE-style augs we ported over (+$5.4$ pixel IoU on
 11-country held-out).} The released PRUE configs enable
@@ -318,8 +320,9 @@ strongest single number comes from the full split.
 \paragraph{Augmentations $>$ backbone scaling.} At the CC-BY split,
 B3 augmax full ($0.405$ Obj F1) beats B7 augmax CC-BY ($0.348$). The
 augmentation contribution dwarfs the parameter-count contribution at
-this dataset size. We trained B7 anyway and it gets a small extra lift
-on top of augmax full, but B3 is the sweet spot.
+this dataset size. Scaling to B7 gives a small lift at the CC-BY
+split (\Cref{tab:polygon_metrics}) but \emph{hurts} at the full split
+($-2.6$ Obj F1; \Cref{tab:ablation_summary}); B3 is the sweet spot.
 
 
 % tab:heldout (full 4-postproc x 4-config sweep) lives in the supplementary
@@ -386,8 +389,8 @@ whether we evaluate at $3$\,m or $10$\,m). Table~\ref{tab:polygon_metrics}
 reports all four.
 
 The polygon-level picture reverses the pixel-IoU result. FTW-HD B3
-\emph{augmax} full beats the strongest S2 baseline on \emph{every}
-polygon-level metric: PQ $0.324$ vs $0.283$ ($+4.1$), averaged F1 $0.263$ vs
+\emph{augmax} full beats the strongest S2 baseline on all four
+headline polygon metrics: PQ $0.324$ vs $0.283$ ($+4.1$), averaged F1 $0.263$ vs
 $0.225$ ($+3.8$), $|\Delta N_\text{poly}|$ $50.9$ vs $60.2$
 (closer to ground truth count), and boundary error
 $\mathbf{7.4}$\,m vs $\mathbf{14.8}$\,m mean / $22$\,m vs $43$\,m p95
@@ -400,8 +403,8 @@ firmly with Planet.
 
 This is the bottom line: \textbf{a B3 PlanetScope model with our
 augmax recipe beats a $4\times$-larger PRUE-B7 (S2) full baseline
-retrained with the same recipe on every grid-invariant metric we
-evaluate.}
+retrained with the same recipe on all four headline polygon metrics
+(PQ, F1$_{[.5:.95]}$, $|\Delta N_\text{poly}|$, boundary chamfer).}
 
 \paragraph{Per-country head-to-head.}
 On the FTW \texttt{full\_data} protocol (23-country test split),
@@ -410,7 +413,9 @@ a $+6.8$\,pp Planet win. Macro pixel IoU on the 11-country held-out is
 $0.69$ vs $0.76$ ($-7$\,pts), dragged by Kenya ($\le\!0.01$) and Portugal ($\le\!0.01$;
 both are hard-transfer failures described in \Cref{sec:limitations}).
 Figure~\ref{fig:per_country_bars} unpacks PQ into per-country deltas.
-Planet wins on $20/23$ countries, ties on one, and loses two. The
+Planet wins on $20/23$ countries, ties on one, and loses two
+(two-sided sign test over the 22 decided countries:
+$p \approx 1.2 \times 10^{-4}$). The
 largest gains sit in Northern Europe (netherlands $+19.9$, denmark
 $+10.4$, lithuania $+13.0$, luxembourg $+14.7$, brazil $+14.9$) and
 extend across most smallholder and mid-latitude landscapes.
@@ -476,7 +481,7 @@ after accounting for its monsoon-season imagery degradation
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Polygon-level evaluation on the 11-country held-out set (WS\,+\,TTA inference).} PQ\,$=$\,SQ$\times$RQ. F1$_{[.5:.95]}$ is object F1 averaged over IoU thresholds $\{0.5,0.55,\ldots,0.95\}$. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundary pixels, in meters (GSD-invariant); kenya has zero predicted polygons so its boundary error is undefined and skipped in those two columns only (n=10/11), while every other column averages over all 11 countries. Best per column in \textbf{bold}. $^{*}$DelineateAnything~\cite{lavreniuk2025delineate}: off-the-shelf YOLO11x-seg checkpoint, RGB uint8 (window B, clip(refl/3000)$\cdot$255), no FTW fine-tuning. Inference matches the authors' published config: confidence 0.005, NMS IoU 0.5, FP16, \texttt{max\_det} raised to 2000 for dense smallholder patches. We omit their 2500\,m$^{2}$ minimum-area filter so cambodia/vietnam smallholders are not excluded by construction. SQ rivals our trained models; RQ does not, which dominates the PQ gap.}
+    \caption{\textbf{Polygon-level evaluation on the 11-country held-out set (WS\,+\,TTA inference).} PQ\,$=$\,SQ$\times$RQ. F1$_{[.5:.95]}$ is object F1 averaged over IoU thresholds $\{0.5,0.55,\ldots,0.95\}$. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundary pixels, in meters (GSD-invariant); kenya has zero predicted polygons so its boundary error is undefined and skipped in those two columns only (n=10/11), while every other column averages over all 11 countries. Best per column in \textbf{bold}. $^{*}$DelineateAnything~\cite{lavreniuk2025delineate}: off-the-shelf YOLO11x-seg checkpoint, RGB uint8, no FTW fine-tuning; inference config in \Cref{app:qualitative_delineate}. SQ rivals our trained models; RQ does not, which dominates the PQ gap.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -501,7 +506,7 @@ after accounting for its monsoon-season imagery degradation
     \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
     Bespoke bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.1} \\
     Train on all 25 countries vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +6.5} \\
-    Backbone B3 $\to$ B7 & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
+    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
     Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries collapse} \\
     SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}) & $\times$ & {\color{earthSienna}\bfseries -3.0} \\
     Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries 0.0} \\
@@ -543,7 +548,7 @@ The three big-effect rows: \textbf{augmax} (+4.1 over \emph{augplus}; per-band a
 
 \section{Conclusion}
 
-FTW-HD is a 3\,m PlanetScope companion to Fields of The World. We did the engineering work -- range-read the COGs, reactivate the broken URLs, rasterize the labels onto the new grid -- so that others don't have to. We also showed that a small B3 model trained with the right augmentations matches or beats a $4\times$ larger Sentinel-2 baseline trained with the same recipe on every grid-invariant metric. Field boundaries are where most of the loss happens, and on FTW-HD a 3$\times$ finer grid is now within reach for any FTW user without an Orders API budget.
+FTW-HD is a 3\,m PlanetScope companion to Fields of The World. We did the engineering work -- range-read the COGs, reactivate the broken URLs, rasterize the labels onto the new grid -- so that others don't have to. We also showed that a small B3 model trained with the right augmentations beats a $4\times$ larger Sentinel-2 baseline trained with the same recipe on all four headline polygon metrics. Field boundaries are where most of the loss happens, and on FTW-HD a 3$\times$ finer grid is now within reach for any FTW user without an Orders API budget.
 
 {\small
 \bibliographystyle{ieeenat_fullname}
@@ -708,7 +713,7 @@ artifact, not a model property.
 \section{DelineateAnything qualitative comparison}
 \label{app:qualitative_delineate}
 
-\Cref{fig:qualitative_delineate} compares our best PRUE-HD-B3 \emph{augmax} full model against the off-the-shelf DelineateAnything~\cite{lavreniuk2025delineate} checkpoint (YOLO11x-seg, RGB uint8, no FTW fine-tuning, canonical inference: conf $=0.005$, NMS IoU $=0.5$, FP16, \texttt{max\_det}$=2000$). PRUE-HD over-segments in dense parcel grids (watershed seeds at the FB ring fire too eagerly); DelineateAnything systematically returns far fewer instances than there are fields. The qualitative picture matches \Cref{tab:polygon_metrics}: DelineateAnything's SQ rivals our trained models on the masks it does produce, but RQ collapses because it misses most fields.
+\Cref{fig:qualitative_delineate} compares our best PRUE-HD-B3 \emph{augmax} full model against the off-the-shelf DelineateAnything~\cite{lavreniuk2025delineate} checkpoint (YOLO11x-seg, RGB uint8 (window B, clip(refl/3000)$\cdot$255), no FTW fine-tuning, canonical inference: conf $=0.005$, NMS IoU $=0.5$, FP16, \texttt{max\_det} raised to $2000$ for dense smallholder patches). We omit their 2500\,m$^{2}$ minimum-area filter so Cambodia/Vietnam smallholders are not excluded by construction. PRUE-HD over-segments in dense parcel grids (watershed seeds at the FB ring fire too eagerly); DelineateAnything systematically returns far fewer instances than there are fields. The qualitative picture matches \Cref{tab:polygon_metrics}: DelineateAnything's SQ rivals our trained models on the masks it does produce, but RQ collapses because it misses most fields.
 
 \begin{figure}[h]
     \centering
