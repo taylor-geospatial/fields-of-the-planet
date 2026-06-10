@@ -83,9 +83,19 @@ def strip_accents(text: str) -> str:
 
 # Standalone LaTeX glyph macros -> ASCII (\ss, \o, \aa, ...).
 _LATEX_GLYPHS = {
-    r"\ss": "ss", r"\o": "o", r"\O": "O", r"\l": "l", r"\L": "L",
-    r"\aa": "a", r"\AA": "A", r"\ae": "ae", r"\AE": "AE",
-    r"\oe": "oe", r"\OE": "OE", r"\i": "i", r"\j": "j",
+    r"\ss": "ss",
+    r"\o": "o",
+    r"\O": "O",
+    r"\l": "l",
+    r"\L": "L",
+    r"\aa": "a",
+    r"\AA": "A",
+    r"\ae": "ae",
+    r"\AE": "AE",
+    r"\oe": "oe",
+    r"\OE": "OE",
+    r"\i": "i",
+    r"\j": "j",
 }
 
 
@@ -97,7 +107,7 @@ def delatex(text: str) -> str:
     compares equal to the Unicode ``Hänsch`` that Crossref returns.
     """
     # \"a  \'e  \`a  \^o  \~n  \=a  \.a  -- accent symbol over one letter.
-    text = re.sub(r'\\[\"\'`^~=.]\s*\{?(\w)\}?', r"\1", text)
+    text = re.sub(r"\\[\"\'`^~=.]\s*\{?(\w)\}?", r"\1", text)
     # \c{c}  \v{s}  \u{g}  \H{o}  -- named accent, braced argument.
     text = re.sub(r"\\[a-zA-Z]+\{(\w)\}", r"\1", text)
     # {\c c}  {\v s}  -- named accent, spaced argument.
@@ -325,12 +335,13 @@ def compare(entry: Entry, rec: Record) -> list[tuple[str, str]]:
 
     bib_title = entry.fields.get("title", "")
     if bib_title and rec.title:
-        ratio = difflib.SequenceMatcher(
-            None, norm_text(bib_title), norm_text(rec.title)
-        ).ratio()
+        ratio = difflib.SequenceMatcher(None, norm_text(bib_title), norm_text(rec.title)).ratio()
         if ratio < TITLE_MATCH_RATIO:
             issues.append(
-                ("title", f"title differs ({ratio:.2f}):\n      bib: {bib_title}\n      api: {rec.title}")
+                (
+                    "title",
+                    f"title differs ({ratio:.2f}):\n      bib: {bib_title}\n      api: {rec.title}",
+                )
             )
 
     bib_authors = parse_authors_bibtex(entry.fields.get("author", ""))
@@ -339,7 +350,10 @@ def compare(entry: Entry, rec: Record) -> list[tuple[str, str]]:
     if rec.families and bib_fam != api_fam:
         if len(bib_fam) != len(api_fam):
             issues.append(
-                ("author", f"author count {len(bib_fam)} (bib) vs {len(api_fam)} (api); bib={bib_authors}")
+                (
+                    "author",
+                    f"author count {len(bib_fam)} (bib) vs {len(api_fam)} (api); bib={bib_authors}",
+                )
             )
         missing = sorted(set(api_fam) - set(bib_fam))
         extra = sorted(set(bib_fam) - set(api_fam))
@@ -440,7 +454,11 @@ def main() -> int:
                 print(f"    - {msg}")
             flagged.append((entry, rec))
         else:
-            note = "preprint vs published differs" if rec.source == "arxiv" else "verify match or add a DOI"
+            note = (
+                "preprint vs published differs"
+                if rec.source == "arxiv"
+                else "verify match or add a DOI"
+            )
             check += 1
             print(f"[CHECK]     {entry.key}  ({rec.source}) -- {note}")
             for _, msg in issues:
@@ -452,7 +470,9 @@ def main() -> int:
     )
 
     if args.show_bibtex and flagged:
-        print("\n" + "=" * 70 + "\nCanonical BibTeX for mismatched entries (drop-in replacements):\n")
+        print(
+            "\n" + "=" * 70 + "\nCanonical BibTeX for mismatched entries (drop-in replacements):\n"
+        )
         for pos, (entry, rec) in enumerate(flagged):
             if pos:
                 time.sleep(args.sleep)
