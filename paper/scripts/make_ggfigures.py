@@ -90,7 +90,7 @@ def per_country_bars(df: pd.DataFrame) -> None:
             strip_text=p9.element_text(weight="bold"),
             legend_position="top",
         )
-        + p9.labs(y="", title="FTW-HD (3 m) vs Sentinel-2 PRUE-B7 full (10 m)")
+        + p9.labs(y="", title="FTP (3 m) vs Sentinel-2 PRUE-B7 full (10 m)")
     )
     out = FIGS / "per_country_bars_gg.pdf"
     p.save(out, dpi=200, verbose=False)

@@ -1,6 +1,6 @@
 """Shared helpers to macro-average per-country eval CSVs over a country set.
 
-Canonical held-out country sets for the FTW-Planet paper:
+Canonical held-out country sets for the FTP paper:
 
 - HELDOUT_11: the 11 dense-label held-out CC-BY countries that appear in
   ``logs/heldout/*.csv`` (verified against the CSV ``country`` column).

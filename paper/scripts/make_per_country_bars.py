@@ -104,7 +104,7 @@ ax1.grid(axis="x", linewidth=0.4, alpha=0.5)
 ax1.set_xlim(*xlim_f1)
 _annotate(ax1, m.d_f1, xlim_f1)
 
-# Right: Δ Pixel IoU (percentage points). Kenya/Portugal collapse well
+# Right: Δ Pixel IoU (percentage points). Kenya/Portugal sit well
 # beyond the typical range; clip to a readable window and annotate
 # out-of-bounds bars (arrow + value text) so the reader knows the magnitude.
 colors_iou = ["#8b3a1f" if d < 0 else "#5b7026" for d in m.d_iou]
@@ -136,7 +136,7 @@ if outliers:
     )
 
 fig.suptitle(
-    r"FTW-HD (3\,m) vs Sentinel-2 PRUE-B7 full (10\,m): per-country deltas (olive = Planet wins, sienna = S2 wins)",
+    r"FTP (3\,m) vs Sentinel-2 PRUE-B7 full (10\,m): per-country deltas (olive = Planet wins, sienna = S2 wins)",
     fontsize=8,
 )
 fig.tight_layout(pad=0.4)

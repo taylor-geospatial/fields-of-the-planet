@@ -1,8 +1,8 @@
-"""Qualitative appendix figure: PRUE-HD-B3 vs DelineateAnything (zero-shot)
+"""Qualitative appendix figure: PRUE-FTP-B3 vs DelineateAnything (zero-shot)
 on the same dense-smallholder rows used by ``make_qualitative_v8.py``.
 
 4 columns x N rows:
-  Planet RGB | GT instances | PRUE-HD-B3 (TTA+WS) instances | DelineateAnything
+  Planet RGB | GT instances | PRUE-FTP-B3 (TTA+WS) instances | DelineateAnything
 
 DelineateAnything is the off-the-shelf YOLO11x-seg checkpoint from HF
 (``torchgeo/delineate-anything``), run on window-B RGB uint8 with the
@@ -196,7 +196,7 @@ def main() -> None:
     col_titles = [
         "Input\nPlanet RGB",
         "GT instances",
-        "PRUE-HD-B3",
+        "PRUE-FTP-B3",
         "DelineateAnything",
     ]
     for i, (country, pid, window, rgb_pl, inst_gt, inst_pl, inst_da) in enumerate(rows):

@@ -25,13 +25,13 @@ SRC = REPO / "logs" / "postproc_ablation"
 CONFIGS_OURS_PLANET = [
     ("B3 (CC-BY)", "planet_b3_augmax_ccby"),
     ("B7 (CC-BY)", "planet_b7_augmax_ccby"),
-    ("B3 (full, all 25)", "planet_b3_augmax_full"),
+    ("B3 (full, 24/25)", "planet_b3_augmax_full"),
 ]
 CONFIGS_OURS_S2 = [
     ("B3 (CC-BY)", "s2_b3_augmax_ccby"),
     ("B7 (CC-BY)", "s2_b7_augmax_ccby"),
-    ("B3 (full, all 25)", "s2_b3_augmax_full"),
-    ("B7 (full, all 25)", "s2_b7_augmax_full"),
+    ("B3 (full, 24/25)", "s2_b3_augmax_full"),
+    ("B7 (full, 24/25)", "s2_b7_augmax_full"),
 ]
 
 COMBOS = (
@@ -100,11 +100,11 @@ def main() -> None:
         r"S2 & FTW PRUE-B7 (CC-BY) \cite{kerner2024ftw} & --- & --- & --- & 0.44$^\ddag$ & 0.77$^\ddag$ \\"
     )
     rows.append(
-        r"S2 & FTW PRUE-B7 (full, all 25) \cite{kerner2024ftw} & --- & --- & --- & 0.47$^\ddag$ & 0.76$^\ddag$ \\"
+        r"S2 & FTW PRUE-B7 (full, 24/25) \cite{kerner2024ftw} & --- & --- & --- & 0.47$^\ddag$ & 0.76$^\ddag$ \\"
     )
     rows.append(r"\midrule")
     rows.append(
-        r"\multicolumn{7}{l}{\textit{Ours --- FTW-Planet \textbf{augmax} (this report)}} \\"
+        r"\multicolumn{7}{l}{\textit{Ours --- PRUE-FTP \textbf{augmax} (this report)}} \\"
     )
     # Find best WS+TTA Obj F1 across our Planet rows for bolding.
     planet_vals: list[tuple[list[float], float, int, int]] = [
@@ -157,15 +157,14 @@ def main() -> None:
     rows.append("")
     rows.append(r"\vspace{0.4em}")
     rows.append(
-        r"\noindent\footnotesize $^\ddag$Reported by~\cite{kerner2024ftw} on the FTW "
+        r"\noindent\footnotesize $^\ddag$Reported by~\cite{muhawenayo2026prue} on the FTW "
         r"\texttt{full\_data} test split (includes test patches from the 14 training "
-        r"countries). Our numbers are macro-averaged over all 11 dense-label held-out "
+        r"countries). Our numbers are macro-averaged over all 11 held-out "
         r"countries (belgium, cambodia, croatia, germany, kenya, latvia, lithuania, "
-        r"portugal, slovenia, south\_africa, sweden). Kenya and Portugal collapse to "
-        r"$\le 0.10$ pixel IoU under every config but are retained in every reported "
-        r"macro-average; see~\Cref{sec:limitations}. The \emph{full} rows of our "
-        r"recipe also use a 25-country train split for an apples-to-apples scaling "
-        r"comparison."
+        r"portugal, slovenia, south\_africa, sweden). Kenya is presence-only, so "
+        r"pixel IoU there is shown only for protocol continuity; see~\Cref{sec:limitations}. "
+        r"The \emph{full} rows of our recipe use the 24-country / 25-region train "
+        r"split for the full-data protocol."
     )
     OUT.write_text("\n".join(rows) + "\n")
     print(f"wrote {OUT}")

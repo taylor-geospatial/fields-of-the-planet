@@ -1,7 +1,7 @@
 """Generate ``paper/figs/full_data_compare.tex`` (``tab:full_data``).
 
 11-country held-out macro-average comparing the released FTW S2 PRUE
-checkpoints (numbers as published in~\\cite{kerner2024ftw}) to our augmax
+checkpoints (numbers as published in~\\cite{muhawenayo2026prue}) to our augmax
 recipe on Planet and S2.
 
 The ``logs/fulldata_eval/*.csv`` files are missing kenya at the time of
@@ -22,22 +22,22 @@ REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "full_data_compare.tex"
 SRC = REPO / "logs" / "fulldata_eval"
 
-# Released FTW PRUE numbers (hand-copied from kerner2024ftw; rows kept as
+# Released FTW PRUE numbers (hand-copied from muhawenayo2026prue; rows kept as
 # reference). These are the published values on the FTW full_data test split,
 # not the 11-country held-out macro -- we keep them unchanged for orientation.
 RELEASED = [
-    ("S2 PRUE-B3 (full)", "all 25", 0.74, 0.43),
-    ("S2 PRUE-B5 (full)", "all 25", 0.75, 0.46),
-    ("S2 PRUE-B7 (full)", "all 25", 0.76, 0.47),
+    ("S2 PRUE-B3 (full)", "24/25", 0.74, 0.43),
+    ("S2 PRUE-B5 (full)", "24/25", 0.75, 0.46),
+    ("S2 PRUE-B7 (full)", "24/25", 0.76, 0.47),
     ("S2 PRUE-B3 (CC-BY)", "14", 0.76, 0.39),
     ("S2 PRUE-B5 (CC-BY)", "14", 0.76, 0.41),
     ("S2 PRUE-B7 (CC-BY)", "14", 0.77, 0.44),
 ]
 
 OURS = [
-    ("FTW-Planet B3 \\emph{augmax}", "14", "planet_b3_augmax_ccby_ws_tta.csv"),
-    ("FTW-Planet B3 \\emph{augmax}", "all 25", "planet_b3_augmax_full_ws_tta.csv"),
-    ("FTW-Planet B7 \\emph{augmax}", "14", "planet_b7_augmax_ccby_ws_tta.csv"),
+    ("PRUE-FTP-B3 \\emph{augmax}", "14", "planet_b3_augmax_ccby_ws_tta.csv"),
+    ("PRUE-FTP-B3 \\emph{augmax}", "24/25", "planet_b3_augmax_full_ws_tta.csv"),
+    ("PRUE-FTP-B7 \\emph{augmax}", "14", "planet_b7_augmax_ccby_ws_tta.csv"),
 ]
 
 
@@ -46,23 +46,25 @@ def main() -> None:
     rows.append(r"\setlength{\tabcolsep}{4pt}")
     rows.append(r"\begin{tabular}{llcc}")
     rows.append(r"\toprule")
-    rows.append(r"Model & Train countries & Pix IoU & Obj F1 \\")
+    rows.append(r"Model & Train set & Pix IoU & Obj F1 \\")
     rows.append(r"\midrule")
     rows.append(
-        r"\multicolumn{4}{l}{\textit{S2 PRUE CC-BY-NC (released by \cite{kerner2024ftw})}} \\"
+        r"\multicolumn{4}{l}{\textit{S2 PRUE CC-BY-NC (released by \cite{muhawenayo2026prue})}} \\"
     )
     for name, train, iou, f1 in RELEASED[:3]:
         bold = name.endswith("B7 (full)")
         f1s = rf"\textbf{{{f1:.2f}}}" if bold else f"{f1:.2f}"
         rows.append(f"{name} & {train} & {iou:.2f} & {f1s} \\\\")
     rows.append(r"\midrule")
-    rows.append(r"\multicolumn{4}{l}{\textit{S2 PRUE CC-BY (released by \cite{kerner2024ftw})}} \\")
+    rows.append(
+        r"\multicolumn{4}{l}{\textit{S2 PRUE CC-BY (released by \cite{muhawenayo2026prue})}} \\"
+    )
     for name, train, iou, f1 in RELEASED[3:]:
         bold_iou = "B7" in name and "(CC-BY)" in name
         ious = rf"\textbf{{{iou:.2f}}}" if bold_iou else f"{iou:.2f}"
         rows.append(f"{name} & {train} & {ious} & {f1:.2f} \\\\")
     rows.append(r"\midrule")
-    rows.append(r"\multicolumn{4}{l}{\textit{Ours (FTW-Planet, 11-country held-out macro)}} \\")
+    rows.append(r"\multicolumn{4}{l}{\textit{Ours (PRUE-FTP, 11-country held-out macro)}} \\")
     n_seen: list[tuple[int, int]] = []
     for name, train, csv_name in OURS:
         agg = macro_avg(SRC / csv_name, HELDOUT_11)

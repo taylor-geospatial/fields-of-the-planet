@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Premium-grade per-country bars and smallholder scatter for the FTW-HD paper.
+# Premium-grade per-country bars and smallholder scatter for the FTP paper.
 # Uses ggplot2 + ggrepel with a custom restrained theme (Inter-like font stack,
 # muted neutrals for non-emphasized data, paired olive/sienna for win/loss).
 #
@@ -25,7 +25,7 @@ suppressPackageStartupMessages({
 # Theme.  The goal is "looks designed, not plotted."  We strip every default
 # axis line we don't need, sit the title flush-left with a sentence-case look,
 # pin gridlines to subtle dashed greys, and lean on a single accent palette
-# (deep olive vs warm sienna) inherited from the FTW-HD hero colors.
+# (deep olive vs warm sienna) inherited from the FTP hero colors.
 # ---------------------------------------------------------------------------
 
 OLIVE     <- "#4f6b1f"
@@ -136,7 +136,7 @@ f1_bars <- ggplot(deltas,
   scale_y_continuous(expand = expansion(mult = c(0.10, 0.16))) +
   labs(
     title    = "Planet wins on smallholder\nand Nordic countries",
-    subtitle = expression(paste(Delta, " Obj F1 (pp): PRUE-HD-B3 ",
+    subtitle = expression(paste(Delta, " Obj F1 (pp): PRUE-FTP-B3 ",
                                 italic("augmax"), " full minus PRUE-B7 (S2) full")),
     y = expression(paste(Delta, " Obj F1 (pp)")),
     caption = "FTW v3.1 full_data, 22 countries. Top-3 wins / losses bolded."
@@ -307,7 +307,7 @@ f1_bars_v2 <- ggplot(deltas_v2,
                      breaks = c(-10, -5, 0, 5, 10, 15)) +
   labs(
     title    = "Planet wins on smallholder\nand Nordic countries",
-    subtitle = "PRUE-HD-B3 augmax full − PRUE-B7 (S2) full",
+    subtitle = "PRUE-FTP-B3 augmax full − PRUE-B7 (S2) full",
     y = expression(paste(Delta, " Obj F1 (pp)")),
     caption = "FTW v3.1 full_data, 22 countries. Top-5 highlighted."
   ) +

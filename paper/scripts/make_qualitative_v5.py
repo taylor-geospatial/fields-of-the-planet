@@ -1,7 +1,7 @@
 """Qualitative v5: plasma-heatmap overlay on the field-interior class.
 
 Layout (per row): Planet RGB | Sentinel-2 RGB | GT plasma overlay |
-PRUE-HD-B3 plasma overlay | PRUE-B7 (S2) plasma overlay.
+PRUE-FTP-B3 plasma overlay | PRUE-B7 (S2) plasma overlay.
 
 The overlay encodes class 1 (field interior) as a plasma colormap blended
 on the RGB at alpha 0.55, with class 2 (boundary) drawn as a thin red
@@ -234,7 +234,7 @@ def main():
         "Planet RGB (3 m)",
         "S2 RGB (10 m)",
         "Ground truth",
-        "PRUE-HD-B3 (ours)",
+        "PRUE-FTP-B3 (ours)",
         "PRUE-B7 (S2 baseline)",
     ]
     for i, (country, pid, rgb, s2_rgb, gt, pred_pl, pred_s2) in enumerate(rows):

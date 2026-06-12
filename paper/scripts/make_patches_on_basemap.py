@@ -209,7 +209,7 @@ def main():
     for ax in axes[len(args.countries) :]:
         ax.set_axis_off()
     fig.suptitle(
-        "FTW-HD covers each country with a sparse scatter of 3 m chips",
+        "FTP covers each country with a sparse scatter of 3 m chips",
         fontsize=12,
         fontweight="bold",
         x=0.04,

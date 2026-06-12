@@ -1,6 +1,6 @@
 """Cumulative augmentation ablation (paper-style, seaborn notebook).
 
-Bars: cumulative Obj F1 (pp) of the PRUE-HD recipe as we add aug stages.
+Bars: cumulative Obj F1 (pp) of the PRUE-FTP recipe as we add aug stages.
 Dotted reference lines: released PRUE-B3/B7 (S2) numbers.
 
 Minimal styling -- no figure title, single accent color, value labels in

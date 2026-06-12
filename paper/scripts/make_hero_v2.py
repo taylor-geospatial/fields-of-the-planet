@@ -197,7 +197,7 @@ def main():
             if r == 0 and k == 0:
                 axes[r, base + 0].set_title("Planet (3 m)", fontsize=8, pad=2)
                 axes[r, base + 1].set_title("+ label overlay", fontsize=8, pad=2)
-            axes[r, base + 0].set_ylabel(f"{country.replace('_', ' ')}\n{pid}", fontsize=6.5)
+            # Country/patch labels crowd the page-1 hero at camera-ready width.
 
     plt.tight_layout(pad=0.2, h_pad=0.25, w_pad=0.05)
     plt.savefig(args.out, bbox_inches="tight", dpi=140)

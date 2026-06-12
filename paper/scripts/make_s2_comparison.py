@@ -1,4 +1,4 @@
-"""S2 PRUE-B7 vs FTW-Planet SDF comparison on identical patches.
+"""S2 PRUE-B7 vs FTP SDF comparison on identical patches.
 
 For each FTW country (intersection of S2 + Planet test sets):
   1. Compute per-country pixel field IoU for both models.
@@ -186,7 +186,7 @@ def render_qual(rows, out_path):
     )
     if n == 1:
         axes = axes[None, :]
-    col_titles = ["S2 RGB", "Planet RGB", "GT (Planet)", "S2 PRUE-B7 pred", "FTW-Planet SDF pred"]
+    col_titles = ["S2 RGB", "Planet RGB", "GT (Planet)", "S2 PRUE-B7 pred", "FTP SDF pred"]
     for i, (country, sample) in enumerate(rows):
         axes[i, 0].imshow(sample["rgb_s2"])
         axes[i, 1].imshow(sample["rgb_pl"])
@@ -270,7 +270,7 @@ def main():
     lines = [
         r"\begin{tabular}{lccc}",
         r"\toprule",
-        r"Country & N & S2 PRUE-B7 & FTW-Planet SDF \\",
+        r"Country & N & S2 PRUE-B7 & FTP SDF \\",
         r"\midrule",
     ]
     for _, r in df.iterrows():

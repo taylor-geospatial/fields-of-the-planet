@@ -1,8 +1,8 @@
 """Qualitative v8: combined raw-mask + TTA+watershed instance comparison.
 
 7 columns x N rows:
-  Planet RGB | S2 RGB | GT mask | PRUE-HD-B3 raw | PRUE-B7 (S2) raw |
-  PRUE-HD-B3 (TTA+WS) instances | PRUE-B7 (S2) (TTA+WS) instances
+  Planet RGB | S2 RGB | GT mask | PRUE-FTP-B3 raw | PRUE-B7 (S2) raw |
+  PRUE-FTP-B3 (TTA+WS) instances | PRUE-B7 (S2) (TTA+WS) instances
 
 Same square-cropped, season-matched layout as v6/v7.  Raw mask cells render
 green = field, black = bg + boundary.  Instance cells use a perturbed
@@ -345,9 +345,9 @@ def main():
         "Input\nPlanet RGB",
         "Input\nS2 RGB",
         "Reference\nGround truth",
-        "Raw mask\nPRUE-HD-B3",
+        "Raw mask\nPRUE-FTP-B3",
         "Raw mask\nPRUE-B7 (S2)",
-        "Post-proc\nPRUE-HD-B3",
+        "Post-proc\nPRUE-FTP-B3",
         "Post-proc\nPRUE-B7 (S2)",
     ]
     for i, (

@@ -32,7 +32,7 @@ mpl.rcParams.update(
     }
 )
 
-# Okabe-Ito-ish palette; train = olive (FTW-HD theme), test = sienna,
+# Okabe-Ito-ish palette; train = olive (FTP theme), test = sienna,
 # val = a muted teal so the three splits never blend visually.
 SPLIT_COLORS = {
     "train": "#5b7026",
@@ -114,7 +114,7 @@ def _shared_legend(fig, ncol: int = 3) -> None:
 def make_single(ftw_root: Path, country: str, out: Path) -> None:
     g = _load_country(ftw_root, country)
     fig, ax = plt.subplots(figsize=(6.6, 5.2))
-    _plot_country(ax, g, f"FTW-HD coverage: {country.replace('_', ' ').title()} (n={len(g)})")
+    _plot_country(ax, g, f"FTP coverage: {country.replace('_', ' ').title()} (n={len(g)})")
     _shared_legend(fig, ncol=3)
     fig.tight_layout(rect=(0, 0.03, 1, 1))
     out.parent.mkdir(exist_ok=True, parents=True)

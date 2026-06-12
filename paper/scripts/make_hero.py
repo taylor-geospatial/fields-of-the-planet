@@ -260,7 +260,7 @@ def main() -> int:
                 axes[r, base_col + 0].set_title("S2 (10 m)", fontsize=8, pad=2)
                 axes[r, base_col + 1].set_title("Planet (3 m)", fontsize=8, pad=2)
                 axes[r, base_col + 2].set_title("Label", fontsize=8, pad=2)
-            axes[r, base_col + 0].set_ylabel(country.replace("_", " "), fontsize=7)
+            # Country labels crowd the page-1 hero at camera-ready width.
 
     plt.tight_layout(pad=0.1, h_pad=0.05, w_pad=0.02)
     plt.subplots_adjust(wspace=0.02, hspace=0.04)

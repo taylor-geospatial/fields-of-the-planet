@@ -142,7 +142,7 @@ S2 PRUE-B3 \cite{{kerner2024ftw}} & 0.76 & 0.87 & 0.86 & -- \\
 S2 PRUE-B5 \cite{{kerner2024ftw}} & 0.76 & 0.88 & 0.86 & -- \\
 S2 PRUE-B7 \cite{{kerner2024ftw}} & 0.77 & 0.88 & 0.86 & -- \\
 \midrule
-FTW-Planet B3 (PRUE recipe)            & {base_pp["pixel_level_iou"]:.3f} & {base_pp["pixel_level_precision"]:.3f} & {base_pp["pixel_level_recall"]:.3f} & {base_pp["object_ws_f1"]:.3f} \\
+FTP B3 (PRUE recipe)            & {base_pp["pixel_level_iou"]:.3f} & {base_pp["pixel_level_precision"]:.3f} & {base_pp["pixel_level_recall"]:.3f} & {base_pp["object_ws_f1"]:.3f} \\
 \textbf{{+ crop 512 + SDF aux head (ours)}}  & \textbf{{{sdf_pp["pixel_level_iou"]:.3f}}} & \textbf{{{sdf_pp["pixel_level_precision"]:.3f}}} & \textbf{{{sdf_pp["pixel_level_recall"]:.3f}}} & \textbf{{{sdf_pp["object_ws_f1"]:.3f}}} \\
 \bottomrule
 \end{{tabular}}

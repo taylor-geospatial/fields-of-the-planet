@@ -110,7 +110,7 @@ def _draw(planet_vals: dict[str, float], s2_vals: dict[str, float], country_labe
     axP.bar(xs, vals, color=colors, edgecolor="black", linewidth=0.4)
     for x, v in zip(xs, vals):
         axP.text(x, v + 0.005, f"{v:.3f}", ha="center", fontsize=8)
-    axP.set_title("FTW-HD (3\\,m)")
+    axP.set_title("FTP (3\\,m)")
     axP.set_ylabel(f"Obj F1 (WS + TTA, {country_label} held-out)")
     axP.set_xticks(xs)
     axP.set_xticklabels(labels, rotation=20, ha="right")

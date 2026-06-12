@@ -11,10 +11,10 @@ For each row:
   5. Overlay the field-interior class (class 1) as a plasma colormap blend
      on the RGB.  No boundary line clutter -- the colored field interior
      carries the visual message.
-  6. Predict with PRUE-HD-B3 (Planet) and PRUE-B7 (S2 baseline).
+  6. Predict with PRUE-FTP-B3 (Planet) and PRUE-B7 (S2 baseline).
 
 Layout: 5 columns x N rows
-  Planet RGB | S2 RGB (aligned) | Ground truth | PRUE-HD-B3 (ours) | PRUE-B7 (S2)
+  Planet RGB | S2 RGB (aligned) | Ground truth | PRUE-FTP-B3 (ours) | PRUE-B7 (S2)
 
 All overlays sit on the Planet RGB so the same scene anchors the comparison.
 """
@@ -274,7 +274,7 @@ def main():
         "Planet RGB (3 m)",
         "S2 RGB (10 m)",
         "Ground truth",
-        "PRUE-HD-B3 (ours)",
+        "PRUE-FTP-B3 (ours)",
         "PRUE-B7 (S2 baseline)",
     ]
     for i, (country, pid, window, rgb_pl, rgb_s2, gt, pred_pl, pred_s2) in enumerate(rows):
