@@ -59,7 +59,7 @@ Paper ID \wacvPaperID}
 }]
 \begin{abstract}
 Most public field-boundary benchmarks pair parcel labels with 10\,m Sentinel-2 imagery, which is coarse for smallholder fields. We introduce \textbf{Fields of the Planet (FTP)}, a 3\,m PlanetScope companion to \emph{Fields of The World} (FTW)~\cite{kerner2024ftw}: 133{,}168 image-window pairs over FTW's 24 countries and 25 labeled regions, with UDM2 quality masks and 123{,}094 3-class label rasters from the original FTW polygons.\footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
-Under a matched PRUE~\cite{muhawenayo2026prue} U-Net recipe, replacing Sentinel-2 with FTP improves polygon-level field delineation: EfficientNet-B3 PQ~\cite{kirillov2019panoptic} rises from 0.246 to 0.324, mean object F1 over IoU $0.5$--$0.95$ rises from 0.191 to 0.263, and mean boundary error drops from 16.8\,m to 7.4\,m on the held-out split. The same FTP B3 model also outperforms a larger S2 EfficientNet-B7 trained with the same recipe (PQ 0.324 vs 0.283). Pixel IoU is reported only for protocol continuity; our main metrics are polygon based because downstream field-boundary workflows consume vector parcels, not rasters.
+Under a matched PRUE~\cite{muhawenayo2026prue} U-Net recipe, replacing Sentinel-2 with FTP improves polygon-level field delineation: EfficientNet-B3 PQ~\cite{kirillov2019panoptic} rises from 0.271 to 0.356, mean object F1 over IoU $0.5$--$0.95$ rises from 0.210 to 0.289, and mean boundary error drops from 17.5\,m to 7.4\,m on the dense-label held-out split (10 countries; presence-only Kenya is excluded from supervised aggregates and reported separately). The same FTP B3 model also outperforms a larger S2 EfficientNet-B7 trained with the same recipe (PQ 0.356 vs 0.311). Pixel IoU is reported only for protocol continuity; our main metrics are polygon based because downstream field-boundary workflows consume vector parcels, not rasters.
 \end{abstract}
 
 \section{Introduction}
@@ -196,9 +196,8 @@ IoU\,$=\,0.5$, panoptic quality~\cite{kirillov2019panoptic} (PQ\,$=$\,SQ$\times$
 object F1 averaged over IoU thresholds $\{0.5, 0.55, \ldots, 0.95\}$~\cite{lin2014coco},
 and a mean symmetric boundary chamfer~\cite{cheng2021biou} in meters.
 These reward what downstream pipelines consume. Pixel IoU is secondary:
-it is dominated by majority background, conflates boundary localization
-with bulk-area accuracy, and is not meaningful for Kenya because the FTW
-Kenya labels are presence-only. We keep pixel IoU only for continuity
+it is dominated by majority background and conflates boundary localization
+with bulk-area accuracy. We keep pixel IoU only for continuity
 with the released PRUE protocol and make the full case in
 \Cref{sec:polygon-first}.
 
@@ -208,10 +207,13 @@ on the 11 held-out FTW countries, matching the released CC-BY PRUE
 checkpoints. The \textbf{full-data split} follows the FTW full-data
 protocol: models train on the full 24-country / 25-region release and are
 evaluated on held-out patches from the test regions. Our architecture-matched
-dataset comparison uses the same training split on both sensors. Kenya is
-included for polygon metrics but excluded from pixel-IoU interpretation
-because it is presence-only; Portugal remains in all metrics and is discussed
-as a hard transfer case in \Cref{sec:limitations}.
+dataset comparison uses the same training split on both sensors. Kenya's FTW
+labels are presence-only (background untrusted), so its supervised pixel and
+object metrics are not comparable: all held-out macro-averages in this paper
+are over the 10 dense-label countries, and Kenya appears only as a clearly
+marked presence-only row (\Cref{tab:heldout_pc}, \Cref{sec:limitations}).
+Portugal remains in all metrics and is discussed as a hard transfer case in
+\Cref{sec:limitations}.
 
 \paragraph{PRUE-compatible recipe.} Unless otherwise stated, each model is
 a U-Net~\cite{ronneberger2015unet} with an EfficientNet encoder~\cite{tan2019efficientnet},
@@ -226,7 +228,7 @@ regularization.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Main polygon-level results on the held-out split (WS\,+\,TTA inference).} PQ\,$=$\,SQ$\times$RQ. F1$_{[.5:.95]}$ is object F1 averaged over IoU thresholds $\{0.5,0.55,\ldots,0.95\}$. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundaries, in meters. Kenya is presence-only; we keep the current FTW-protocol aggregate here but treat the presence-only country handling as a limitation in \Cref{sec:limitations}. Best per column in \textbf{bold}. $^{*}$DelineateAnything~\cite{lavreniuk2025delineate}: off-the-shelf YOLO11x-seg checkpoint, RGB uint8, no FTW fine-tuning; inference config in \Cref{app:qualitative_delineate}.}
+    \caption{\textbf{Main polygon-level results on the dense-label held-out split (10 countries, WS\,+\,TTA inference).} PQ\,$=$\,SQ$\times$RQ. F1$_{[.5:.95]}$ is object F1 averaged over IoU thresholds $\{0.5,0.55,\ldots,0.95\}$. $|\Delta N_\text{poly}|$ is mean per-patch polygon-count error. Boundary error is mean / p95 symmetric chamfer distance between predicted and GT boundaries, in meters. Presence-only Kenya is excluded from all supervised macro-averages (\Cref{sec:limitations}). Portugal has zero predicted polygons under several CC-BY configs, so its boundary error is undefined and skipped in those two columns only (n=9/10); every other column averages all 10 countries. Best per column in \textbf{bold}. $^{*}$DelineateAnything~\cite{lavreniuk2025delineate}: off-the-shelf YOLO11x-seg checkpoint, RGB uint8, no FTW fine-tuning; inference config in \Cref{app:qualitative_delineate}.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -235,20 +237,21 @@ regularization.
 
 \Cref{tab:polygon_metrics} isolates the dataset effect under the same
 architecture and training recipe. With an EfficientNet-B3 backbone, replacing
-Sentinel-2 with FTP improves PQ from 0.246 to 0.324, F1$_{[.5:.95]}$
-from 0.191 to 0.263, and mean boundary error from 16.8\,m to 7.4\,m. FTP
+Sentinel-2 with FTP improves PQ from 0.271 to 0.356, F1$_{[.5:.95]}$
+from 0.210 to 0.289, and mean boundary error from 17.5\,m to 7.4\,m. FTP
 B3 also outperforms the larger S2 EfficientNet-B7 baseline trained with the
-same augmax recipe: PQ 0.324 vs 0.283, F1$_{[.5:.95]}$ 0.263 vs 0.225, and
-boundary error 7.4\,m vs 14.8\,m. These comparisons use object and polygon
-metrics because both sensors are scored after vectorization from the same FTW
-polygon source.
+same augmax recipe on PQ (0.356 vs 0.311), F1$_{[.5:.95]}$ (0.289 vs 0.247),
+and boundary error (7.4\,m vs 15.2\,m); the S2 B7 model retains a slight edge
+on polygon-count error ($|\Delta N|$ 54.9 vs 55.8). These comparisons use
+object and polygon metrics because both sensors are scored after
+vectorization from the same FTW polygon source.
 
 \subsection{Better augmentations}
 
 \begin{figure}[t!]
     \centering
     \includegraphics[width=0.95\linewidth]{figs/aug_ablation_paper.pdf}
-\caption{\textbf{Cumulative augmentation lift on Obj F1.} Held-out evaluation with WS+TTA inference. The Planet B3 recipe improves from 0.265 (PRUE recipe, no extra augmentations) to 0.405 (augmax, full-data training). Dotted horizontal lines mark S2 baselines trained with the same augmax recipe; the architecture-matched B3 comparison isolates the dataset effect.}
+\caption{\textbf{Cumulative augmentation lift on Obj F1.} Dense-label held-out evaluation (10 countries) with WS+TTA inference. The Planet B3 recipe improves from 0.291 (PRUE recipe, no extra augmentations) to 0.446 (augmax, full-data training). Dotted horizontal lines mark S2 baselines trained with the same augmax recipe; the architecture-matched B3 comparison isolates the dataset effect.}
     \label{fig:aug_ablation}
 \end{figure}
 
@@ -261,7 +264,7 @@ temporal/radiometric augmentations, and a final geometry/noise bundle.
 \texttt{preprocess\_aug} (random per-batch divisor in
 $[5000, 15000]$ replacing the fixed $/10000$) and \texttt{resize\_aug}
 (\texttt{RandomResizedCrop} scale $0.3\text{--}0.9$ to the training
-crop). Adding them moves Obj F1 (WS) from $0.265 \rightarrow 0.291$.
+crop). Adding them moves Obj F1 (WS) from $0.291 \rightarrow 0.319$.
 
 \paragraph{Window swap and per-band gamma (+$1.0$ Obj
 F1). \emph{augplus}.} Two cheap additions. \texttt{swap\_order}
@@ -288,9 +291,9 @@ the two earlier baseline-fix augs enabled -- the PRUE
 \texttt{preprocess\_aug} (random-divisor input normalization, modeling
 cross-acquisition radiometric drift) and \texttt{RandomResizedCrop}
 (scale $0.3\text{--}0.9$, ratio $0.75\text{--}1.33$, $p\!=\!0.5$).
-Together on 11-country held-out:
-$0.300 \rightarrow 0.341$ Obj F1 (WS+TTA),
-$0.514 \rightarrow 0.530$ pixel IoU.
+Together on the 10-country dense held-out:
+$0.329 \rightarrow 0.374$ Obj F1 (WS+TTA),
+$0.564 \rightarrow 0.581$ pixel IoU.
 The Obj F1 gain splits roughly evenly across precision and recall
 ($+3.4$\,pts each at the watershed F1). We call this \emph{augmax};
 \emph{augplus} drops the seven bundle augmentations and keeps only
@@ -299,30 +302,30 @@ normalization/crop stage.
 
 \subsection{Sharper boundaries}
 
-\paragraph{Watershed post-processing (+$1.0$--$1.3$\,pts Obj F1).}
+\paragraph{Watershed post-processing (+$0.4$--$0.8$\,pts Obj F1).}
 Marker-controlled watershed with $h$-maxima seeds on a topographic
 surface (the predicted SDF when an SDF head is present; otherwise the
 Euclidean distance transform of the predicted boundary class) gives a
 consistent gain across checkpoints.
 
-\paragraph{D4 test-time augmentation (+$0.5$--$1.2$\,pts Obj F1 once
+\paragraph{D4 test-time augmentation (+$0.5$--$1.1$\,pts Obj F1 once
 augmentations are on).} We use an 8-way flip+rotate ensemble~\cite{wang2019tta,moshkov2020tta}.
 D4 TTA has little effect on the no-augmentation baseline but improves
 models trained with \emph{augmax}.
 
 \subsection{Stronger recipe}
 
-\paragraph{Train on all 24 countries / 25 regions (+$6.5$\,pts Obj F1 over CC-BY).}
+\paragraph{Train on all 24 countries / 25 regions (+$7.2$\,pts Obj F1 over CC-BY).}
 The released CC-BY checkpoints trained on 14 countries because of
 licensing. We retrained on the full release; this lifts the B3 augmax model
-from $0.341 \rightarrow 0.405$ Obj F1 (WS+TTA) on the 11-country
+from $0.374 \rightarrow 0.446$ Obj F1 (WS+TTA) on the 10-country dense
 evaluation set. This is not a country-transfer claim; it measures the
 full-data protocol used by the released full PRUE checkpoints.
 
 \paragraph{Augmentations matter more than backbone scaling here.}
 Scaling B3 to B7 gives a small lift on the CC-BY split
 (\Cref{tab:polygon_metrics}) but hurts on the full-data split
-($-2.6$ Obj F1; \Cref{tab:ablation_summary}). We therefore use B3 as
+($-1.0$ Obj F1; \Cref{tab:ablation_summary}). We therefore use B3 as
 the main PlanetScope baseline.
 
 
@@ -383,14 +386,15 @@ whether we evaluate at $3$\,m or $10$\,m). Table~\ref{tab:polygon_metrics}
 reports all four.
 
 \paragraph{Per-region head-to-head.}
-On the FTW \texttt{full\_data} protocol, macro PQ across the 22 regions
-with complete polygon-metric outputs is $0.374$ (Planet) vs $0.310$
-(S2-augmax-B7, same recipe), a $+6.5$\,pp Planet win. Figure~\ref{fig:per_country_bars}
-unpacks PQ into per-region deltas. Planet wins on $19/22$ regions.
+On the FTW \texttt{full\_data} protocol, macro PQ across the 23 regions
+with complete polygon-metric outputs is $0.379$ (Planet) vs $0.311$
+(S2-augmax-B7, same recipe), a $+6.8$\,pp Planet win. Figure~\ref{fig:per_country_bars}
+unpacks PQ into per-region deltas. Planet wins on $20/23$ regions, ties
+one (Estonia), and loses two (two-sided sign test over the 22 decided
+regions: $p \approx 1.2\times10^{-4}$).
 The largest gains include Netherlands $+19.9$, Luxembourg $+14.7$,
 Brazil $+14.9$, Lithuania $+13.0$, and Denmark $+10.4$.
-The losses are Germany ($-7.2$\,pp), Portugal ($-1.1$\,pp), and an
-effectively tied Estonia result ($-0.01$\,pp).
+The losses are Germany ($-7.2$\,pp) and Portugal ($-1.1$\,pp).
 Germany's loss is consistent with its large regular field geometry,
 where S2's boundary class is thick enough to score well even at $10$\,m.
 
@@ -414,7 +418,7 @@ after accounting for its monsoon-season imagery degradation
 \begin{table}[t]
     \centering
     \small
-\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the FTW \texttt{full\_data} split. Our rows: held-out macro summaries for orientation only. Pixel IoU is secondary and should not be interpreted for Kenya because the Kenya labels are presence-only (see \Cref{sec:limitations}).}
+\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the FTW \texttt{full\_data} split. Our rows: 10-country dense held-out macro summaries for orientation only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary.}
     \label{tab:full_data}
     \input{figs/full_data_compare.tex}
 \end{table}
@@ -449,33 +453,33 @@ after accounting for its monsoon-season imagery degradation
 
 \subsection{Ablation summary}
 
-\Cref{tab:ablation_summary} consolidates the recipe sweep into a single ablation table. Wins are bolded green and quoted in pp on the 11-country evaluation set unless otherwise noted; losses are bolded red. The largest effects are augmentations, full-data training, and the rejected SDF auxiliary head.
+\Cref{tab:ablation_summary} consolidates the recipe sweep into a single ablation table. Wins are bolded green and quoted in pp on the 10-country dense evaluation set unless otherwise noted; losses are bolded red. The largest effects are augmentations, full-data training, and the rejected SDF auxiliary head.
 
 \begin{table}[h]
     \centering
     \footnotesize
     \setlength{\tabcolsep}{3pt}
-    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 11-country held-out set unless noted (Obj F1 with WS+TTA where applicable). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
+    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 10-country dense-label held-out set unless noted (Obj F1 with WS+TTA where applicable; presence-only kenya excluded). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
     \label{tab:ablation_summary}
     \begin{tabular}{@{}p{0.62\linewidth} @{\hspace{2pt}}c@{\hspace{2pt}} r@{}}
     \toprule
     \textbf{Lever} & \textbf{Use} & \textbf{$\Delta$ ObjF1} \\
     \midrule
     \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Augmentation \& training}} \\
-    PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.5} \\
-    \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
-    Geometry/noise bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.1} \\
-    Train on full release vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +6.5} \\
-    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
+    PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.8} \\
+    \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +1.0} \\
+    Geometry/noise bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
+    Train on full release vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +7.2} \\
+    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -1.0} \\
     Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries failed} \\
-    SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}) & $\times$ & {\color{earthSienna}\bfseries -3.0} \\
-    Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries 0.0} \\
+    SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}, full) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
+    Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries -1.7} \\
     CutMix~\cite{yun2019cutmix} (2\,px ignore) & $\times$ & {\color{earthSienna}\bfseries -0.1} \\
     Curriculum~\cite{bengio2009curriculum} boundary dilation $3\!\to\!0$\,px & $\times$ & {\color{earthSienna}\bfseries -0.4} \\
     \midrule
     \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Inference \& post-processing}} \\
-    Marker-controlled watershed & \checkmark & {\color{earthDark}\bfseries +1.0} \\
-    D4 8-way TTA (with \emph{augmax}) & \checkmark & {\color{earthDark}\bfseries +1.0} \\
+    Marker-controlled watershed & \checkmark & {\color{earthDark}\bfseries +0.5} \\
+    D4 8-way TTA (with \emph{augmax}) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
     Replicate input padding & $\times$ & {\color{earthSienna}\bfseries -8\,/\,-10} \\
     \midrule
     \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Checkpoint selection}} \\
@@ -500,7 +504,7 @@ The main ablation result is that FTP needs stronger regularization than the S2 r
 
 \textbf{Spectral coverage.} The current release targets the 4-band Dove product (\texttt{ortho\_analytic\_4b\_sr}). 8-band SuperDove imagery would add red-edge and yellow bands that help vegetation discrimination, but FTW v2's labeled windows are historical and most predate SuperDove's full operational coverage, so the 4-band Dove archive is the only product with end-to-end coverage of the FTW season range. A SuperDove companion release is feasible only for the more recent country windows.
 
-\textbf{Presence-only and hard transfer regions.} Kenya is presence-only in FTW: the tile annotates a subset of fields and leaves surrounding land unlabeled. The training code supports an ignore index, but the current rasterized Planet labels do not add an explicit ignore mask for all unlabeled Kenya parcels. We therefore do not interpret Kenya pixel IoU, and a cleaner model comparison should rerun training and evaluation with presence-only pixels masked out. Portugal remains a hard transfer case because its terraced micro-fields are near or below the PlanetScope GSD. These regions need either targeted data acquisition or a transfer-specific strategy.
+\textbf{Presence-only and hard transfer regions.} Kenya is presence-only in FTW: the tile annotates a subset of fields and leaves surrounding land unlabeled, so its background class is untrusted and supervised pixel/object metrics computed against it are not comparable across models. We therefore exclude Kenya from every supervised macro-average in this paper and report it only as a clearly marked presence-only row (\Cref{tab:heldout_pc}). Our evaluation tooling supports masking presence-only backgrounds to the ignore index at evaluation time, but the training labels still rasterize unlabeled Kenya land as background; a cleaner comparison should retrain with presence-only pixels masked out. Portugal remains a hard transfer case because its terraced micro-fields are near or below the PlanetScope GSD. These regions need either targeted data acquisition or a transfer-specific strategy.
 
 \textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $0.475$, recall $0.294$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia Obj F1 loss; on PQ and boundary chamfer Cambodia is still a Planet win (see \Cref{sec:polygon-first}).
 
@@ -566,18 +570,18 @@ Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary wi
 
 \Cref{tab:heldout} reports the full 4 post-processing combos
 (watershed and/or D4 TTA) $\times$ 4 \textbf{augmax} configurations
-(B3/B7 $\times$ CC-BY/full) Obj F1 sweep on the 11-country held-out
-set referenced from the main text.
+(B3/B7 $\times$ CC-BY/full) Obj F1 sweep on the 10-country dense
+held-out set referenced from the main text.
 
 \begin{table*}[h]
     \centering
     \scriptsize
-    \caption{\textbf{Held-out benchmark.} 11-country held-out Obj F1
-    across four post-processing combos (watershed and/or D4 TTA) and
-    four \textbf{augmax} configurations per imagery source
-    (B3/B7 $\times$ CC-BY/full train split). Kenya and Portugal are
-    retained in polygon-metric macro-averages. Pixel IoU for Kenya is
-    not interpreted because the Kenya labels are presence-only. The released PRUE (S2) checkpoints are
+    \caption{\textbf{Held-out benchmark.} 10-country dense-label
+    held-out Obj F1 across four post-processing combos (watershed
+    and/or D4 TTA) and four \textbf{augmax} configurations per imagery
+    source (B3/B7 $\times$ CC-BY/full train split). Presence-only
+    Kenya is excluded from all supervised macro-averages; Portugal is
+    retained. The released PRUE (S2) checkpoints are
     listed as reference (their numbers are on the FTW
     \texttt{full\_data} test split, not held-out only;
     see~\Cref{tab:full_data} for the held-out macro of our own runs).
@@ -599,8 +603,8 @@ set referenced from the main text.
     S2 CC-BY (B3) vs PRUE-FTP-B3 \emph{augmax} full + watershed + D4 TTA
     (main Planet row). The S2 model is trained on the CC-BY 14-country split;
     ours on the full 24-country / 25-region release. Kenya is
-    presence-only, so its pixel IoU is shown for completeness but should
-    not be interpreted as a boundary-quality result.}
+    presence-only, so its supervised pixel/object metrics are omitted
+    and the macro row averages the 10 dense-label regions only.}
     \label{tab:heldout_pc}
     \input{figs/heldout_per_country.tex}
 \end{table*}
@@ -627,24 +631,24 @@ nearest-neighbour reproject the prediction onto the \emph{other}
 sensor's GT grid and score 2-class pixel IoU against that grid's GT.
 If pixel IoU were primarily a function of evaluation-grid resolution,
 moving a model's prediction across grids would change its score
-substantially. It does not: Planet's macro IoU is unchanged to four
-decimals across grids, and S2's only drops when its $10$\,m predictions
+substantially. It does not: Planet's macro IoU changes by less than
+$0.001$ across grids, and S2's only drops when its $10$\,m predictions
 are nearest-neighbour resampled to a $3$\,m grid -- a resampling
 artifact, not a model property.
 
 \begin{table}[h]
     \centering
     \small
-    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 11-country held-out set, no TTA, no watershed. Native-grid inference, then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$\,m changes IoU by $<0.001$.}
+    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 10-country dense held-out set (presence-only kenya excluded), no TTA, no watershed. Native-grid inference, then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$\,m changes IoU by $<0.001$.}
     \label{tab:gsd_controlled}
     \begin{tabular}{llc}
     \toprule
     Model & Eval grid & Macro Pixel IoU \\
     \midrule
-    Planet B3 augmax full & $3$\,m (native)              & $0.616$ \\
-    Planet B3 augmax full & $10$\,m (NN-reprojected)     & $0.616$ \\
-    S2 B7 augmax full     & $10$\,m (native)             & $0.645$ \\
-    S2 B7 augmax full     & $3$\,m (NN-reprojected)      & $0.573$ \\
+    Planet B3 augmax full & $3$\,m (native)              & $0.678$ \\
+    Planet B3 augmax full & $10$\,m (NN-reprojected)     & $0.677$ \\
+    S2 B7 augmax full     & $10$\,m (native)             & $0.654$ \\
+    S2 B7 augmax full     & $3$\,m (NN-reprojected)      & $0.630$ \\
     \bottomrule
     \end{tabular}
 \end{table}
