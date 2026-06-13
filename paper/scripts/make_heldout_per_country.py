@@ -25,7 +25,8 @@ REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "heldout_per_country.tex"
 
 S2_CSV = REPO / "logs" / "ftw_official_ccby" / "s2_ccby_per_country.csv"
-PL_CSV = REPO / "logs" / "postproc_ablation" / "planet_b3_augmax_full_ws_tta.csv"
+# Released B3-full checkpoint (retrained Jun 2026, epoch 92): reproduction eval.
+PL_CSV = REPO / "logs" / "repro_eval" / "pp_ws_tta.csv"
 
 PRESENCE_ONLY = {"kenya"}
 
@@ -34,8 +35,10 @@ def main() -> None:
     s2 = pd.read_csv(S2_CSV).set_index("country")
     pl = pd.read_csv(PL_CSV).set_index("country")
 
-    missing_s2 = set(HELDOUT_11) - set(s2.index)
-    missing_pl = set(HELDOUT_11) - set(pl.index)
+    # Planet eval (released ckpt) excludes presence-only kenya by construction;
+    # only the dense-10 rows are required there. S2 ref still carries all 11.
+    missing_s2 = set(HELDOUT_10_DENSE) - set(s2.index)
+    missing_pl = set(HELDOUT_10_DENSE) - set(pl.index)
     if missing_s2 or missing_pl:
         raise RuntimeError(f"missing rows: s2={missing_s2}, planet={missing_pl}")
 

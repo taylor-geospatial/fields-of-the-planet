@@ -21,6 +21,10 @@ HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "heldout_results.tex"
 SRC = REPO / "logs" / "postproc_ablation"
+# Released B3-full checkpoint (retrained Jun 2026): its per-combo CSVs live in
+# logs/repro_eval/pp_<combo>.csv instead of the original postproc_ablation run.
+REPRO = REPO / "logs" / "repro_eval"
+REPRO_STEM = "planet_b3_augmax_full"
 
 # (display label, csv stem) — same row order as the previous table.
 CONFIGS_OURS_PLANET = [
@@ -50,7 +54,7 @@ def _row(stem: str) -> tuple[list[float], float, int, int]:
     n_expected = 0
     pix_iou = 0.0
     for combo, ws in COMBOS:
-        csv = SRC / f"{stem}_{combo}.csv"
+        csv = REPRO / f"pp_{combo}.csv" if stem == REPRO_STEM else SRC / f"{stem}_{combo}.csv"
         agg = macro_avg(csv, HELDOUT_10_DENSE)
         key = "object_ws_f1" if ws else "object_pix_f1"
         vals.append(agg[key])

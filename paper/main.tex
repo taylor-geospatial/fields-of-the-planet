@@ -59,7 +59,7 @@ Paper ID \wacvPaperID}
 }]
 \begin{abstract}
 Most public field-boundary benchmarks pair parcel labels with 10\,m Sentinel-2 imagery, which is coarse for smallholder fields. We introduce \textbf{Fields of the Planet (FTP)}, a 3\,m PlanetScope companion to \emph{Fields of The World} (FTW)~\cite{kerner2024ftw}: 133{,}168 image-window pairs over FTW's 24 countries and 25 labeled regions, with UDM2 quality masks and 123{,}094 3-class label rasters from the original FTW polygons.\footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
-Under a matched PRUE~\cite{muhawenayo2026prue} U-Net recipe, replacing Sentinel-2 with FTP improves polygon-level field delineation: EfficientNet-B3 PQ~\cite{kirillov2019panoptic} rises from 0.271 to 0.356, mean object F1 over IoU $0.5$--$0.95$ rises from 0.210 to 0.289, and mean boundary error drops from 17.5\,m to 7.4\,m on the dense-label held-out split (10 countries; presence-only Kenya is excluded from supervised aggregates and reported separately). The same FTP B3 model also outperforms a larger S2 EfficientNet-B7 trained with the same recipe (PQ 0.356 vs 0.311). Pixel IoU is reported only for protocol continuity; our main metrics are polygon based because downstream field-boundary workflows consume vector parcels, not rasters.
+Under a matched PRUE~\cite{muhawenayo2026prue} U-Net recipe, replacing Sentinel-2 with FTP improves polygon-level field delineation: EfficientNet-B3 PQ~\cite{kirillov2019panoptic} rises from 0.271 to 0.360, mean object F1 over IoU $0.5$--$0.95$ rises from 0.210 to 0.291, and mean boundary error drops from 17.5\,m to 7.4\,m on the dense-label held-out split (10 countries; presence-only Kenya is excluded from supervised aggregates and reported separately). The same FTP B3 model also outperforms a larger S2 EfficientNet-B7 trained with the same recipe (PQ 0.360 vs 0.311). Pixel IoU is reported only for protocol continuity; our main metrics are polygon based because downstream field-boundary workflows consume vector parcels, not rasters.
 \end{abstract}
 
 \section{Introduction}
@@ -237,12 +237,12 @@ regularization.
 
 \Cref{tab:polygon_metrics} isolates the dataset effect under the same
 architecture and training recipe. With an EfficientNet-B3 backbone, replacing
-Sentinel-2 with FTP improves PQ from 0.271 to 0.356, F1$_{[.5:.95]}$
-from 0.210 to 0.289, and mean boundary error from 17.5\,m to 7.4\,m. FTP
+Sentinel-2 with FTP improves PQ from 0.271 to 0.360, F1$_{[.5:.95]}$
+from 0.210 to 0.291, and mean boundary error from 17.5\,m to 7.4\,m. FTP
 B3 also outperforms the larger S2 EfficientNet-B7 baseline trained with the
-same augmax recipe on PQ (0.356 vs 0.311), F1$_{[.5:.95]}$ (0.289 vs 0.247),
+same augmax recipe on PQ (0.360 vs 0.311), F1$_{[.5:.95]}$ (0.291 vs 0.247),
 and boundary error (7.4\,m vs 15.2\,m); the S2 B7 model retains a slight edge
-on polygon-count error ($|\Delta N|$ 54.9 vs 55.8). These comparisons use
+on polygon-count error ($|\Delta N|$ 54.9 vs 55.5). These comparisons use
 object and polygon metrics because both sensors are scored after
 vectorization from the same FTW polygon source.
 
@@ -251,7 +251,7 @@ vectorization from the same FTW polygon source.
 \begin{figure}[t!]
     \centering
     \includegraphics[width=0.95\linewidth]{figs/aug_ablation_paper.pdf}
-\caption{\textbf{Cumulative augmentation lift on Obj F1.} Dense-label held-out evaluation (10 countries) with WS+TTA inference. The Planet B3 recipe improves from 0.291 (PRUE recipe, no extra augmentations) to 0.446 (augmax, full-data training). Dotted horizontal lines mark S2 baselines trained with the same augmax recipe; the architecture-matched B3 comparison isolates the dataset effect.}
+\caption{\textbf{Cumulative augmentation lift on Obj F1.} Dense-label held-out evaluation (10 countries) with WS+TTA inference. The Planet B3 recipe improves from 0.291 (PRUE recipe, no extra augmentations) to 0.452 (augmax, full-data training). Dotted horizontal lines mark S2 baselines trained with the same augmax recipe; the architecture-matched B3 comparison isolates the dataset effect.}
     \label{fig:aug_ablation}
 \end{figure}
 
@@ -315,17 +315,17 @@ models trained with \emph{augmax}.
 
 \subsection{Stronger recipe}
 
-\paragraph{Train on all 24 countries / 25 regions (+$7.2$\,pts Obj F1 over CC-BY).}
+\paragraph{Train on all 24 countries / 25 regions (+$7.8$\,pts Obj F1 over CC-BY).}
 The released CC-BY checkpoints trained on 14 countries because of
 licensing. We retrained on the full release; this lifts the B3 augmax model
-from $0.374 \rightarrow 0.446$ Obj F1 (WS+TTA) on the 10-country dense
+from $0.374 \rightarrow 0.452$ Obj F1 (WS+TTA) on the 10-country dense
 evaluation set. This is not a country-transfer claim; it measures the
 full-data protocol used by the released full PRUE checkpoints.
 
 \paragraph{Augmentations matter more than backbone scaling here.}
 Scaling B3 to B7 gives a small lift on the CC-BY split
 (\Cref{tab:polygon_metrics}) but hurts on the full-data split
-($-1.0$ Obj F1; \Cref{tab:ablation_summary}). We therefore use B3 as
+($-1.6$ Obj F1; \Cref{tab:ablation_summary}). We therefore use B3 as
 the main PlanetScope baseline.
 
 
@@ -387,14 +387,14 @@ reports all four.
 
 \paragraph{Per-region head-to-head.}
 On the FTW \texttt{full\_data} protocol, macro PQ across the 23 regions
-with complete polygon-metric outputs is $0.379$ (Planet) vs $0.311$
-(S2-augmax-B7, same recipe), a $+6.8$\,pp Planet win. Figure~\ref{fig:per_country_bars}
-unpacks PQ into per-region deltas. Planet wins on $20/23$ regions, ties
-one (Estonia), and loses two (two-sided sign test over the 22 decided
-regions: $p \approx 1.2\times10^{-4}$).
-The largest gains include Netherlands $+19.9$, Luxembourg $+14.7$,
-Brazil $+14.9$, Lithuania $+13.0$, and Denmark $+10.4$.
-The losses are Germany ($-7.2$\,pp) and Portugal ($-1.1$\,pp).
+with complete polygon-metric outputs is $0.383$ (Planet) vs $0.311$
+(S2-augmax-B7, same recipe), a $+7.2$\,pp Planet win. Figure~\ref{fig:per_country_bars}
+unpacks PQ into per-region deltas. Planet wins on $21/23$ regions and
+loses two (two-sided sign test over the 23 decided regions:
+$p \approx 6.6\times10^{-5}$).
+The largest gains include Netherlands $+20.1$, Brazil $+15.5$,
+Luxembourg $+15.3$, Lithuania $+13.7$, and Corsica $+10.6$.
+The losses are Germany ($-7.0$\,pp) and Portugal ($-0.2$\,pp).
 Germany's loss is consistent with its large regular field geometry,
 where S2's boundary class is thick enough to score well even at $10$\,m.
 
@@ -469,8 +469,8 @@ after accounting for its monsoon-season imagery degradation
     PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.8} \\
     \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +1.0} \\
     Geometry/noise bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
-    Train on full release vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +7.2} \\
-    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -1.0} \\
+    Train on full release vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +7.8} \\
+    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -1.6} \\
     Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries failed} \\
     SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}, full) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
     Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries -1.7} \\

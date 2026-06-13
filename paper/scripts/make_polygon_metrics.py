@@ -24,16 +24,20 @@ REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "polygon_metrics.tex"
 SRC = REPO / "logs" / "polygon_metrics"
 
-# (imagery, recipe latex, csv, midrule-before)
+# The B3-full row is the released checkpoint (retrained Jun 2026, epoch 92);
+# its metrics come from the reproduction eval rather than the original run.
+REPRO = REPO / "logs" / "repro_eval"
+
+# (imagery, recipe latex, csv path, midrule-before)
 ROWS = [
-    ("Planet", r"DelineateAnything (zero-shot)$^{*}$", "delineate_anything_conf0005.csv", False),
-    ("S2", r"\emph{augmax} B3 (CC-BY)", "s2_b3_augmax_ccby.csv", True),
-    ("S2", r"\emph{augmax} B3 (full)", "s2_b3_augmax_full.csv", False),
-    ("S2", r"\emph{augmax} B7 (CC-BY)", "s2_b7_augmax_ccby.csv", False),
-    ("S2", r"\emph{augmax} B7 (full)", "s2_b7_augmax_full.csv", False),
-    ("Planet", r"PRUE-FTP-B3 (CC-BY)", "planet_b3_augmax_ccby.csv", True),
-    ("Planet", r"PRUE-FTP-B7 (CC-BY)", "planet_b7_augmax_ccby.csv", False),
-    ("Planet", r"\textbf{PRUE-FTP-B3 (full)}", "planet_b3_augmax_full.csv", False),
+    ("Planet", r"DelineateAnything (zero-shot)$^{*}$", SRC / "delineate_anything_conf0005.csv", False),
+    ("S2", r"\emph{augmax} B3 (CC-BY)", SRC / "s2_b3_augmax_ccby.csv", True),
+    ("S2", r"\emph{augmax} B3 (full)", SRC / "s2_b3_augmax_full.csv", False),
+    ("S2", r"\emph{augmax} B7 (CC-BY)", SRC / "s2_b7_augmax_ccby.csv", False),
+    ("S2", r"\emph{augmax} B7 (full)", SRC / "s2_b7_augmax_full.csv", False),
+    ("Planet", r"PRUE-FTP-B3 (CC-BY)", SRC / "planet_b3_augmax_ccby.csv", True),
+    ("Planet", r"PRUE-FTP-B7 (CC-BY)", SRC / "planet_b7_augmax_ccby.csv", False),
+    ("Planet", r"\textbf{PRUE-FTP-B3 (full)}", REPRO / "polygon_metrics.csv", False),
 ]
 
 COLS = (
@@ -49,11 +53,11 @@ COLS = (
 
 def main() -> None:
     aggregates: list[dict[str, float]] = []
-    for _, _, csv_name, _ in ROWS:
-        sub = load_and_filter(SRC / csv_name, HELDOUT_10_DENSE)
+    for _, _, csv_path, _ in ROWS:
+        sub = load_and_filter(csv_path, HELDOUT_10_DENSE)
         if len(sub) != len(HELDOUT_10_DENSE):
             raise RuntimeError(
-                f"{csv_name}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries"
+                f"{csv_path}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries"
             )
         agg = {c: float(sub[c].mean(skipna=True)) for c in COLS}
         agg["_bnd_n"] = int(sub["boundary_error_m_mean"].notna().sum())

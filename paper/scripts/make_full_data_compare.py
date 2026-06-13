@@ -22,6 +22,7 @@ HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "full_data_compare.tex"
 SRC = REPO / "logs" / "fulldata_eval"
+REPRO = REPO / "logs" / "repro_eval"  # released B3-full checkpoint reproduction eval
 
 # Released FTW PRUE numbers (hand-copied from muhawenayo2026prue; rows kept as
 # reference). These are the published values on the FTW full_data test split,
@@ -37,10 +38,11 @@ RELEASED_CCBY = [
     ("PRUE-B7 (S2, CC-BY)", "14", 0.77, 0.44),
 ]
 
+# csv path per row; the 24/25 B3-full row is the released checkpoint (repro eval).
 OURS = [
-    ("PRUE-FTP-B3 \\emph{augmax}", "14", "planet_b3_augmax_ccby_ws_tta.csv"),
-    ("PRUE-FTP-B3 \\emph{augmax}", "24/25", "planet_b3_augmax_full_ws_tta.csv"),
-    ("PRUE-FTP-B7 \\emph{augmax}", "14", "planet_b7_augmax_ccby_ws_tta.csv"),
+    ("PRUE-FTP-B3 \\emph{augmax}", "14", SRC / "planet_b3_augmax_ccby_ws_tta.csv"),
+    ("PRUE-FTP-B3 \\emph{augmax}", "24/25", REPRO / "pp_ws_tta.csv"),
+    ("PRUE-FTP-B7 \\emph{augmax}", "14", SRC / "planet_b7_augmax_ccby_ws_tta.csv"),
 ]
 
 
@@ -69,11 +71,11 @@ def main() -> None:
         rows.append(f"{name} & {train} & {ious} & {f1:.2f} \\\\")
     rows.append(r"\midrule")
     rows.append(r"\multicolumn{4}{l}{\textit{Ours (PRUE-FTP, 10-country dense held-out macro)}} \\")
-    for name, train, csv_name in OURS:
-        agg = macro_avg(SRC / csv_name, HELDOUT_10_DENSE)
+    for name, train, csv_path in OURS:
+        agg = macro_avg(csv_path, HELDOUT_10_DENSE)
         nc, ne = int(agg["n_countries"]), int(agg["n_expected"])
         if nc != ne:
-            raise RuntimeError(f"{csv_name}: macro over {nc}/{ne} countries")
+            raise RuntimeError(f"{csv_path}: macro over {nc}/{ne} countries")
         rows.append(
             f"{name} & {train} & {agg['pixel_level_iou']:.2f} & {agg['object_ws_f1']:.2f} \\\\"
         )

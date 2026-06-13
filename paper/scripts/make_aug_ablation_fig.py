@@ -58,7 +58,8 @@ PLANET_ROWS: list[tuple[str, Path]] = [
     ("+ preproc / resize", REPO / "logs/heldout/b3base_aug_best.csv"),
     ("+ swap + gamma\n(augplus)", REPO / "logs/heldout/v3_augplus.csv"),
     ("+ bespoke bundle\n(augmax, B3 CC-BY)", REPO / "logs/heldout/v3_augmax_ws_tta.csv"),
-    ("+ augmax, B3 full", REPO / "logs/fulldata_eval/planet_b3_augmax_full_ws_tta.csv"),
+    # B3-full is the released checkpoint (retrained Jun 2026): reproduction eval.
+    ("+ augmax, B3 full", REPO / "logs/repro_eval/pp_ws_tta.csv"),
 ]
 S2_ROWS: list[tuple[str, Path]] = [
     (
