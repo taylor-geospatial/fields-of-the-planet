@@ -1,4 +1,4 @@
-"""Per-country bars: Delta PQ on the 11-country held-out set.
+"""Per-region bars: Delta PQ on the FTW full_data 23-region test split.
 
 Same visual style as make_per_country_bars_paper.py, but uses panoptic
 quality (PQ) as the comparison metric instead of Obj F1 at IoU=0.5.
@@ -10,9 +10,9 @@ the visual story under imagery degradation (Cambodia: -8.6 pp ObjF1
 but +6.6 pp PQ). Leading with PQ makes the marquee per-country figure
 consistent with the metric the paper champions.
 
-Reads logs/polygon_metrics/planet_b3_augmax_full.csv and
-logs/polygon_metrics/s2_b7_augmax_full.csv; both are the 11-country
-held-out set with WS+TTA inference.
+Reads logs/repro_eval/polygon_metrics_22.csv (released B3-full checkpoint)
+and logs/polygon_metrics/s2_b7_augmax_full_22.csv; both are the 23-region
+full_data test split with WS+TTA inference.
 """
 
 import argparse
@@ -44,7 +44,8 @@ mpl.rcParams.update(
 
 
 def _load_deltas() -> pd.DataFrame:
-    pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[["country", "pq"]].rename(
+    # Planet B3-full is the released checkpoint (retrained Jun 2026): repro eval.
+    pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(
         columns={"pq": "pq_pl"}
     )
     s2 = pd.read_csv("logs/polygon_metrics/s2_b7_augmax_full_22.csv")[["country", "pq"]].rename(

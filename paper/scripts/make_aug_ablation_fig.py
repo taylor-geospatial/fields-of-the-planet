@@ -26,7 +26,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from _aggregate import HELDOUT_9, HELDOUT_11, aggregate_table
+from _aggregate import HELDOUT_9, HELDOUT_10_DENSE, HELDOUT_11, aggregate_table
 
 mpl.rcParams.update(
     {
@@ -58,7 +58,8 @@ PLANET_ROWS: list[tuple[str, Path]] = [
     ("+ preproc / resize", REPO / "logs/heldout/b3base_aug_best.csv"),
     ("+ swap + gamma\n(augplus)", REPO / "logs/heldout/v3_augplus.csv"),
     ("+ bespoke bundle\n(augmax, B3 CC-BY)", REPO / "logs/heldout/v3_augmax_ws_tta.csv"),
-    ("+ augmax, B3 full", REPO / "logs/fulldata_eval/planet_b3_augmax_full_ws_tta.csv"),
+    # B3-full is the released checkpoint (retrained Jun 2026): reproduction eval.
+    ("+ augmax, B3 full", REPO / "logs/repro_eval/pp_ws_tta.csv"),
 ]
 S2_ROWS: list[tuple[str, Path]] = [
     (
@@ -184,17 +185,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--countries",
-        choices=("heldout11", "heldout9"),
-        default="heldout11",
-        help="Country set driving the figure bars. CSVs for BOTH sets are always emitted.",
+        choices=("heldout10", "heldout11", "heldout9"),
+        default="heldout10",
+        help="Country set driving the figure bars. CSVs for ALL sets are always emitted. "
+        "heldout10 (dense-label, kenya excluded) is the paper headline.",
     )
     args = parser.parse_args()
 
-    # Always emit both tables.
+    # Always emit all tables.
+    p10, s10 = _build_tables(HELDOUT_10_DENSE, "heldout10")
     p11, s11 = _build_tables(HELDOUT_11, "heldout11")
     p9, s9 = _build_tables(HELDOUT_9, "heldout9")
 
-    if args.countries == "heldout11":
+    if args.countries == "heldout10":
+        _draw(p10, s10, "10-country dense")
+    elif args.countries == "heldout11":
         _draw(p11, s11, "11-country")
     else:
         _draw(p9, s9, "9-country")

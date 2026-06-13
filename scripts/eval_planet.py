@@ -84,6 +84,7 @@ def evaluate_country(
     num_workers: int,
     iou_threshold: float,
     model_predicts_3_classes: bool,
+    presence_only: bool = False,
 ) -> dict[str, float]:
     ds = FTWPlanet(
         root=root, countries=[country], split=split, transforms=None, load_boundaries=True
@@ -103,6 +104,10 @@ def evaluate_country(
     for batch in tqdm(dl, desc=country, leave=False):
         image = batch["image"].to(device) / PLANET_SR_SCALE
         mask = batch["mask"].to(device)
+        if presence_only:
+            # Presence-only labels (e.g. kenya): background is untrusted, so
+            # supervise metrics only on labeled polygon + boundary pixels.
+            mask[mask == 0] = 3
         image, mask = _pad_mult32(image, mask)
 
         outputs = model(image).argmax(dim=1)
@@ -134,6 +139,10 @@ def evaluate_country(
         if (obj_prec + obj_rec) and not (np.isnan(obj_prec) or np.isnan(obj_rec))
         else float("nan")
     )
+    if presence_only:
+        # FPs over unlabeled regions are unmeasurable -> precision/F1 invalid.
+        obj_prec = float("nan")
+        obj_f1 = float("nan")
     return {
         "pixel_level_iou": pix_iou,
         "pixel_level_precision": pix_prec,
@@ -158,6 +167,13 @@ def main() -> int:
         "--model-predicts-3-classes",
         action="store_true",
         help="Collapse 3-class predictions (0/1/2) to 2-class (bg/field) before eval.",
+    )
+    p.add_argument(
+        "--presence-only-countries",
+        nargs="*",
+        default=[],
+        help="Countries whose labels are presence-only (e.g. kenya): background "
+        "pixels are masked to ignore_index=3 and object precision/F1 are NaN.",
     )
     args = p.parse_args()
 
@@ -193,6 +209,7 @@ def main() -> int:
                 args.num_workers,
                 args.iou_threshold,
                 args.model_predicts_3_classes,
+                presence_only=country in args.presence_only_countries,
             )
         except Exception as e:
             print(f"  skip {country}: {e}")

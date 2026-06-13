@@ -1,0 +1,14 @@
+panel,label,object_ws_f1,n_countries,n_expected,csv
+planet,"PRUE
+(no augs)",0.29071559999999996,10,10,/u/isaaccorley/github/ftw-planet/logs/heldout/b3base_best.csv
+planet,+ preproc / resize,0.3191301,10,10,/u/isaaccorley/github/ftw-planet/logs/heldout/b3base_aug_best.csv
+planet,"+ swap + gamma
+(augplus)",0.3293717,10,10,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augplus.csv
+planet,"+ bespoke bundle
+(augmax, B3 CC-BY)",0.3739116,10,10,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augmax_ws_tta.csv
+planet,"+ augmax, B3 full",0.45162880000000005,10,10,/u/isaaccorley/github/ftw-planet/logs/repro_eval/pp_ws_tta.csv
+s2,"+ bespoke bundle
+(augmax, B3 CC-BY)",0.3326345,10,10,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_ccby_ws_tta.csv
+s2,"+ augmax, B3 full",0.3487462,10,10,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_full_ws_tta.csv
+s2,"+ augmax, B7 CC-BY",0.3475501,10,10,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b7_augmax_ccby_ws_tta.csv
+s2,"+ augmax, B7 full",0.3942163,10,10,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b7_augmax_full_ws_tta.csv

@@ -1,10 +1,14 @@
 """Generate ``paper/figs/heldout_per_country.tex`` (``tab:heldout_pc``).
 
-Per-country pixel IoU + Planet Obj F1 (WS+TTA) on the 11 dense-label
-held-out countries. S2 column is the released FTW S2 PRUE-B3 CC-BY
-checkpoint as evaluated in ``logs/ftw_official_ccby/s2_ccby_per_country.csv``;
-Planet column is our best B3 \\emph{augmax} full + WS + D4 TTA
+Per-country pixel IoU + Planet Obj F1 (WS+TTA) on the 11 held-out
+countries. S2 column is the released FTW S2 PRUE-B3 CC-BY checkpoint as
+evaluated in ``logs/ftw_official_ccby/s2_ccby_per_country.csv``; Planet
+column is our best B3 \\emph{augmax} full + WS + D4 TTA
 (``logs/postproc_ablation/planet_b3_augmax_full_ws_tta.csv``).
+
+Kenya's labels are presence-only (background untrusted): its supervised
+pixel/object metrics are not comparable, so the kenya row shows dashes and
+the macro row averages the 10 dense-label countries only.
 
 Run::
 
@@ -14,31 +18,39 @@ Run::
 from pathlib import Path
 
 import pandas as pd
-from _aggregate import HELDOUT_11
+from _aggregate import HELDOUT_10_DENSE, HELDOUT_11
 
 HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "heldout_per_country.tex"
 
 S2_CSV = REPO / "logs" / "ftw_official_ccby" / "s2_ccby_per_country.csv"
-PL_CSV = REPO / "logs" / "postproc_ablation" / "planet_b3_augmax_full_ws_tta.csv"
+# Released B3-full checkpoint (retrained Jun 2026, epoch 92): reproduction eval.
+PL_CSV = REPO / "logs" / "repro_eval" / "pp_ws_tta.csv"
+
+PRESENCE_ONLY = {"kenya"}
 
 
 def main() -> None:
     s2 = pd.read_csv(S2_CSV).set_index("country")
     pl = pd.read_csv(PL_CSV).set_index("country")
 
-    missing_s2 = set(HELDOUT_11) - set(s2.index)
-    missing_pl = set(HELDOUT_11) - set(pl.index)
+    # Planet eval (released ckpt) excludes presence-only kenya by construction;
+    # only the dense-10 rows are required there. S2 ref still carries all 11.
+    missing_s2 = set(HELDOUT_10_DENSE) - set(s2.index)
+    missing_pl = set(HELDOUT_10_DENSE) - set(pl.index)
     if missing_s2 or missing_pl:
         raise RuntimeError(f"missing rows: s2={missing_s2}, planet={missing_pl}")
 
     rows: list[str] = []
-    rows.append(r"\begin{tabular}{lcccc}")
+    rows.append(r"\footnotesize")
+    rows.append(r"\setlength{\tabcolsep}{4pt}")
+    rows.append(r"\begin{tabular}{@{}l c c c c@{}}")
     rows.append(r"\toprule")
     rows.append(
-        r"Country & S2 CCBY IoU & Planet B3 \textbf{augmax} full IoU "
-        r"& $\Delta$ IoU & Planet Obj F1 (WS+TTA) \\"
+        r"Country & \makecell{PRUE-B3\\(S2, CC-BY)\\IoU} & "
+        r"\makecell{PRUE-FTP-B3\\(full)\\IoU} & \makecell{$\Delta$\\IoU} & "
+        r"\makecell{PRUE-FTP\\Obj F1\\(WS+TTA)} \\"
     )
     rows.append(r"\midrule")
 
@@ -48,6 +60,10 @@ def main() -> None:
     delta_sum = 0.0
     f1_sum = 0.0
     for c in HELDOUT_11:
+        c_pretty = c.replace("_", " ").title()
+        if c in PRESENCE_ONLY:
+            rows.append(rf"{c_pretty}$^{{\dagger}}$ & --- & --- & --- & --- \\")
+            continue
         s2_iou = float(s2.loc[c, "pixel_level_iou"])
         pl_iou = float(pl.loc[c, "pixel_level_iou"])
         pl_f1 = float(pl.loc[c, "object_ws_f1"])
@@ -63,21 +79,26 @@ def main() -> None:
         else:
             s2_cell = rf"\textbf{{{s2_iou:.3f}}}"
             pl_cell = f"{pl_iou:.3f}"
-        c_pretty = c.replace("_", " ")
         rows.append(f"{c_pretty} & {s2_cell} & {pl_cell} & {delta:+.3f} & {pl_f1:.3f} \\\\")
 
-    n = len(HELDOUT_11)
+    n = len(HELDOUT_10_DENSE)
     rows.append(r"\midrule")
     rows.append(
-        f"Macro mean (11, incl K+P) & {s2_sum / n:.3f} "
+        f"Macro ({n}, dense) & {s2_sum / n:.3f} "
         rf"& \textbf{{{pl_sum / n:.3f}}} & {delta_sum / n:+.3f} "
         rf"& \textbf{{{f1_sum / n:.3f}}} \\"
     )
     rows.append(r"\bottomrule")
     rows.append(r"\end{tabular}")
+    rows.append("")
+    rows.append(
+        r"\vspace{2pt}\noindent{\scriptsize $^{\dagger}$Kenya labels are "
+        r"presence-only (background untrusted); supervised pixel/object "
+        r"metrics are omitted (see \Cref{sec:limitations}).}"
+    )
     OUT.write_text("\n".join(rows) + "\n")
     print(f"wrote {OUT}")
-    print(f"Planet wins {wins}/{n}")
+    print(f"Planet wins {wins}/{n} (dense-label countries)")
 
 
 if __name__ == "__main__":

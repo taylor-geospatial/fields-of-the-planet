@@ -6,7 +6,7 @@ planet,"+ swap + gamma
 (augplus)",0.2999352727272728,11,11,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augplus.csv
 planet,"+ bespoke bundle
 (augmax, B3 CC-BY)",0.3408588181818182,11,11,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augmax_ws_tta.csv
-planet,"+ augmax, B3 full",0.4460132,10,11,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/planet_b3_augmax_full_ws_tta.csv
+planet,"+ augmax, B3 full",0.45162880000000005,10,11,/u/isaaccorley/github/ftw-planet/logs/repro_eval/pp_ws_tta.csv
 s2,"+ bespoke bundle
 (augmax, B3 CC-BY)",0.3326345,10,11,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_ccby_ws_tta.csv
 s2,"+ augmax, B3 full",0.3487462,10,11,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_full_ws_tta.csv

@@ -2,14 +2,18 @@
 
 Canonical held-out country sets for the FTP paper:
 
-- HELDOUT_11: the 11 dense-label held-out CC-BY countries that appear in
+- HELDOUT_11: the 11 held-out CC-BY countries that appear in
   ``logs/heldout/*.csv`` (verified against the CSV ``country`` column).
+- HELDOUT_10_DENSE: HELDOUT_11 minus {kenya}. Kenya's labels are
+  presence-only (background untrusted), so its supervised pixel/object
+  metrics are not comparable; the headline macro excludes it and Kenya is
+  reported separately as a presence-only stress-test row.
 - HELDOUT_9: HELDOUT_11 minus {kenya, portugal}, the older diagnostic set
   (kenya + portugal are sparse / low-coverage and were excluded from earlier
   headline numbers).
 
-Use ``HELDOUT_11`` as the new headline; ``HELDOUT_9`` is kept for back-compat
-diagnostics so prior numbers stay reproducible.
+Use ``HELDOUT_10_DENSE`` as the headline; ``HELDOUT_11`` and ``HELDOUT_9``
+are kept so prior numbers stay reproducible.
 """
 
 from pathlib import Path
@@ -29,6 +33,8 @@ HELDOUT_11: tuple[str, ...] = (
     "south_africa",
     "sweden",
 )
+
+HELDOUT_10_DENSE: tuple[str, ...] = tuple(c for c in HELDOUT_11 if c != "kenya")
 
 HELDOUT_9: tuple[str, ...] = tuple(c for c in HELDOUT_11 if c not in {"kenya", "portugal"})
 
