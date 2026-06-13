@@ -226,6 +226,7 @@ def evaluate_country(
     pad_mode: str = "zero",
     dataset_backend: str = "planet",
     s2_data_scale: float = 3000.0,
+    presence_only: bool = False,
 ) -> dict[str, float]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -259,6 +260,10 @@ def evaluate_country(
     for batch in tqdm(dl, desc=country, leave=False):
         image = batch["image"].to(device) / _scale
         mask = batch["mask"].to(device)
+        if presence_only:
+            # Presence-only labels (e.g. kenya): background is untrusted, so
+            # supervise metrics only on labeled polygon + boundary pixels.
+            mask[mask == 0] = 3
         image, mask, H, W = _pad_min32(image, mask, min_size=min_pad_size, pad_mode=pad_mode)
 
         if use_tta:
@@ -329,6 +334,11 @@ def evaluate_country(
         out["object_ws_precision"] = p1
         out["object_ws_recall"] = r1
         out["object_ws_f1"] = f1
+    if presence_only:
+        # FPs over unlabeled regions are unmeasurable -> precision/F1 invalid.
+        for k in ("object_pix_precision", "object_pix_f1", "object_ws_precision", "object_ws_f1"):
+            if k in out:
+                out[k] = float("nan")
     return out
 
 
@@ -374,6 +384,13 @@ def main() -> int:
         help="'planet' (FTW-Planet 3m, /10000) or 's2' (FTW S2 10m, /3000).",
     )
     p.add_argument("--s2-data-scale", type=float, default=3000.0)
+    p.add_argument(
+        "--presence-only-countries",
+        nargs="*",
+        default=[],
+        help="Countries whose labels are presence-only (e.g. kenya): background "
+        "pixels are masked to ignore_index=3 and object precision/F1 are NaN.",
+    )
     args = p.parse_args()
 
     device = torch.device(
@@ -447,6 +464,7 @@ def main() -> int:
                 pad_mode=args.pad_mode,
                 dataset_backend=args.dataset_backend,
                 s2_data_scale=args.s2_data_scale,
+                presence_only=country in args.presence_only_countries,
             )
         except Exception as e:
             import traceback
