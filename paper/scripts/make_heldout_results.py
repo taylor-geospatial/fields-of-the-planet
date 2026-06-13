@@ -1,11 +1,12 @@
 """Generate ``paper/figs/heldout_results.tex`` (``tab:heldout``).
 
-11-country held-out macro-average over four post-processing combos
+Dense-label held-out macro-average (HELDOUT_10_DENSE: the 11 held-out
+countries minus presence-only kenya) over four post-processing combos
 (WS x TTA) for each (imagery, backbone, train-split) configuration.
 
-Sources: ``logs/postproc_ablation/<stem>_<combo>.csv`` (per-country rows for
-all 11 dense-label held-out countries; ``object_ws_f1`` when WS is on,
-``object_pix_f1`` when off; pixel IoU comes from the WS+TTA file).
+Sources: ``logs/postproc_ablation/<stem>_<combo>.csv`` (per-country rows;
+``object_ws_f1`` when WS is on, ``object_pix_f1`` when off; pixel IoU comes
+from the WS+TTA file).
 
 Run::
 
@@ -14,7 +15,7 @@ Run::
 
 from pathlib import Path
 
-from _aggregate import HELDOUT_11, macro_avg
+from _aggregate import HELDOUT_10_DENSE, macro_avg
 
 HERE = Path(__file__).parent
 REPO = HERE.parent.parent
@@ -23,15 +24,15 @@ SRC = REPO / "logs" / "postproc_ablation"
 
 # (display label, csv stem) — same row order as the previous table.
 CONFIGS_OURS_PLANET = [
-    ("B3 (CC-BY)", "planet_b3_augmax_ccby"),
-    ("B7 (CC-BY)", "planet_b7_augmax_ccby"),
-    ("B3 (full, 24/25)", "planet_b3_augmax_full"),
+    ("PRUE-FTP-B3 (CC-BY)", "planet_b3_augmax_ccby"),
+    ("PRUE-FTP-B7 (CC-BY)", "planet_b7_augmax_ccby"),
+    ("PRUE-FTP-B3 (full) ", "planet_b3_augmax_full"),
 ]
 CONFIGS_OURS_S2 = [
-    ("B3 (CC-BY)", "s2_b3_augmax_ccby"),
-    ("B7 (CC-BY)", "s2_b7_augmax_ccby"),
-    ("B3 (full, 24/25)", "s2_b3_augmax_full"),
-    ("B7 (full, 24/25)", "s2_b7_augmax_full"),
+    ("PRUE-B3 (S2, CC-BY)", "s2_b3_augmax_ccby"),
+    ("PRUE-B7 (S2, CC-BY)", "s2_b7_augmax_ccby"),
+    ("PRUE-B3 (S2, full) ", "s2_b3_augmax_full"),
+    ("PRUE-B7 (S2, full) ", "s2_b7_augmax_full"),
 ]
 
 COMBOS = (
@@ -50,7 +51,7 @@ def _row(stem: str) -> tuple[list[float], float, int, int]:
     pix_iou = 0.0
     for combo, ws in COMBOS:
         csv = SRC / f"{stem}_{combo}.csv"
-        agg = macro_avg(csv, HELDOUT_11)
+        agg = macro_avg(csv, HELDOUT_10_DENSE)
         key = "object_ws_f1" if ws else "object_pix_f1"
         vals.append(agg[key])
         if combo == "ws_tta":
@@ -60,114 +61,95 @@ def _row(stem: str) -> tuple[list[float], float, int, int]:
     return vals, pix_iou, n_countries, n_expected
 
 
-def _fmt_row(label: str, imagery: str, vals: list[float], pix_iou: float) -> str:
+def _cells(vals: list[float]) -> list[str]:
     best = max(vals)
-    cells = []
+    out = []
     for v in vals:
         s = f"{v:.3f}"
         if v == best:
             s = rf"\textbf{{{s}}}"
-        cells.append(s)
-    best_iou_flag = ""  # bolding for pix iou applied across-table elsewhere if needed
-    return (
-        f"{imagery} & {label}                       "
-        f"& {cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} "
-        f"& {pix_iou:.3f}{best_iou_flag} \\\\"
-    )
+        out.append(s)
+    return out
 
 
 def main() -> None:
     rows: list[str] = []
-
-    rows.append(r"\begin{tabular}{llccccc}")
+    rows.append(r"\footnotesize")
+    rows.append(r"\setlength{\tabcolsep}{3pt}")
+    rows.append(r"\renewcommand{\arraystretch}{1.05}")
+    rows.append(r"\begin{tabular}{@{}l l ccc c c@{}}")
     rows.append(r"\toprule")
-    rows.append(
-        r"& & \multicolumn{4}{c}{Postprocessing combo --- Obj F1 (11-country held-out)} & \\"
-    )
+    rows.append(r"& & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\")
     rows.append(r"\cmidrule(lr){3-6}")
     rows.append(
-        r"Imagery & Recipe (CC-BY split, 14-country train unless noted) "
-        r"& no-WS / no-TTA & no-WS / TTA & WS / no-TTA & \textbf{WS + TTA} & Pix IoU \\"
+        r"Img. & Recipe (CC-BY 14-country train unless noted) & "
+        r"\makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & "
+        r"\makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & "
+        r"\makecell{Pix\\IoU} \\"
     )
     rows.append(r"\midrule")
-    # Released FTW S2 PRUE reference numbers (hand-copied from kerner2024ftw,
-    # on the FTW full_data test split — not directly comparable to our
-    # 11-country held-out macro; kept for orientation).
+    # Released PRUE reference numbers (constants from muhawenayo2026prue, on
+    # the FTW full_data test split — not directly comparable to our held-out
+    # macro; kept for orientation).
     rows.append(
-        r"S2 & FTW PRUE-B3 (CC-BY) \cite{kerner2024ftw} & --- & --- & --- & 0.39$^\ddag$ & 0.76$^\ddag$ \\"
+        r"S2 & PRUE-B3 (S2, CC-BY)~\cite{muhawenayo2026prue} & --- & --- & --- "
+        r"& 0.39$^\ddag$ & 0.76$^\ddag$ \\"
     )
     rows.append(
-        r"S2 & FTW PRUE-B7 (CC-BY) \cite{kerner2024ftw} & --- & --- & --- & 0.44$^\ddag$ & 0.77$^\ddag$ \\"
+        r"S2 & PRUE-B7 (S2, CC-BY)~\cite{muhawenayo2026prue} & --- & --- & --- "
+        r"& 0.44$^\ddag$ & 0.77$^\ddag$ \\"
     )
     rows.append(
-        r"S2 & FTW PRUE-B7 (full, 24/25) \cite{kerner2024ftw} & --- & --- & --- & 0.47$^\ddag$ & 0.76$^\ddag$ \\"
+        r"S2 & PRUE-B7 (S2, full)~\cite{muhawenayo2026prue}  & --- & --- & --- "
+        r"& 0.47$^\ddag$ & 0.76$^\ddag$ \\"
     )
     rows.append(r"\midrule")
-    rows.append(
-        r"\multicolumn{7}{l}{\textit{Ours --- PRUE-FTP \textbf{augmax} (this report)}} \\"
-    )
-    # Find best WS+TTA Obj F1 across our Planet rows for bolding.
-    planet_vals: list[tuple[list[float], float, int, int]] = [
-        _row(stem) for _, stem in CONFIGS_OURS_PLANET
-    ]
-    planet_best_wstta = max(v[0][3] for v in planet_vals)
+    rows.append(r"\multicolumn{7}{@{}l}{\textit{Ours --- PRUE-FTP \textbf{augmax}}} \\")
+
+    planet_vals = [_row(stem) for _, stem in CONFIGS_OURS_PLANET]
     planet_best_iou = max(v[1] for v in planet_vals)
     for (label, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_PLANET, planet_vals):
         if nc != ne:
             raise RuntimeError(
                 f"Planet config {label}: macro over {nc}/{ne} countries; "
-                f"expected all 11 of HELDOUT_11."
+                f"expected all {len(HELDOUT_10_DENSE)} of HELDOUT_10_DENSE."
             )
-        cells: list[str] = []
-        for i, v in enumerate(vals):
-            s = f"{v:.3f}"
-            if (i == 3 and v == planet_best_wstta) or v == max(vals):
-                s = rf"\textbf{{{s}}}"
-            cells.append(s)
+        cells = _cells(vals)
         iou_s = f"{pix_iou:.3f}"
         if pix_iou == planet_best_iou:
             iou_s = rf"\textbf{{{iou_s}}}"
         rows.append(
-            f"Planet & {label}                       "
-            f"& {cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {iou_s} \\\\"
+            f"Planet & {label} & {cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {iou_s} \\\\"
         )
     rows.append(r"\midrule")
     rows.append(
-        r"\multicolumn{7}{l}{\textit{Ours --- Sentinel-2 \textbf{augmax} (this report)}} \\"
+        r"\multicolumn{7}{@{}l}{\textit{S2 baselines re-trained with our \textbf{augmax} recipe}} \\"
     )
     s2_vals = [_row(stem) for _, stem in CONFIGS_OURS_S2]
     for (label, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_S2, s2_vals):
         if nc != ne:
             raise RuntimeError(
-                f"S2 config {label}: macro over {nc}/{ne} countries; expected all 11 of HELDOUT_11."
+                f"S2 config {label}: macro over {nc}/{ne} countries; "
+                f"expected all {len(HELDOUT_10_DENSE)} of HELDOUT_10_DENSE."
             )
-        cells = []
-        best = max(vals)
-        for v in vals:
-            s = f"{v:.3f}"
-            if v == best:
-                s = rf"\textbf{{{s}}}"
-            cells.append(s)
+        cells = _cells(vals)
         rows.append(
-            f"S2 & {label}                       "
-            f"& {cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {pix_iou:.3f} \\\\"
+            f"S2 & {label} & {cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {pix_iou:.3f} \\\\"
         )
     rows.append(r"\bottomrule")
     rows.append(r"\end{tabular}")
     rows.append("")
-    rows.append(r"\vspace{0.4em}")
     rows.append(
-        r"\noindent\footnotesize $^\ddag$Reported by~\cite{muhawenayo2026prue} on the FTW "
-        r"\texttt{full\_data} test split (includes test patches from the 14 training "
-        r"countries). Our numbers are macro-averaged over all 11 held-out "
-        r"countries (belgium, cambodia, croatia, germany, kenya, latvia, lithuania, "
-        r"portugal, slovenia, south\_africa, sweden). Kenya is presence-only, so "
-        r"pixel IoU there is shown only for protocol continuity; see~\Cref{sec:limitations}. "
-        r"The \emph{full} rows of our recipe use the 24-country / 25-region train "
-        r"split for the full-data protocol."
+        r"\vspace{2pt}\noindent{\scriptsize $^\ddag$ Released PRUE checkpoint numbers; "
+        r"we did not re-evaluate WS/TTA combos for them. Macros exclude presence-only "
+        r"kenya (see \Cref{sec:limitations}); portugal is retained.}"
     )
     OUT.write_text("\n".join(rows) + "\n")
     print(f"wrote {OUT}")
+    for (label, _), (vals, pix_iou, _, _) in zip(
+        CONFIGS_OURS_PLANET + CONFIGS_OURS_S2, planet_vals + s2_vals
+    ):
+        print(f"  {label}: ws_tta={vals[3]:.3f} pix_iou={pix_iou:.3f}")
 
 
 if __name__ == "__main__":
