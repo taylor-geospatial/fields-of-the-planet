@@ -4,18 +4,20 @@
 \toprule
 Country & \makecell{PRUE-B3\\(S2, CC-BY)\\IoU} & \makecell{PRUE-FTP-B3\\(full)\\IoU} & \makecell{$\Delta$\\IoU} & \makecell{PRUE-FTP\\Obj F1\\(WS+TTA)} \\
 \midrule
-Belgium       & 0.599 & \textbf{0.745} & +0.146 & 0.640 \\
-Cambodia      & 0.383 & \textbf{0.721} & +0.338 & 0.277 \\
-Croatia       & 0.518 & \textbf{0.737} & +0.219 & 0.468 \\
-Germany       & 0.739 & \textbf{0.806} & +0.067 & 0.404 \\
-Kenya         & \textbf{0.392} & 0.000 & -0.392 & 0.000 \\
-Latvia        & 0.753 & \textbf{0.826} & +0.073 & 0.583 \\
-Lithuania     & 0.554 & \textbf{0.801} & +0.247 & 0.554 \\
-Portugal      & \textbf{0.041} & 0.017 & -0.024 & 0.007 \\
-Slovenia      & 0.430 & \textbf{0.618} & +0.188 & 0.329 \\
-South Africa  & 0.758 & \textbf{0.766} & +0.007 & 0.603 \\
-Sweden        & 0.740 & \textbf{0.835} & +0.095 & 0.595 \\
+Belgium & 0.599 & \textbf{0.745} & +0.146 & 0.640 \\
+Cambodia & 0.383 & \textbf{0.721} & +0.338 & 0.277 \\
+Croatia & 0.518 & \textbf{0.737} & +0.219 & 0.468 \\
+Germany & 0.739 & \textbf{0.806} & +0.067 & 0.404 \\
+Kenya$^{\dagger}$ & --- & --- & --- & --- \\
+Latvia & 0.753 & \textbf{0.826} & +0.073 & 0.583 \\
+Lithuania & 0.554 & \textbf{0.801} & +0.247 & 0.554 \\
+Portugal & \textbf{0.041} & 0.017 & -0.024 & 0.007 \\
+Slovenia & 0.430 & \textbf{0.618} & +0.188 & 0.329 \\
+South Africa & 0.758 & \textbf{0.766} & +0.007 & 0.603 \\
+Sweden & 0.740 & \textbf{0.835} & +0.095 & 0.595 \\
 \midrule
-Macro (11)    & 0.537 & \textbf{0.625} & +0.088 & \textbf{0.405} \\
+Macro (10, dense) & 0.552 & \textbf{0.687} & +0.136 & \textbf{0.446} \\
 \bottomrule
 \end{tabular}
+
+\vspace{2pt}\noindent{\scriptsize $^{\dagger}$Kenya labels are presence-only (background untrusted); supervised pixel/object metrics are omitted (see \Cref{sec:limitations}).}

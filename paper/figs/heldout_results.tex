@@ -3,7 +3,7 @@
 \renewcommand{\arraystretch}{1.05}
 \begin{tabular}{@{}l l ccc c c@{}}
 \toprule
-& & \multicolumn{4}{c}{Obj F1 (11-country held-out)} & \\
+& & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\
 \cmidrule(lr){3-6}
 Img. & Recipe (CC-BY 14-country train unless noted) & \makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & \makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & \makecell{Pix\\IoU} \\
 \midrule
@@ -12,16 +12,16 @@ S2 & PRUE-B7 (S2, CC-BY)~\cite{muhawenayo2026prue} & --- & --- & --- & 0.44$^\dd
 S2 & PRUE-B7 (S2, full)~\cite{muhawenayo2026prue}  & --- & --- & --- & 0.47$^\ddag$ & 0.76$^\ddag$ \\
 \midrule
 \multicolumn{7}{@{}l}{\textit{Ours --- PRUE-FTP \textbf{augmax}}} \\
-Planet & PRUE-FTP-B3 (CC-BY) & 0.329 & 0.329 & 0.333 & \textbf{0.341} & 0.530 \\
-Planet & PRUE-FTP-B7 (CC-BY) & 0.335 & 0.339 & 0.339 & \textbf{0.348} & 0.531 \\
-Planet & PRUE-FTP-B3 (full)  & 0.391 & 0.395 & 0.396 & \textbf{0.405} & \textbf{0.625} \\
+Planet & PRUE-FTP-B3 (CC-BY) & 0.360 & 0.361 & 0.365 & \textbf{0.374} & 0.581 \\
+Planet & PRUE-FTP-B7 (CC-BY) & 0.368 & 0.372 & 0.372 & \textbf{0.383} & 0.583 \\
+Planet & PRUE-FTP-B3 (full)  & 0.430 & 0.435 & 0.435 & \textbf{0.446} & \textbf{0.687} \\
 \midrule
 \multicolumn{7}{@{}l}{\textit{S2 baselines re-trained with our \textbf{augmax} recipe}} \\
-S2 & PRUE-B3 (S2, CC-BY) & 0.294 & 0.295 & 0.299 & \textbf{0.303} & 0.576 \\
-S2 & PRUE-B7 (S2, CC-BY) & 0.302 & 0.307 & 0.309 & \textbf{0.316} & 0.569 \\
-S2 & PRUE-B3 (S2, full)  & 0.304 & 0.308 & 0.311 & \textbf{0.318} & 0.584 \\
-S2 & PRUE-B7 (S2, full)  & 0.344 & 0.348 & 0.351 & \textbf{0.359} & 0.618 \\
+S2 & PRUE-B3 (S2, CC-BY) & 0.323 & 0.324 & 0.328 & \textbf{0.333} & 0.576 \\
+S2 & PRUE-B7 (S2, CC-BY) & 0.332 & 0.337 & 0.339 & \textbf{0.348} & 0.568 \\
+S2 & PRUE-B3 (S2, full)  & 0.334 & 0.339 & 0.341 & \textbf{0.349} & 0.590 \\
+S2 & PRUE-B7 (S2, full)  & 0.378 & 0.383 & 0.386 & \textbf{0.394} & 0.622 \\
 \bottomrule
 \end{tabular}
 
-\vspace{2pt}\noindent{\scriptsize $^\ddag$ Released PRUE checkpoint numbers; we did not re-evaluate WS/TTA combos for them. See \Cref{sec:limitations} on Kenya/Portugal.}
+\vspace{2pt}\noindent{\scriptsize $^\ddag$ Released PRUE checkpoint numbers; we did not re-evaluate WS/TTA combos for them. Macros exclude presence-only kenya (see \Cref{sec:limitations}); portugal is retained.}
