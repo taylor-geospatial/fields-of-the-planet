@@ -22,7 +22,7 @@ NUM_SHARDS=32
 MAX_CC="${MAX_CC:-0.1}"
 SC="${SC:-16}"
 
-uv run --no-sync scripts/search_shard.py \
+uv run --no-sync scripts/pipeline/search_shard.py \
     --out data/planet \
     --shard-id "$SLURM_ARRAY_TASK_ID" \
     --num-shards "$NUM_SHARDS" \

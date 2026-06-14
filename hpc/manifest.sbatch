@@ -14,4 +14,4 @@ set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
 
-uv run --no-sync scripts/build_manifest.py --ftw-root data/ftw --out data/planet
+uv run --no-sync scripts/pipeline/build_manifest.py --ftw-root data/ftw --out data/planet

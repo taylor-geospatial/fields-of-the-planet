@@ -19,6 +19,6 @@ mkdir -p logs
 
 IDX_WORKERS="${IDX_WORKERS:-32}"
 
-uv run --no-sync scripts/build_dataset_index.py \
+uv run --no-sync scripts/pipeline/build_dataset_index.py \
     --planet-root data/planet \
     --workers "$IDX_WORKERS"

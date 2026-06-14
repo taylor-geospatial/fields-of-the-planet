@@ -361,6 +361,7 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         intra-block intermediates.
         """
         super().on_fit_start()
+        torch.set_float32_matmul_precision("high")
         if not self.grad_checkpointing:
             return
         enc = self.model.encoder
@@ -407,9 +408,18 @@ class FTWPairedSegTask(FTWPlanetSegTask):
         seg_s2 = self.criterion(s2_logits, s2_y)
         seg = seg_pl + seg_s2
 
+        # L2-normalise before VICReg so the invariance term (MSE) is bounded
+        # to [0, 4] regardless of embedding magnitude. Without this the raw
+        # bottleneck vectors can differ by 100s of units across modalities,
+        # making vicreg_loss ~300x larger than the seg loss and swamping grads.
+        # With normalised vectors the variance term (push std>1) is meaningless
+        # so mu should be 0 in the config.
+        z_pl_n = F.normalize(z_pl, dim=-1)
+        z_s2_n = F.normalize(z_s2, dim=-1)
+
         vic = vicreg_loss(
-            z_pl,
-            z_s2,
+            z_pl_n,
+            z_s2_n,
             lambda_=self.vicreg_lambda,
             mu=self.vicreg_mu,
             nu=self.vicreg_nu,

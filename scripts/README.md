@@ -5,7 +5,7 @@ Production pipeline for building a PlanetScope companion dataset to FTW v2.
 Layout:
 
 - `scripts/*.py` — production pipeline scripts (run in the order below).
-- `scripts/slurm/*.sbatch` — production SLURM wrappers (one per phase).
+- `hpc/*.sbatch` — production SLURM wrappers (one per phase).
 
 All artifacts land under `data/`. Planet outputs live in `data/planet/`.
 
@@ -15,16 +15,16 @@ Each phase has a Python script and (where applicable) a SLURM wrapper.
 
 | #   | Script                       | SLURM                                   | Purpose                                                                                                                                                                                                                             |
 | --- | ---------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `download_ftw.py`            | `slurm/download_ftw.sbatch`             | Download + index one or all FTW v2 countries into `data/ftw/<country>/index.jsonl`.                                                                                                                                                 |
+| 1   | `download_ftw.py`            | `hpc/download_ftw.sbatch`             | Download + index one or all FTW v2 countries into `data/ftw/<country>/index.jsonl`.                                                                                                                                                 |
 | 2   | `download_polygons.py`       | — (local)                               | Download per-country GeoParquet polygons from Source Cooperative into `data/ftw_polygons/<country>.parquet`.                                                                                                                        |
-| 3   | `build_manifest.py`          | `slurm/manifest.sbatch`                 | Combine every country's `index.jsonl` into `data/planet/_global/manifest.jsonl`, one row per (country, patch, window).                                                                                                              |
-| 4   | `search_shard.py`            | `slurm/search.sbatch` (array)           | Sharded Planet Data API search. Each task processes its slice of the manifest, writes `_global/search/shard_NNN.jsonl`.                                                                                                             |
-| 5   | `activate_global.py`         | `slurm/activate.sbatch`                 | Dedup item_ids across search shards, call Planet `:activate` for SR + UDM2 in parallel, write `_global/activations.jsonl`.                                                                                                          |
-| 6   | `extract_shard.py`           | `slurm/extract.sbatch` (array)          | Scene-grouped extract. Each task owns scenes via `hash(item_id) % num_shards`, opens each COG once via `/vsicurl/`, range-reads every member patch's window. Writes `<country>/<id>_<window>.tif` for SR + UDM2.                    |
-| 7   | `udm2_quality.py`            | `slurm/udm2_quality.sbatch`             | Compute per-patch UDM2 band stats (clear / cloud / shadow / haze / snow / unusable). Writes `_global/udm2_quality.jsonl`. **OVERWRITES** the file each run (not append).                                                            |
-| 8   | `resample.py`                | `slurm/resample.sbatch`                 | 3-phase resample (search-alts → optional UDM2 probe → SR-only extract) for patches failing UDM2 quality thresholds OR with missing/broken-URL extracts. Caches under `_global/resample/{search,probes,picks,sr_activations}.jsonl`. |
-| 9   | `udm2_fill.py`               | `slurm/udm2_fill.sbatch`                | 3-phase UDM2 fill (plan → activate → extract) for SR patches lacking their UDM2 companion. Caches under `_global/udm2_fill/{plan,activations,extracts}.jsonl`.                                                                      |
-| 10  | `rasterize_labels.py`        | `slurm/rasterize_labels.sbatch` (array) | For each Planet SR tif, query the country's GeoParquet polygons and rasterize onto the patch's native UTM grid as 3-class (0=bg, 1=field, 2=boundary). Writes `<id>_<window>_label.tif`.                                            |
+| 3   | `build_manifest.py`          | `hpc/manifest.sbatch`                 | Combine every country's `index.jsonl` into `data/planet/_global/manifest.jsonl`, one row per (country, patch, window).                                                                                                              |
+| 4   | `search_shard.py`            | `hpc/search.sbatch` (array)           | Sharded Planet Data API search. Each task processes its slice of the manifest, writes `_global/search/shard_NNN.jsonl`.                                                                                                             |
+| 5   | `activate_global.py`         | `hpc/activate.sbatch`                 | Dedup item_ids across search shards, call Planet `:activate` for SR + UDM2 in parallel, write `_global/activations.jsonl`.                                                                                                          |
+| 6   | `extract_shard.py`           | `hpc/extract.sbatch` (array)          | Scene-grouped extract. Each task owns scenes via `hash(item_id) % num_shards`, opens each COG once via `/vsicurl/`, range-reads every member patch's window. Writes `<country>/<id>_<window>.tif` for SR + UDM2.                    |
+| 7   | `udm2_quality.py`            | `hpc/udm2_quality.sbatch`             | Compute per-patch UDM2 band stats (clear / cloud / shadow / haze / snow / unusable). Writes `_global/udm2_quality.jsonl`. **OVERWRITES** the file each run (not append).                                                            |
+| 8   | `resample.py`                | `hpc/resample.sbatch`                 | 3-phase resample (search-alts → optional UDM2 probe → SR-only extract) for patches failing UDM2 quality thresholds OR with missing/broken-URL extracts. Caches under `_global/resample/{search,probes,picks,sr_activations}.jsonl`. |
+| 9   | `udm2_fill.py`               | `hpc/udm2_fill.sbatch`                | 3-phase UDM2 fill (plan → activate → extract) for SR patches lacking their UDM2 companion. Caches under `_global/udm2_fill/{plan,activations,extracts}.jsonl`.                                                                      |
+| 10  | `rasterize_labels.py`        | `hpc/rasterize_labels.sbatch` (array) | For each Planet SR tif, query the country's GeoParquet polygons and rasterize onto the patch's native UTM grid as 3-class (0=bg, 1=field, 2=boundary). Writes `<id>_<window>_label.tif`.                                            |
 | 11  | `prune_singleton_patches.py` | —                                       | Remove patches with only one of the two seasonal windows (FTW training requires both). Dry-run by default; `--apply` to actually delete.                                                                                            |
 
 ## Artifact layout
@@ -87,7 +87,7 @@ MAX_CANDS=10 sbatch slurm/resample.sbatch
 
 ## Training
 
-`slurm/train_prue.sbatch` wraps `ftw model fit -c <config>`. Override the config
+`hpc/train_prue.sbatch` wraps `ftw model fit -c <config>`. Override the config
 with `CONFIG=...`, resume with `CKPT_PATH=...`, and run a multi-seed sweep with
 `SEED=<int>` (overrides `seed_everything` in the YAML and tags the W&B run
 name plus `default_root_dir` with `_seed<N>` to keep checkpoints/logs apart):
@@ -95,7 +95,7 @@ name plus `default_root_dir` with `_seed<N>` to keep checkpoints/logs apart):
 ```bash
 CONFIG=configs/prue/ftw_planet_efnet3_crop512_v3_augmax.yaml
 for S in 7 13 42; do
-    SEED=$S CONFIG=$CONFIG sbatch scripts/slurm/train_prue.sbatch
+    SEED=$S CONFIG=$CONFIG sbatch hpc/train_prue.sbatch
 done
 ```
 

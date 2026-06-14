@@ -22,7 +22,7 @@ mkdir -p logs
 NUM_SHARDS=64
 EC="${EC:-16}"
 
-uv run --no-sync scripts/extract_shard.py \
+uv run --no-sync scripts/pipeline/extract_shard.py \
     --out data/planet \
     --shard-id "$SLURM_ARRAY_TASK_ID" \
     --num-shards "$NUM_SHARDS" \

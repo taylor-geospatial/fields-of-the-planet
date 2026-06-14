@@ -40,6 +40,9 @@ dependencies = [
   "wandb",
 ]
 
+[project.scripts]
+ftw-planet = "ftw_planet.cli:main"
+
 [dependency-groups]
 dev = [
   "pre-commit>=4.3",

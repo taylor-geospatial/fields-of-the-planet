@@ -16,7 +16,7 @@ mkdir -p logs
 
 UDM2_WORKERS="${UDM2_WORKERS:-32}"
 
-uv run --no-sync scripts/udm2_quality.py \
+uv run --no-sync scripts/pipeline/udm2_quality.py \
     --planet-root data/planet \
     --country all \
     --workers "$UDM2_WORKERS" \

@@ -19,7 +19,7 @@ CKPT="${CKPT:-logs/prue/ftw_planet-unet-efnet3-bf16/ftw-planet/1io8addz/checkpoi
 SPLIT="${SPLIT:-test}"
 OUT="${OUT:-logs/eval_planet_${SPLIT}.csv}"
 
-uv run --no-sync python scripts/eval_planet.py \
+uv run --no-sync python scripts/eval/eval_planet.py \
     --ckpt "$CKPT" \
     --out "$OUT" \
     --split "$SPLIT" \

@@ -20,7 +20,7 @@ mkdir -p logs
 TAR_WORKERS="${TAR_WORKERS:-8}"
 TAR_COUNTRY="${TAR_COUNTRY:-all}"
 
-uv run --no-sync scripts/pack_country_tars.py \
+uv run --no-sync scripts/pipeline/pack_country_tars.py \
     --planet-root data/planet \
     --workers "$TAR_WORKERS" \
     --country "$TAR_COUNTRY"

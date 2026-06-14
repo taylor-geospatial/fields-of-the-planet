@@ -3,16 +3,15 @@ trainer:
   log_every_n_steps: 10
   accelerator: gpu
   precision: bf16-mixed
-  benchmark: true
-  default_root_dir: logs/prue/ftw_joint-paired-vicreg-unet-efnet3-crop512-v3-augmax-full
+  default_root_dir: logs/prue/ftw_joint-unet-efnet3-crop512-v3-augmax-full-gsd
   devices: [0]
   logger:
     class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       entity: isaaccorley
       project: ftw-planet
-      name: joint-paired-vicreg-efnet3-crop512-v3-augmax-full
-      save_dir: logs/prue/ftw_joint-paired-vicreg-unet-efnet3-crop512-v3-augmax-full
+      name: joint-efnet3-crop512-v3-augmax-full-gsd
+      save_dir: logs/prue/ftw_joint-unet-efnet3-crop512-v3-augmax-full-gsd
       log_model: false
   callbacks:
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
@@ -22,12 +21,8 @@ trainer:
         save_top_k: 1
         save_last: true
         filename: "{epoch}-{val/loss:.2f}"
-# VICReg joint training: paired Planet(3m) + S2(10m) batches.
-# Both branches share the UNet encoder. S2 upsampled 256→512 (bilinear).
-# Loss = seg(planet) + seg(s2) + vicreg_weight * VICReg(z_pl, z_s2).
-# vicreg_weight=1.0 keeps VICReg roughly same magnitude as combined seg losses.
 model:
-  class_path: ftw_planet.trainers.FTWPairedSegTask
+  class_path: ftw_planet.trainers.FTWPlanetSegTask
   init_args:
     class_weights: [0.05, 0.2, 0.75]
     loss: "logcoshdice"
@@ -35,26 +30,22 @@ model:
     backbone: "efficientnet-b3"
     weights: true
     patch_weights: false
-    in_channels: 8
+    in_channels: 9        # 8 spectral + 1 GSD channel (Planet→0.3, S2→1.0)
     num_classes: 3
     num_filters: 64
     ignore_index: 3
     lr: 1e-3
     patience: 100
-    vicreg_weight: 0.0
-    vicreg_lambda: 1.0
-    vicreg_mu: 0.0
-    vicreg_nu: 1.0
-    grad_checkpointing: false
 data:
-  class_path: ftw_planet.datamodules.FTWPairedDataModule
+  class_path: ftw_planet.datamodules.FTWJointDataModule
   init_args:
-    batch_size: 64
+    batch_size: 32
     num_workers: 20
-    crop_size: 512         # Planet crop + S2 upsample target
-    s2_crop_size: 256      # S2 native crop before upsample
+    crop_size: 512
+    s2_crop_size: 256
     load_boundaries: true
     usable_only: true
+    planet_weight: 0.5
     preprocess_aug: true
     resize_aug: true
     swap_order: true
@@ -66,10 +57,12 @@ data:
     small_angle_rotation_aug: true
     shear_aug: true
     boundary_jitter_aug: true
-    s2_train_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
+    gsd_channel: true     # append GSD/10 as 9th channel; must match in_channels: 9
+    gsd_norm_m: 10.0      # Planet → 3/10=0.30; S2 → 10/10=1.00
     train_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
     val_countries: [austria]
     test_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
+    s2_train_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
   dict_kwargs:
     root: data
     s2_root: data/ftw

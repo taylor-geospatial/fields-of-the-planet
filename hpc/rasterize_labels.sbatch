@@ -28,7 +28,7 @@ COUNTRY="${COUNTRIES[$SLURM_ARRAY_TASK_ID]}"
 BUFFER_M="${BUFFER_M:-3.0}"
 RAST_WORKERS="${RAST_WORKERS:-32}"
 
-uv run --no-sync scripts/rasterize_labels.py \
+uv run --no-sync scripts/pipeline/rasterize_labels.py \
     --country "$COUNTRY" \
     --planet-root data/planet \
     --polygons-root data/ftw_polygons \

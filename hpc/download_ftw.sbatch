@@ -21,4 +21,4 @@ COUNTRY="${COUNTRY:-rwanda}"
 
 mkdir -p logs
 
-uv run scripts/download_ftw.py --country "$COUNTRY" --root data/ftw
+uv run scripts/pipeline/download_ftw.py --country "$COUNTRY" --root data/ftw

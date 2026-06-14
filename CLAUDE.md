@@ -20,8 +20,10 @@ make clean
 ## Layout
 
 - `src/ftw_planet/` — package. Modules: `datasets.py`, `datamodules.py`, `trainers.py`, `losses.py`, `pipeline.py`, `planet.py`, `ftw.py`.
-- `scripts/` — pipeline (`search_shard.py`, `activate_global.py`, `extract_shard.py`, `resample.py`, `udm2_fill.py`, `rasterize_labels.py`, ...) + eval (`eval_planet.py`, `polygon_metrics_eval.py`, `postprocess_eval.py`, `viz_predictions.py`).
-- `scripts/slurm/*.sbatch` — SLURM wrappers, one per phase. Training: `train_prue.sbatch` invokes `ftw model fit -c <config>`.
+- `scripts/pipeline/` — dataset-building (`search_shard.py`, `activate_global.py`, `extract_shard.py`, `resample.py`, `udm2_fill.py`, `rasterize_labels.py`, ...).
+- `scripts/eval/` — evaluation (`eval_planet.py`, `polygon_metrics_eval.py`, `postprocess_eval.py`, `viz_predictions.py`).
+- `ftw-planet` CLI (`src/ftw_planet/cli.py`) — supported train/eval/reproduce entry point.
+- `hpc/*.sbatch` — optional SLURM wrappers, one per phase. Training: `train_prue.sbatch` invokes `ftw model fit -c <config>`.
 - `configs/prue/*.yaml` — LightningCLI configs for training (PRUE = Planet R UNet Experiments).
 - `data/` — gitignored. Planet artifacts under `data/planet/<country>/`, `_global/` for manifests + caches.
 - `logs/` — gitignored. W&B runs + checkpoints under `logs/prue/<run_name>/`.
@@ -41,8 +43,8 @@ make clean
 
 - SLURM account: `--account=bgtj-tgirails` (already wired into sbatch templates).
 - CPU/IO work: submit to `cpu` or `cpu_amd` partition. `cpu_amd` is cheapest. Do **not** burn GPU nodes on pipeline phases.
-- Training/eval: `gpu` partition. Template: `scripts/slurm/train_prue.sbatch`.
-- All pipeline phases have sbatch wrappers in `scripts/slurm/`. Submit with `--dependency=afterok:$PREV` to chain.
+- Training/eval: `gpu` partition. Template: `hpc/train_prue.sbatch`.
+- All pipeline phases have sbatch wrappers in `hpc/`. Submit with `--dependency=afterok:$PREV` to chain.
 
 ## Pointers
 

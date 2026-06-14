@@ -28,8 +28,9 @@ Run anything Python via `uv run ...` — never plain `python`.
 
 ```
 src/ftw_planet/   datamodules, datasets (FTWPlanet), trainers, losses, planet/pipeline helpers
-scripts/          dataset pipeline + eval scripts (training via `ftw model fit`)
-scripts/slurm/    SLURM wrappers, one per pipeline phase
+scripts/eval/     evaluation entrypoints
+scripts/pipeline/ dataset-building pipeline
+hpc/              optional SLURM wrappers, one per pipeline phase
 configs/prue/     LightningCLI-style YAML configs (efnet3/5/7, crop sizes, loss variants)
 data/             FTW patches + Planet outputs (gitignored)
 logs/             checkpoints + W&B (gitignored)
@@ -52,7 +53,7 @@ End-to-end search → activate → extract → rasterize → prune. Full phase t
 
 ## Metrics
 
-Field-boundary work: **lead with object F1 + polygon metrics**. Pixel IoU is secondary. See `scripts/polygon_metrics_eval.py`, `scripts/eval_planet.py`.
+Field-boundary work: **lead with object F1 + polygon metrics**. Pixel IoU is secondary. See `scripts/eval/polygon_metrics_eval.py`, `scripts/eval/eval_planet.py`.
 
 ## HPC notes (TGI RAILS cluster)
 

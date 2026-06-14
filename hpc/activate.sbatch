@@ -18,6 +18,6 @@ mkdir -p logs
 
 AC="${AC:-96}"
 
-uv run --no-sync scripts/activate_global.py \
+uv run --no-sync scripts/pipeline/activate_global.py \
     --out data/planet \
     --concurrency "$AC"

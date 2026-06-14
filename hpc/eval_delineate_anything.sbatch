@@ -29,7 +29,7 @@ fi
 
 mkdir -p "$(dirname "$OUT")"
 
-uv run --no-sync python scripts/eval_delineate_anything.py \
+uv run --no-sync python scripts/eval/eval_delineate_anything.py \
     --out "$OUT" \
     --split "$SPLIT" \
     --conf "$CONF" --iou "$IOU" --imgsz "$IMGSZ" \

@@ -22,7 +22,7 @@ mkdir -p logs
 RP_WORKERS="${RP_WORKERS:-64}"
 RP_COUNTRY="${RP_COUNTRY:-all}"
 
-uv run --no-sync scripts/reprocess_tifs.py \
+uv run --no-sync scripts/pipeline/reprocess_tifs.py \
     --planet-root data/planet \
     --country "$RP_COUNTRY" \
     --workers "$RP_WORKERS"

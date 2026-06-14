@@ -26,7 +26,7 @@ echo "planet_root: $PLANET_ROOT"
 echo "s2_root:     $S2_ROOT"
 echo "workers:     $WORKERS"
 
-uv run --no-sync python scripts/precompute_aligned_planet.py \
+uv run --no-sync python scripts/pipeline/precompute_aligned_planet.py \
     --planet-root "$PLANET_ROOT" \
     --s2-root "$S2_ROOT" \
     --workers "$WORKERS"

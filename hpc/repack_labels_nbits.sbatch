@@ -17,7 +17,7 @@ mkdir -p logs
 RL_WORKERS="${RL_WORKERS:-64}"
 RL_COUNTRY="${RL_COUNTRY:-all}"
 
-uv run --no-sync scripts/repack_labels_nbits.py \
+uv run --no-sync scripts/pipeline/repack_labels_nbits.py \
     --planet-root data/planet \
     --workers "$RL_WORKERS" \
     --country "$RL_COUNTRY"

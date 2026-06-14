@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=ftw-joint
-#SBATCH --partition=gpu_a100
+#SBATCH --partition=gpu
 #SBATCH --account=bgtj-tgirails
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
-#SBATCH --gpus-per-node=a100:1
+#SBATCH --gpus-per-node=h100:1
 #SBATCH --mem=128G
 #SBATCH --time=48:00:00
 #SBATCH --signal=B:USR1@180
@@ -21,6 +21,12 @@
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs
+
+# Rasterio / GDAL read-speed knobs
+export GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR
+export GDAL_CACHEMAX=512
+export GDAL_NUM_THREADS=2
+export OMP_NUM_THREADS=1
 
 CONFIG="${CONFIG:-configs/prue/ftw_joint_efnet3_crop512_v3_augmax_full.yaml}"
 CKPT_PATH="${CKPT_PATH:-}"

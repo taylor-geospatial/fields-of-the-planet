@@ -30,7 +30,7 @@ EXTRA_ARGS=( ${EXTRA:---watershed --tta --min-pad-size 512} )
 # shellcheck disable=SC2206
 COUNTRY_ARGS=( $COUNTRIES )
 
-uv run --no-sync python scripts/polygon_metrics_eval.py \
+uv run --no-sync python scripts/eval/polygon_metrics_eval.py \
     --ckpt "$CKPT" \
     --out "$OUT" \
     --root "$ROOT" \

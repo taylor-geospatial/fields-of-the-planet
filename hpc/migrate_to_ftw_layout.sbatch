@@ -25,6 +25,6 @@ if [[ "$MIG_APPLY" == "true" ]]; then
     APPLY_FLAG="--apply"
 fi
 
-uv run --no-sync scripts/migrate_to_ftw_layout.py \
+uv run --no-sync scripts/pipeline/migrate_to_ftw_layout.py \
     --planet-root data/planet \
     $APPLY_FLAG
