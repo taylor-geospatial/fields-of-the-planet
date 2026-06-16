@@ -1,23 +1,28 @@
-"""Hero gallery: high-quality FTW patches as (S2, Planet, label) triplets.
+"""Hero gallery: FTW patches as (S2, Planet, label) triplets for the page-1 hero.
 
-Picks patches with clear UDM2 stats (clear >= 0.99) drawn from a diverse
-country set, reprojects the FTW Sentinel-2 chip to the matched Planet
-patch's UTM grid, resamples every image to square at a fixed size, and
-tiles the triplets into a banner (default 9 triplets = 3 per row x 3 rows,
-3 cells each) suitable for a page-1 hero spanning both columns.
+Each triplet shows the FTW Sentinel-2 chip (10 m), the matched PlanetScope SR
+image (3 m), and the 3-class field label, rendered as a 3-rows x 3-triplets
+banner spanning both columns.
 
-The S2 chip is upsampled with nearest-neighbour so its coarse 10 m pixels
-stay visibly blocky next to the sharp 3 m Planet image; the label uses the
-shared Taylor Geospatial palette (see ``tg_style``).
+Geometry: FTW S2 chips are stored in EPSG:4326 while Planet patches are in
+native UTM, so the S2 chip is reprojected onto the Planet grid. That reprojection
+turns the lat/lon square into a slightly rotated quad with nodata in the corners,
+so all three panels are cropped to the largest fully-valid centred square (which
+also fixes the non-square patch aspect) before upsampling to a fixed size. The S2
+chip is resampled nearest so its coarse 10 m pixels stay visibly blocky next to
+the sharp 3 m Planet image; the label is nearest to preserve class ids.
 
-Reflectance normalisation: both modalities are 16-bit reflectance scaled by
-10,000. Divide by ``--norm-divisor`` (default 2000) and clip to [0, 1];
-smaller divisors brighten the green field structure.
+Display uses a per-image 2-98 percentile stretch so scenes of varying brightness
+(e.g. dark smallholder paddies vs bright European fields) all expose well. The
+label uses the shared Taylor Geospatial palette (see ``tg_style``). No logos: the
+paper is a double-blind submission.
+
+The default triplets are curated from data/planet/index.parquet: recent (2021+),
+UDM2-clear, high field-instance density, and geographically diverse (two
+smallholder scenes for contrast, seven European fields). Override with --patches.
 """
 
 import argparse
-import json
-import random
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -31,265 +36,170 @@ from skimage.transform import resize
 # titles so they read as part of the document rather than a generic plot.
 plt.rcParams.update({"font.family": "serif", "font.serif": ["Nimbus Roman", "Times"]})
 
-# FTW S2 band order: [B04 (R), B03 (G), B02 (B), B08 (NIR)] -> RGB = (1, 2, 3)
-# Planet 4-band SR:  [Blue, Green, Red, NIR]              -> RGB = (3, 2, 1)
-NORM_DIVISOR = 2000.0
-SQUARE_PX = 256
+# FTW S2 band order [B04, B03, B02, B08] -> RGB = (1, 2, 3); Planet 4-band SR
+# [Blue, Green, Red, NIR] -> RGB = (3, 2, 1).
+SQUARE_PX = 512
+
+DEFAULT_PATCHES = (
+    ("cambodia", "g33_0000000000-0000000000", "a"),
+    ("croatia", "g10-3_00009_2", "a"),
+    ("austria", "g95_00041_14", "a"),
+    ("rwanda", "1592645", "a"),
+    ("slovenia", "g13_00046_6", "a"),
+    ("lithuania", "g11_00098_11", "a"),
+    ("latvia", "g26_00059_12", "a"),
+    ("denmark", "g6_00078_0", "a"),
+    ("sweden", "g6-0_00064_5", "a"),
+)
 
 
-def parse_args():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--ftw-root", type=Path, default=Path("../data/ftw"))
-    p.add_argument("--planet-root", type=Path, default=Path("../data/planet"))
-    p.add_argument(
-        "--udm2-quality", type=Path, default=Path("../data/planet/_global/udm2_quality.jsonl")
-    )
-    p.add_argument("--out", type=Path, default=Path("hero.pdf"))
-    p.add_argument("--n", type=int, default=9, help="Number of triplets to include.")
-    p.add_argument(
-        "--triplets-per-row",
-        type=int,
-        default=3,
-        help="Number of (S2, Planet, label) triplets per row.",
-    )
-    p.add_argument(
-        "--norm-divisor",
-        type=float,
-        default=NORM_DIVISOR,
-        help="Reflectance display normaliser; smaller is brighter.",
-    )
-    p.add_argument(
-        "--min-field-pct",
-        type=float,
-        default=0.40,
-        help="Minimum fraction of patch pixels that are field interior (class 1).",
-    )
-    p.add_argument(
-        "--max-check",
-        type=int,
-        default=2000,
-        help="Max candidates to score by field-fraction before stopping.",
-    )
-    p.add_argument("--seed", type=int, default=0)
-    return p.parse_args()
+def _percentile_stretch(rgb: np.ndarray, p_lo: float = 2, p_hi: float = 98) -> np.ndarray:
+    """Per-channel percentile stretch to [0, 1]."""
+    out = np.empty(rgb.shape, dtype=np.float32)
+    for c in range(rgb.shape[-1]):
+        ch = rgb[..., c].astype(np.float32)
+        lo, hi = np.percentile(ch, p_lo), np.percentile(ch, p_hi)
+        out[..., c] = np.clip((ch - lo) / (hi - lo), 0.0, 1.0) if hi - lo > 1e-6 else 0.0
+    return out
 
 
-def _stretch(rgb: np.ndarray, divisor: float = NORM_DIVISOR) -> np.ndarray:
-    """Divide-and-clip normaliser. Inputs uint16 reflectance * 10000; output [0,1] float."""
-    out = rgb.astype(np.float32) / divisor
-    return np.clip(out, 0.0, 1.0)
+def _largest_valid_square(valid: np.ndarray) -> tuple[int, int, int, int]:
+    """Largest centred square fully inside the boolean ``valid`` mask.
 
-
-def _to_square(img: np.ndarray, size: int = SQUARE_PX, order: int | None = None) -> np.ndarray:
-    """Resample (H, W, C) or (H, W) to (size, size, C) or (size, size).
-
-    ``order`` defaults to bilinear for RGB and nearest for labels. Pass
-    ``order=0`` for an RGB image to upsample with hard pixel edges, which keeps
-    coarse Sentinel-2 pixels visibly blocky instead of smoothing them away.
+    The reprojected S2 chip is a rotated quad with nodata corners; this crop
+    removes the nodata while keeping the S2/Planet/label panels pixel-aligned.
     """
-    if order is None:
-        order = 1 if img.ndim == 3 else 0
-    return resize(
-        img,
-        (size, size) if img.ndim == 2 else (size, size, img.shape[-1]),
-        order=order,
-        preserve_range=True,
-        anti_aliasing=(order > 0),
-    )
+    ys, xs = np.nonzero(valid)
+    cy, cx = int(ys.mean()), int(xs.mean())
+    h, w = valid.shape
+    lo, hi = 0, min(cy, h - cy, cx, w - cx)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if valid[cy - mid : cy + mid, cx - mid : cx + mid].all():
+            lo = mid
+        else:
+            hi = mid - 1
+    return cy - lo, cy + lo, cx - lo, cx + lo
 
 
-def _load_planet_rgb(path: Path, size: int, divisor: float) -> np.ndarray:
-    with rasterio.open(path) as src:
-        bgr_nir = src.read([3, 2, 1])  # Red, Green, Blue
-    rgb = np.transpose(bgr_nir, (1, 2, 0))
-    return _to_square(_stretch(rgb, divisor), size)
+def _resize(img: np.ndarray, order: int) -> np.ndarray:
+    shape = (SQUARE_PX, SQUARE_PX) if img.ndim == 2 else (SQUARE_PX, SQUARE_PX, img.shape[-1])
+    return resize(img, shape, order=order, preserve_range=True, anti_aliasing=(order > 0))
 
 
-def _load_s2_on_planet_grid(
-    s2_path: Path, planet_path: Path, size: int, divisor: float
-) -> np.ndarray:
-    with rasterio.open(planet_path) as dst:
-        dst_crs, dst_transform = dst.crs, dst.transform
-        dst_h, dst_w = dst.height, dst.width
-    with rasterio.open(s2_path) as src:
-        bands = src.read([1, 2, 3])  # R, G, B from FTW chip
-        out = np.zeros((3, dst_h, dst_w), dtype=bands.dtype)
+def _load_triplet(
+    country: str, pid: str, window: str, planet_root: Path, ftw_root: Path
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return (s2_rgb, planet_rgb, label), all SQUARE_PX and cropped to the same
+    valid square so the three panels stay spatially aligned."""
+    sr = planet_root / country / f"window_{window}" / f"{pid}.tif"
+    s2 = ftw_root / country / "s2_images" / f"window_{window}" / f"{pid}.tif"
+    lbl_path = planet_root / country / "labels" / f"{pid}.tif"
+
+    with rasterio.open(sr) as p:
+        planet = np.transpose(p.read([3, 2, 1]), (1, 2, 0))
+        dst_crs, dst_transform = p.crs, p.transform
+        h, w = p.height, p.width
+    with rasterio.open(lbl_path) as s:
+        label = s.read(1)
+    with rasterio.open(s2) as s:
+        bands = s.read([1, 2, 3])
+        s2_grid = np.zeros((3, h, w), dtype=bands.dtype)
+        valid = np.zeros((h, w), dtype=np.float32)
         for i in range(3):
             reproject(
                 source=bands[i],
-                destination=out[i],
-                src_transform=src.transform,
-                src_crs=src.crs,
+                destination=s2_grid[i],
+                src_transform=s.transform,
+                src_crs=s.crs,
                 dst_transform=dst_transform,
                 dst_crs=dst_crs,
                 resampling=Resampling.nearest,
             )
-    rgb = np.transpose(out, (1, 2, 0))
-    # Nearest-neighbour throughout keeps the coarse 10 m S2 pixels visibly
-    # blocky against the sharp 3 m Planet image, so the resolution gain reads.
-    return _to_square(_stretch(rgb, divisor), size, order=0)
+        reproject(
+            source=np.ones_like(bands[0]),
+            destination=valid,
+            src_transform=s.transform,
+            src_crs=s.crs,
+            dst_transform=dst_transform,
+            dst_crs=dst_crs,
+            resampling=Resampling.nearest,
+        )
+    s2_grid = np.transpose(s2_grid, (1, 2, 0))
+
+    y0, y1, x0, x1 = _largest_valid_square(valid > 0.5)
+    s2_rgb = _resize(_percentile_stretch(s2_grid[y0:y1, x0:x1]), order=0)
+    planet_rgb = _resize(_percentile_stretch(planet[y0:y1, x0:x1]), order=1)
+    label_sq = _resize(label[y0:y1, x0:x1], order=0).astype(np.uint8)
+    return s2_rgb, planet_rgb, label_sq
 
 
-def _load_label(path: Path, size: int) -> np.ndarray:
-    with rasterio.open(path) as src:
-        lbl = src.read(1)
-    return _to_square(lbl, size).astype(np.uint8)
+def _parse_patch(spec: str) -> tuple[str, str, str]:
+    country, pid, window = spec.split(":")
+    return (country, pid, window)
 
 
-def _candidate_patches(args: argparse.Namespace) -> list[tuple[str, str, str]]:
-    """Filter UDM2 quality rows for high-clear patches with all three files on disk."""
-    rows: list[dict] = []
-    with args.udm2_quality.open() as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except Exception:
-                continue
-    rows = [r for r in rows if r.get("clear", 0) >= 0.99 and r.get("unusable", 1) <= 0.01]
-    # Verify SR, label, and S2 all exist.
-    out: list[tuple[str, str, str]] = []
-    for r in rows:
-        c, pid, w = r.get("country"), r.get("id"), r.get("window")
-        if not (c and pid and w):
-            continue
-        sr = args.planet_root / c / f"window_{w}" / f"{pid}.tif"
-        lbl = args.planet_root / c / "labels" / f"{pid}.tif"
-        s2 = args.ftw_root / c / "s2_images" / f"window_{w}" / f"{pid}.tif"
-        if sr.exists() and lbl.exists() and s2.exists():
-            out.append((c, pid, w))
-    return out
-
-
-def _label_field_fraction(planet_root: Path, country: str, pid: str, window: str) -> float:
-    """Return the fraction of label pixels that are class 1 (field interior)."""
-    p = planet_root / country / "labels" / f"{pid}.tif"
-    try:
-        with rasterio.open(p) as src:
-            lbl = src.read(1)
-        return float((lbl == 1).sum()) / lbl.size
-    except Exception:
-        return 0.0
-
-
-def _filter_field_dense(
-    cands: list[tuple[str, str, str]],
-    planet_root: Path,
-    min_field_pct: float,
-    max_check: int,
-    seed: int,
-) -> list[tuple[str, str, str]]:
-    """Sample candidates and keep those with field coverage above threshold."""
-    rng = random.Random(seed)
-    rng.shuffle(cands)
-    kept: list[tuple[float, tuple[str, str, str]]] = []
-    for i, (c, pid, w) in enumerate(cands):
-        if i >= max_check:
-            break
-        frac = _label_field_fraction(planet_root, c, pid, w)
-        if frac >= min_field_pct:
-            kept.append((frac, (c, pid, w)))
-    # Return high-coverage first.
-    kept.sort(key=lambda x: x[0], reverse=True)
-    return [t for _, t in kept]
-
-
-def _pick_diverse(
-    candidates: list[tuple[str, str, str]], n: int, seed: int
-) -> list[tuple[str, str, str]]:
-    """Round-robin across countries to maximise diversity, then shuffle."""
-    by_country: dict[str, list] = {}
-    for c, pid, w in candidates:
-        by_country.setdefault(c, []).append((c, pid, w))
-    rng = random.Random(seed)
-    for cs in by_country.values():
-        rng.shuffle(cs)
-    picks: list[tuple[str, str, str]] = []
-    while len(picks) < n and by_country:
-        for c in list(by_country):
-            if not by_country[c]:
-                del by_country[c]
-                continue
-            picks.append(by_country[c].pop())
-            if len(picks) >= n:
-                break
-    return picks[:n]
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--planet-root", type=Path, default=Path("../data/planet"))
+    p.add_argument("--ftw-root", type=Path, default=Path("../data/ftw"))
+    p.add_argument("--out", type=Path, default=Path("hero.pdf"))
+    p.add_argument("--triplets-per-row", type=int, default=3)
+    p.add_argument(
+        "--patches",
+        nargs="+",
+        type=_parse_patch,
+        default=list(DEFAULT_PATCHES),
+        help="Triplets as country:patch_id:window; defaults to the curated set.",
+    )
+    return p.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    cands = _candidate_patches(args)
-    print(f"{len(cands)} candidate patches with clear>=0.99 and all files present")
-    dense = _filter_field_dense(
-        cands, args.planet_root, args.min_field_pct, args.max_check, args.seed
-    )
-    print(
-        f"{len(dense)} candidates with field coverage >= {args.min_field_pct:.0%} "
-        f"(checked up to {args.max_check} samples)"
-    )
-    picks = _pick_diverse(dense, args.n, args.seed)
-    print(f"selected {len(picks)} triplets:")
-    for c, pid, w in picks:
-        print(f"  {c:14s} {pid}_{w}")
+    picks = args.patches
+    tpr = args.triplets_per_row
+    n_rows = (len(picks) + tpr - 1) // tpr
 
-    # Layout: each row holds `triplets_per_row` triplets (3 cells each).
-    # Defaults to 3 triplets/row x 3 rows = 9 triplets, producing a banner
-    # suitable for a page-1 hero spanning both columns.
-    triplets_per_row = args.triplets_per_row
-    n_rows = (len(picks) + triplets_per_row - 1) // triplets_per_row
-    # Per-cell height matches the per-cell width (1.1) so each square image
-    # fills its axes box and the rows sit flush, with a small margin for the
-    # row-0 column titles.
-    _fig, axes = plt.subplots(
-        n_rows,
-        triplets_per_row * 3,
-        figsize=(triplets_per_row * 3 * 1.1, n_rows * 1.1 + 0.12),
-    )
+    _fig, axes = plt.subplots(n_rows, tpr * 3, figsize=(tpr * 3 * 1.1, n_rows * 1.1 + 0.12))
     if n_rows == 1:
         axes = axes.reshape(1, -1)
-
     label_cmap = tg_style.label_cmap()
 
     for r in range(n_rows):
-        for t in range(triplets_per_row):
-            idx = r * triplets_per_row + t
-            base_col = t * 3
+        for t in range(tpr):
+            idx = r * tpr + t
+            base = t * 3
             for c in range(3):
-                ax = axes[r, base_col + c]
+                ax = axes[r, base + c]
                 ax.set_xticks([])
                 ax.set_yticks([])
                 for spine in ax.spines.values():
-                    spine.set_linewidth(0.4)
-                    spine.set_color(tg_style.BROWN)
+                    spine.set_linewidth(0.5)
+                    spine.set_color("black")
             if idx >= len(picks):
                 for c in range(3):
-                    axes[r, base_col + c].axis("off")
+                    axes[r, base + c].axis("off")
                 continue
             country, pid, w = picks[idx]
-            sr = args.planet_root / country / f"window_{w}" / f"{pid}.tif"
-            lbl = args.planet_root / country / "labels" / f"{pid}.tif"
-            s2 = args.ftw_root / country / "s2_images" / f"window_{w}" / f"{pid}.tif"
-            rgb_s2 = _load_s2_on_planet_grid(s2, sr, SQUARE_PX, args.norm_divisor)
-            rgb_pl = _load_planet_rgb(sr, SQUARE_PX, args.norm_divisor)
-            lbl_img = _load_label(lbl, SQUARE_PX)
-
-            axes[r, base_col + 0].imshow(rgb_s2)
-            axes[r, base_col + 1].imshow(rgb_pl)
-            axes[r, base_col + 2].imshow(
-                lbl_img, cmap=label_cmap, vmin=0, vmax=2, interpolation="nearest"
+            s2_rgb, planet_rgb, label = _load_triplet(
+                country, pid, w, args.planet_root, args.ftw_root
+            )
+            axes[r, base + 0].imshow(s2_rgb)
+            axes[r, base + 1].imshow(planet_rgb)
+            axes[r, base + 2].imshow(
+                label, cmap=label_cmap, vmin=0, vmax=2, interpolation="nearest"
             )
             if r == 0:
                 tkw = {"fontsize": 10, "pad": 3, "color": tg_style.BROWN}
-                axes[r, base_col + 0].set_title("S2 (10 m)", **tkw)
-                axes[r, base_col + 1].set_title("Planet (3 m)", **tkw)
-                axes[r, base_col + 2].set_title("Label", **tkw)
-            # Country labels crowd the page-1 hero at camera-ready width.
+                axes[r, base + 0].set_title("S2 (10 m)", **tkw)
+                axes[r, base + 1].set_title("Planet (3 m)", **tkw)
+                axes[r, base + 2].set_title("Label", **tkw)
+            print(f"{country:12s} {pid}_{w}")
 
-    plt.tight_layout(pad=0.1, h_pad=0.0, w_pad=0.02)
-    plt.subplots_adjust(wspace=0.02, hspace=0.0)
-    plt.savefig(args.out, bbox_inches="tight", dpi=140)
+    plt.tight_layout(pad=0.1, h_pad=0.0, w_pad=0.0)
+    plt.subplots_adjust(wspace=0.0, hspace=0.0)
+    plt.savefig(args.out, bbox_inches="tight", dpi=200)
     plt.close()
     print(f"wrote {args.out}")
     return 0
