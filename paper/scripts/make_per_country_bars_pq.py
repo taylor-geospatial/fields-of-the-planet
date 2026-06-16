@@ -22,6 +22,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import tg_style
 
 mpl.rcParams.update(
     {
@@ -38,6 +39,11 @@ mpl.rcParams.update(
         "axes.spines.top": False,
         "axes.spines.right": False,
         "axes.spines.left": False,
+        "text.color": tg_style.BROWN,
+        "axes.labelcolor": tg_style.BROWN,
+        "axes.edgecolor": tg_style.BROWN,
+        "xtick.color": tg_style.BROWN,
+        "ytick.color": tg_style.BROWN,
         "savefig.bbox": "tight",
     }
 )
@@ -63,14 +69,14 @@ def main():
     args = p.parse_args()
 
     df = _load_deltas()
-    pos = "#3d5a26"
-    neg = "#883027"
+    pos = tg_style.GREEN_INK
+    neg = tg_style.RED
     colors = [pos if v >= 0 else neg for v in df.d_pq]
 
     fig, ax = plt.subplots(figsize=(2.75, 4.0))
     y = np.arange(len(df))
     ax.barh(y, df.d_pq, color=colors, edgecolor="none", height=0.72)
-    ax.axvline(0, color="black", linewidth=0.55)
+    ax.axvline(0, color=tg_style.BROWN, linewidth=0.55)
 
     pad = (max(df.d_pq) - min(df.d_pq)) * 0.015
     for yi, v in zip(y, df.d_pq):
@@ -81,7 +87,7 @@ def main():
             va="center",
             ha="left" if v >= 0 else "right",
             fontsize=6.5,
-            color="#333333",
+            color=tg_style.BROWN,
         )
 
     ax.set_yticks(y)
@@ -89,7 +95,7 @@ def main():
     ax.set_xlabel(r"$\Delta$ PQ (pp, PRUE-FTP-B3 $-$ S2-augmax-B7)", labelpad=4)
     ax.set_xlim(min(df.d_pq) - 3.0, max(df.d_pq) + 3.0)
     ax.invert_yaxis()
-    ax.grid(axis="x", linewidth=0.3, color="#cccccc", alpha=0.7, zorder=0)
+    ax.grid(axis="x", linewidth=0.3, color="#d9d6c8", alpha=0.9, zorder=0)
     ax.set_axisbelow(True)
     ax.tick_params(axis="y", length=0, pad=2)
     ax.tick_params(axis="x", length=2.5, pad=2)

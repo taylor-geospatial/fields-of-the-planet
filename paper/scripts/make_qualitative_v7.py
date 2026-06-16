@@ -21,6 +21,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+import tg_style
 import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
@@ -38,11 +39,15 @@ mpl.rcParams.update(
         "font.family": "serif",
         "font.serif": ["Nimbus Roman", "Times"],
         "font.size": 8,
+        "text.color": tg_style.BROWN,
+        "axes.titlecolor": tg_style.BROWN,
+        "axes.labelcolor": tg_style.BROWN,
     }
 )
 
-S2_NORM_DIVISOR = 3000.0
+S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
 SQUARE_SIZE = 256
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))
 
 
 def _stretch(rgb, p_lo=2, p_hi=98):
@@ -88,7 +93,7 @@ def _instance_cmap(n):
         c = base[i % 20].copy()
         c = c + rng.uniform(-0.08, 0.08, size=3)
         colors[i] = np.clip(c, 0, 1)
-    return ListedColormap(np.vstack([[0, 0, 0], colors]))
+    return ListedColormap(np.vstack([MASK_BG, colors]))
 
 
 def _instance_render(inst):
@@ -251,11 +256,11 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument(
         "--ckpt-planet",
-        default="logs/prue/ftw_planet-unet-efnet3-crop512-v3-augmax-full/ftw-planet/mt6mdnl7/checkpoints/last.ckpt",
+        default="logs/best_checkpoints/planet_efnet3_augmax_full_best.ckpt",
     )
     p.add_argument(
         "--ckpt-s2",
-        default="logs/prue/ftw_s2-unet-efnet7-crop256-s2-v3-augmax-b7-full/ftw-s2/2x26jpwu/checkpoints/last.ckpt",
+        default="logs/best_checkpoints/s2_efnet7_best.ckpt",
     )
     # 7 rows — distinct from v6, dense smallholder mix.
     p.add_argument(
@@ -271,7 +276,7 @@ def main():
             "finland:g14-1_00125_10:a",
         ],
     )
-    p.add_argument("--out", default="paper/figs/qualitative_v7.pdf")
+    p.add_argument("--out", default="paper/figs/qualitative_v7_appx.pdf")
     p.add_argument("--cell-size", type=int, default=SQUARE_SIZE)
     p.add_argument("--cell-h", type=float, default=1.38)
     p.add_argument("--cell-w", type=float, default=1.35)
@@ -335,7 +340,7 @@ def main():
             ax.set_yticks([])
             for s in ax.spines.values():
                 s.set_linewidth(0.35)
-                s.set_color("#444444")
+                s.set_color(tg_style.BROWN)
         axes[i, 0].set_ylabel(country.replace("_", " "), fontsize=7.5, fontweight="bold")
         if i == 0:
             for j, t in enumerate(col_titles):

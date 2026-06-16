@@ -17,4 +17,6 @@ cd "$SLURM_SUBMIT_DIR"
 uv run --no-sync python paper/scripts/make_qualitative_v8.py
 uv run --no-sync python paper/scripts/make_qualitative_v6.py
 uv run --no-sync python paper/scripts/make_qualitative_v7.py
-uv run --no-sync python paper/scripts/make_qualitative_delineate.py
+# delineate uses the Delineate-Anything YOLO baseline; ultralytics is an
+# optional paper-only dep, supplied ephemerally rather than added to the project.
+uv run --no-sync --with ultralytics python paper/scripts/make_qualitative_delineate.py

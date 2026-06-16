@@ -26,6 +26,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+import tg_style
 import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
@@ -38,12 +39,15 @@ mpl.rcParams.update(
         "font.family": "serif",
         "font.serif": ["Nimbus Roman", "Times"],
         "font.size": 8,
+        "text.color": tg_style.BROWN,
+        "axes.titlecolor": tg_style.BROWN,
+        "axes.labelcolor": tg_style.BROWN,
     }
 )
 
-S2_NORM_DIVISOR = 3000.0
-FIELD_GREEN = np.array([0.30, 0.80, 0.35])  # vivid green for field class
-BLACK = np.array([0.0, 0.0, 0.0])
+S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
+FIELD_GREEN = np.array(mpl.colors.to_rgb(tg_style.GREEN))  # brand green for field
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))  # brand brown for bg + boundary
 SQUARE_SIZE = 256  # final pixel size for every cell
 
 
@@ -84,10 +88,9 @@ def _hard_mask_overlay(mask):
     """Render a 3-class mask as a hard segmentation image: green for field
     interior (class 1), black for background + boundary (classes 0 and 2).
     Returns float RGB in [0, 1]."""
-    out = np.zeros((*mask.shape, 3), dtype=np.float32)
-    field = mask == 1
-    out[field] = FIELD_GREEN
-    # bg and boundary -> black (already zero)
+    out = np.empty((*mask.shape, 3), dtype=np.float32)
+    out[:] = MASK_BG
+    out[mask == 1] = FIELD_GREEN
     return out
 
 
@@ -198,11 +201,11 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument(
         "--ckpt-planet",
-        default="logs/prue/ftw_planet-unet-efnet3-crop512-v3-augmax-full/ftw-planet/mt6mdnl7/checkpoints/last.ckpt",
+        default="logs/best_checkpoints/planet_efnet3_augmax_full_best.ckpt",
     )
     p.add_argument(
         "--ckpt-s2",
-        default="logs/prue/ftw_s2-unet-efnet7-crop256-s2-v3-augmax-b7-full/ftw-s2/2x26jpwu/checkpoints/last.ckpt",
+        default="logs/best_checkpoints/s2_efnet7_best.ckpt",
     )
     # 12 dense-label, smallholder-leaning patches; window picked to match the
     # season we want shown.  All are countries where macro Planet > S2.
@@ -220,7 +223,7 @@ def main():
             "finland:g15-1_00141_12:a",
         ],
     )
-    p.add_argument("--out", default="paper/figs/qualitative_v6.pdf")
+    p.add_argument("--out", default="paper/figs/qualitative_v6_appx.pdf")
     p.add_argument("--cell-size", type=int, default=SQUARE_SIZE)
     p.add_argument(
         "--cell-h",
@@ -288,7 +291,7 @@ def main():
             ax.set_yticks([])
             for s in ax.spines.values():
                 s.set_linewidth(0.35)
-                s.set_color("#444444")
+                s.set_color(tg_style.BROWN)
         axes[i, 0].set_ylabel(country.replace("_", " "), fontsize=7.5, fontweight="bold")
         if i == 0:
             for j, t in enumerate(col_titles):
