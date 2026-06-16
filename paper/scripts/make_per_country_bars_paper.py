@@ -18,6 +18,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import tg_style
 
 mpl.rcParams.update(
     {
@@ -34,6 +35,11 @@ mpl.rcParams.update(
         "axes.spines.top": False,
         "axes.spines.right": False,
         "axes.spines.left": False,
+        "text.color": tg_style.BROWN,
+        "axes.labelcolor": tg_style.BROWN,
+        "axes.edgecolor": tg_style.BROWN,
+        "xtick.color": tg_style.BROWN,
+        "ytick.color": tg_style.BROWN,
         "savefig.bbox": "tight",
     }
 )
@@ -64,8 +70,8 @@ def main():
     args = p.parse_args()
 
     df = _load_deltas()
-    pos = "#3d5a26"  # dark olive
-    neg = "#883027"  # muted brick
+    pos = tg_style.GREEN_INK
+    neg = tg_style.RED
     colors = [pos if v >= 0 else neg for v in df.d_f1]
 
     fig, ax = plt.subplots(figsize=(2.75, 3.3))
@@ -73,7 +79,7 @@ def main():
     ax.barh(y, df.d_f1, color=colors, edgecolor="none", height=0.72)
 
     # Zero reference line
-    ax.axvline(0, color="black", linewidth=0.55)
+    ax.axvline(0, color=tg_style.BROWN, linewidth=0.55)
 
     # Numeric annotations at bar tips
     pad = 0.6
@@ -85,7 +91,7 @@ def main():
             va="center",
             ha="left" if v >= 0 else "right",
             fontsize=6.5,
-            color="#333333",
+            color=tg_style.BROWN,
         )
 
     ax.set_yticks(y)
@@ -93,7 +99,7 @@ def main():
     ax.set_xlabel(r"$\Delta$ Obj F1 (pp, PRUE-FTP-B3 $-$ PRUE-B7)", labelpad=4)
     ax.set_xlim(min(df.d_f1) - 2.5, max(df.d_f1) + 2.5)
     ax.invert_yaxis()  # largest gain on top
-    ax.grid(axis="x", linewidth=0.3, color="#cccccc", alpha=0.7, zorder=0)
+    ax.grid(axis="x", linewidth=0.3, color="#d9d6c8", alpha=0.9, zorder=0)
     ax.set_axisbelow(True)
     ax.tick_params(axis="y", length=0, pad=2)
     ax.tick_params(axis="x", length=2.5, pad=2)

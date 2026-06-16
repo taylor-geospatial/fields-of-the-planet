@@ -1,18 +1,18 @@
-"""Hero gallery: 12 high-quality FTW patches as (S2, Planet, label) triplets.
+"""Hero gallery: high-quality FTW patches as (S2, Planet, label) triplets.
 
 Picks patches with clear UDM2 stats (clear >= 0.99) drawn from a diverse
 country set, reprojects the FTW Sentinel-2 chip to the matched Planet
 patch's UTM grid, resamples every image to square at a fixed size, and
-tiles 12 triplets into a wide 6x6 layout (each row carries 2 triplets =
-6 cells side-by-side).
+tiles the triplets into a wide banner (default 8 triplets = 4 per row x 2
+rows, 3 cells each) suitable for a page-1 hero spanning both columns.
 
-Reflectance normalisation:
-  * Sentinel-2: 16-bit reflectance scaled by 10,000 (FTW convention).
-    Divide by 3000 and clip to [0, 1] -> emphasises field structure
-    without crushing bright soil.
-  * PlanetScope: 16-bit surface reflectance scaled by 10,000.
-    Same normaliser applies; vegetation/soil reflectance maxes out around
-    30%, so dividing by 3000 lands the bulk in (0, 1).
+The S2 chip is upsampled with nearest-neighbour so its coarse 10 m pixels
+stay visibly blocky next to the sharp 3 m Planet image; the label uses the
+shared Taylor Geospatial palette (see ``tg_style``).
+
+Reflectance normalisation: both modalities are 16-bit reflectance scaled by
+10,000. Divide by ``--norm-divisor`` (default 2000) and clip to [0, 1];
+smaller divisors brighten the green field structure.
 """
 
 import argparse
@@ -23,13 +23,13 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
-from matplotlib.colors import ListedColormap
+import tg_style
 from rasterio.warp import Resampling, reproject
 from skimage.transform import resize
 
 # FTW S2 band order: [B04 (R), B03 (G), B02 (B), B08 (NIR)] -> RGB = (1, 2, 3)
 # Planet 4-band SR:  [Blue, Green, Red, NIR]              -> RGB = (3, 2, 1)
-NORM_DIVISOR = 3000.0
+NORM_DIVISOR = 2000.0
 SQUARE_PX = 256
 
 
@@ -47,6 +47,12 @@ def parse_args():
         type=int,
         default=4,
         help="Number of (S2, Planet, label) triplets per row.",
+    )
+    p.add_argument(
+        "--norm-divisor",
+        type=float,
+        default=NORM_DIVISOR,
+        help="Reflectance display normaliser; smaller is brighter.",
     )
     p.add_argument(
         "--min-field-pct",
@@ -70,9 +76,15 @@ def _stretch(rgb: np.ndarray, divisor: float = NORM_DIVISOR) -> np.ndarray:
     return np.clip(out, 0.0, 1.0)
 
 
-def _to_square(img: np.ndarray, size: int = SQUARE_PX) -> np.ndarray:
-    """Resample (H, W, C) or (H, W) to (size, size, C) or (size, size)."""
-    order = 1 if img.ndim == 3 else 0
+def _to_square(img: np.ndarray, size: int = SQUARE_PX, order: int | None = None) -> np.ndarray:
+    """Resample (H, W, C) or (H, W) to (size, size, C) or (size, size).
+
+    ``order`` defaults to bilinear for RGB and nearest for labels. Pass
+    ``order=0`` for an RGB image to upsample with hard pixel edges, which keeps
+    coarse Sentinel-2 pixels visibly blocky instead of smoothing them away.
+    """
+    if order is None:
+        order = 1 if img.ndim == 3 else 0
     return resize(
         img,
         (size, size) if img.ndim == 2 else (size, size, img.shape[-1]),
@@ -82,14 +94,16 @@ def _to_square(img: np.ndarray, size: int = SQUARE_PX) -> np.ndarray:
     )
 
 
-def _load_planet_rgb(path: Path, size: int) -> np.ndarray:
+def _load_planet_rgb(path: Path, size: int, divisor: float) -> np.ndarray:
     with rasterio.open(path) as src:
         bgr_nir = src.read([3, 2, 1])  # Red, Green, Blue
     rgb = np.transpose(bgr_nir, (1, 2, 0))
-    return _to_square(_stretch(rgb), size)
+    return _to_square(_stretch(rgb, divisor), size)
 
 
-def _load_s2_on_planet_grid(s2_path: Path, planet_path: Path, size: int) -> np.ndarray:
+def _load_s2_on_planet_grid(
+    s2_path: Path, planet_path: Path, size: int, divisor: float
+) -> np.ndarray:
     with rasterio.open(planet_path) as dst:
         dst_crs, dst_transform = dst.crs, dst.transform
         dst_h, dst_w = dst.height, dst.width
@@ -104,10 +118,12 @@ def _load_s2_on_planet_grid(s2_path: Path, planet_path: Path, size: int) -> np.n
                 src_crs=src.crs,
                 dst_transform=dst_transform,
                 dst_crs=dst_crs,
-                resampling=Resampling.bilinear,
+                resampling=Resampling.nearest,
             )
     rgb = np.transpose(out, (1, 2, 0))
-    return _to_square(_stretch(rgb), size)
+    # Nearest-neighbour throughout keeps the coarse 10 m S2 pixels visibly
+    # blocky against the sharp 3 m Planet image, so the resolution gain reads.
+    return _to_square(_stretch(rgb, divisor), size, order=0)
 
 
 def _load_label(path: Path, size: int) -> np.ndarray:
@@ -219,15 +235,18 @@ def main() -> int:
     # banner suitable for a page-1 hero spanning both columns.
     triplets_per_row = args.triplets_per_row
     n_rows = (len(picks) + triplets_per_row - 1) // triplets_per_row
+    # Per-cell height matches the per-cell width (1.1) so each square image
+    # fills its axes box and the rows sit flush, with a small margin for the
+    # row-0 column titles.
     _fig, axes = plt.subplots(
         n_rows,
         triplets_per_row * 3,
-        figsize=(triplets_per_row * 3 * 1.1, n_rows * 1.25),
+        figsize=(triplets_per_row * 3 * 1.1, n_rows * 1.1 + 0.12),
     )
     if n_rows == 1:
         axes = axes.reshape(1, -1)
 
-    label_cmap = ListedColormap(["#000000", "#79C753", "#FFD23F"])
+    label_cmap = tg_style.label_cmap()
 
     for r in range(n_rows):
         for t in range(triplets_per_row):
@@ -238,7 +257,8 @@ def main() -> int:
                 ax.set_xticks([])
                 ax.set_yticks([])
                 for spine in ax.spines.values():
-                    spine.set_linewidth(0.3)
+                    spine.set_linewidth(0.4)
+                    spine.set_color(tg_style.BROWN)
             if idx >= len(picks):
                 for c in range(3):
                     axes[r, base_col + c].axis("off")
@@ -247,8 +267,8 @@ def main() -> int:
             sr = args.planet_root / country / f"window_{w}" / f"{pid}.tif"
             lbl = args.planet_root / country / "labels" / f"{pid}.tif"
             s2 = args.ftw_root / country / "s2_images" / f"window_{w}" / f"{pid}.tif"
-            rgb_s2 = _load_s2_on_planet_grid(s2, sr, SQUARE_PX)
-            rgb_pl = _load_planet_rgb(sr, SQUARE_PX)
+            rgb_s2 = _load_s2_on_planet_grid(s2, sr, SQUARE_PX, args.norm_divisor)
+            rgb_pl = _load_planet_rgb(sr, SQUARE_PX, args.norm_divisor)
             lbl_img = _load_label(lbl, SQUARE_PX)
 
             axes[r, base_col + 0].imshow(rgb_s2)
@@ -257,13 +277,14 @@ def main() -> int:
                 lbl_img, cmap=label_cmap, vmin=0, vmax=2, interpolation="nearest"
             )
             if r == 0:
-                axes[r, base_col + 0].set_title("S2 (10 m)", fontsize=8, pad=2)
-                axes[r, base_col + 1].set_title("Planet (3 m)", fontsize=8, pad=2)
-                axes[r, base_col + 2].set_title("Label", fontsize=8, pad=2)
+                tkw = {"fontsize": 8, "pad": 2, "color": tg_style.BROWN}
+                axes[r, base_col + 0].set_title("S2 (10 m)", **tkw)
+                axes[r, base_col + 1].set_title("Planet (3 m)", **tkw)
+                axes[r, base_col + 2].set_title("Label", **tkw)
             # Country labels crowd the page-1 hero at camera-ready width.
 
-    plt.tight_layout(pad=0.1, h_pad=0.05, w_pad=0.02)
-    plt.subplots_adjust(wspace=0.02, hspace=0.04)
+    plt.tight_layout(pad=0.1, h_pad=0.0, w_pad=0.02)
+    plt.subplots_adjust(wspace=0.02, hspace=0.0)
     plt.savefig(args.out, bbox_inches="tight", dpi=140)
     plt.close()
     print(f"wrote {args.out}")

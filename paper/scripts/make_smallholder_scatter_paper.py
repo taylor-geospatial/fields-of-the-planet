@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns  # seaborn not in main CI deps; paper-scripts only
+import tg_style
 from adjustText import (
     adjust_text,  # adjustText not in main CI deps; paper-scripts only
 )
@@ -23,18 +24,19 @@ mpl.rcParams.update(
     {
         "axes.linewidth": 0.5,
         "grid.linewidth": 0.3,
-        "grid.color": "#dddddd",
-        "axes.edgecolor": "#222222",
-        "axes.labelcolor": "#222222",
-        "xtick.color": "#222222",
-        "ytick.color": "#222222",
+        "grid.color": "#d9d6c8",
+        "axes.edgecolor": tg_style.BROWN,
+        "axes.labelcolor": tg_style.BROWN,
+        "text.color": tg_style.BROWN,
+        "xtick.color": tg_style.BROWN,
+        "ytick.color": tg_style.BROWN,
     }
 )
 
 
-OLIVE = "#3d5a26"
-SIENNA = "#883027"
-NEUTRAL = "#a5a39a"
+OLIVE = tg_style.GREEN_INK
+SIENNA = tg_style.RED
+NEUTRAL = "#a89f93"
 FOCUS = {
     "rwanda",
     "lithuania",
@@ -70,13 +72,13 @@ def main():
         y="d_f1",
         ax=ax,
         scatter=False,
-        line_kws={"color": "#444444", "linewidth": 0.8},
+        line_kws={"color": tg_style.BROWN, "linewidth": 0.8},
         ci=95,
     )
 
     # Scatter points
     ax.scatter(df.log_ha, df.d_f1, c=df.color, s=18, linewidths=0.4, edgecolors="white", zorder=3)
-    ax.axhline(0, color="black", linewidth=0.4)
+    ax.axhline(0, color=tg_style.BROWN, linewidth=0.4)
 
     # Labels — only the focus countries; adjustText handles collision.
     texts = []
@@ -92,12 +94,12 @@ def main():
             )
         )
     for _, row in df[~df["focus"]].iterrows():
-        texts.append(ax.text(row.log_ha, row.d_f1, row.country_lbl, fontsize=5.8, color="#888888"))
+        texts.append(ax.text(row.log_ha, row.d_f1, row.country_lbl, fontsize=5.8, color="#8a8276"))
     adjust_text(
         texts,
         ax=ax,
         expand=(1.1, 1.2),
-        arrowprops={"arrowstyle": "-", "color": "#bbbbbb", "lw": 0.3, "shrinkA": 2, "shrinkB": 2},
+        arrowprops={"arrowstyle": "-", "color": "#c4bfb2", "lw": 0.3, "shrinkA": 2, "shrinkB": 2},
     )
 
     # Log x-axis with hand-formatted ticks (we drew log10-transformed data).
@@ -115,7 +117,7 @@ def main():
         ha="right",
         va="bottom",
         fontsize=6.5,
-        color="#555555",
+        color=tg_style.BROWN,
         style="italic",
     )
     ax.tick_params(length=2.5, width=0.4)

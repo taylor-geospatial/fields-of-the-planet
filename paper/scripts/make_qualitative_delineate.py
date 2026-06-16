@@ -17,6 +17,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+import tg_style
 import torch
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 from huggingface_hub import hf_hub_download
@@ -40,6 +41,9 @@ mpl.rcParams.update(
         "font.family": "serif",
         "font.serif": ["Nimbus Roman", "Times"],
         "font.size": 8,
+        "text.color": tg_style.BROWN,
+        "axes.titlecolor": tg_style.BROWN,
+        "axes.labelcolor": tg_style.BROWN,
     }
 )
 
@@ -126,10 +130,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument(
         "--ckpt-planet",
-        default=(
-            "logs/prue/ftw_planet-unet-efnet3-crop512-v3-augmax-full/"
-            "ftw-planet/mt6mdnl7/checkpoints/last.ckpt"
-        ),
+        default="logs/best_checkpoints/planet_efnet3_augmax_full_best.ckpt",
     )
     p.add_argument(
         "--rows",
@@ -209,7 +210,7 @@ def main() -> None:
             ax.set_yticks([])
             for s in ax.spines.values():
                 s.set_linewidth(0.35)
-                s.set_color("#444444")
+                s.set_color(tg_style.BROWN)
         axes[i, 0].set_ylabel(
             country.replace("_", " "),
             fontsize=7.5,

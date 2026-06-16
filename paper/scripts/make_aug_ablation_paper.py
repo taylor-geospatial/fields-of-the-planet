@@ -15,17 +15,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns  # seaborn not in main CI deps; paper-scripts only
+import tg_style
 
 sns.set_theme(context="notebook", style="whitegrid", font="Nimbus Roman", font_scale=0.65)
 mpl.rcParams.update(
     {
         "axes.linewidth": 0.5,
         "grid.linewidth": 0.3,
-        "grid.color": "#dddddd",
-        "axes.edgecolor": "#222222",
-        "axes.labelcolor": "#222222",
-        "xtick.color": "#222222",
-        "ytick.color": "#222222",
+        "grid.color": "#d9d6c8",
+        "axes.edgecolor": tg_style.BROWN,
+        "axes.labelcolor": tg_style.BROWN,
+        "text.color": tg_style.BROWN,
+        "xtick.color": tg_style.BROWN,
+        "ytick.color": tg_style.BROWN,
     }
 )
 
@@ -43,20 +45,9 @@ def main():
     pl = df[df["panel"] == "planet"].reset_index(drop=True)
     s2 = df[df["panel"] == "s2"].reset_index(drop=True)
 
-    # Palette: progressive olive shades for the cumulative recipe steps.
-    base = "#3d5a26"
+    # Cumulative recipe steps ramp from pale to deep brand red (our result).
     n = len(pl)
-    fills = [
-        # alpha-blend toward white for the early steps; deepest at the right.
-        tuple(
-            0.55
-            + 0.45 * (i / max(1, n - 1)) * np.array([1, 1, 1]) * 0
-            + np.array(mpl.colors.to_rgb(base)) * (0.55 + 0.45 * (i / max(1, n - 1)))
-        )
-        for i in range(n)
-    ]
-    # Simpler: convert hex to rgb, then scale brightness
-    rgb = np.array(mpl.colors.to_rgb(base))
+    rgb = np.array(mpl.colors.to_rgb(tg_style.RED))
     fills = [
         tuple((rgb + (1 - rgb) * (1 - 0.4 - 0.6 * i / max(1, n - 1))).clip(0, 1)) for i in range(n)
     ]
@@ -74,16 +65,16 @@ def main():
             ha="center",
             va="bottom",
             fontsize=6.5,
-            color="#333333",
+            color=tg_style.BROWN,
             zorder=4,
         )
 
-    # S2 reference lines (dotted)
+    # S2 reference lines (dotted), periwinkle shades to read as the baseline.
     ref_styles = {
-        "+ augmax, B3 full": ("#c0796b", "PRUE-B3 (S2, full)"),
-        "+ augmax, B7 full": ("#7a2e22", "PRUE-B7 (S2, full)"),
-        "+ augmax, B3 CC-BY": ("#d6a8a0", "PRUE-B3 (S2, CC-BY)"),
-        "+ augmax, B7 CC-BY": ("#9a4e42", "PRUE-B7 (S2, CC-BY)"),
+        "+ augmax, B3 full": ("#80a0d8", "PRUE-B3 (S2, full)"),
+        "+ augmax, B7 full": ("#3f5c93", "PRUE-B7 (S2, full)"),
+        "+ augmax, B3 CC-BY": ("#b3c4e6", "PRUE-B3 (S2, CC-BY)"),
+        "+ augmax, B7 CC-BY": ("#5f7cba", "PRUE-B7 (S2, CC-BY)"),
     }
     for _, row in s2.iterrows():
         if row.label in ref_styles:
@@ -94,7 +85,7 @@ def main():
         loc="lower right",
         fontsize=5.8,
         framealpha=0.9,
-        edgecolor="#cccccc",
+        edgecolor="#d9d6c8",
         handlelength=2.0,
         borderpad=0.4,
         labelspacing=0.25,
