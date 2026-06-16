@@ -3,8 +3,8 @@
 Picks patches with clear UDM2 stats (clear >= 0.99) drawn from a diverse
 country set, reprojects the FTW Sentinel-2 chip to the matched Planet
 patch's UTM grid, resamples every image to square at a fixed size, and
-tiles the triplets into a wide banner (default 8 triplets = 4 per row x 2
-rows, 3 cells each) suitable for a page-1 hero spanning both columns.
+tiles the triplets into a banner (default 9 triplets = 3 per row x 3 rows,
+3 cells each) suitable for a page-1 hero spanning both columns.
 
 The S2 chip is upsampled with nearest-neighbour so its coarse 10 m pixels
 stay visibly blocky next to the sharp 3 m Planet image; the label uses the
@@ -27,6 +27,10 @@ import tg_style
 from rasterio.warp import Resampling, reproject
 from skimage.transform import resize
 
+# Match the paper body face (Nimbus Roman = URW Times clone) for the column
+# titles so they read as part of the document rather than a generic plot.
+plt.rcParams.update({"font.family": "serif", "font.serif": ["Nimbus Roman", "Times"]})
+
 # FTW S2 band order: [B04 (R), B03 (G), B02 (B), B08 (NIR)] -> RGB = (1, 2, 3)
 # Planet 4-band SR:  [Blue, Green, Red, NIR]              -> RGB = (3, 2, 1)
 NORM_DIVISOR = 2000.0
@@ -41,11 +45,11 @@ def parse_args():
         "--udm2-quality", type=Path, default=Path("../data/planet/_global/udm2_quality.jsonl")
     )
     p.add_argument("--out", type=Path, default=Path("hero.pdf"))
-    p.add_argument("--n", type=int, default=8, help="Number of triplets to include.")
+    p.add_argument("--n", type=int, default=9, help="Number of triplets to include.")
     p.add_argument(
         "--triplets-per-row",
         type=int,
-        default=4,
+        default=3,
         help="Number of (S2, Planet, label) triplets per row.",
     )
     p.add_argument(
@@ -231,8 +235,8 @@ def main() -> int:
         print(f"  {c:14s} {pid}_{w}")
 
     # Layout: each row holds `triplets_per_row` triplets (3 cells each).
-    # Defaults to 4 triplets/row x 2 rows = 8 triplets, producing a wide
-    # banner suitable for a page-1 hero spanning both columns.
+    # Defaults to 3 triplets/row x 3 rows = 9 triplets, producing a banner
+    # suitable for a page-1 hero spanning both columns.
     triplets_per_row = args.triplets_per_row
     n_rows = (len(picks) + triplets_per_row - 1) // triplets_per_row
     # Per-cell height matches the per-cell width (1.1) so each square image
@@ -277,7 +281,7 @@ def main() -> int:
                 lbl_img, cmap=label_cmap, vmin=0, vmax=2, interpolation="nearest"
             )
             if r == 0:
-                tkw = {"fontsize": 8, "pad": 2, "color": tg_style.BROWN}
+                tkw = {"fontsize": 10, "pad": 3, "color": tg_style.BROWN}
                 axes[r, base_col + 0].set_title("S2 (10 m)", **tkw)
                 axes[r, base_col + 1].set_title("Planet (3 m)", **tkw)
                 axes[r, base_col + 2].set_title("Label", **tkw)
