@@ -4,7 +4,7 @@ Higher-resolution field-boundary segmentation. **Fields of the Planet (FTP)**
 pairs every **Fields of the World v2** (FTW) Sentinel-2 patch with a
 co-registered **PlanetScope** ~3 m surface-reflectance image, so models can
 predict field boundaries at 3 m instead of 10 m. Two seasonal windows per AOI
-(early- and peak-season) across 25 countries.
+(early- and peak-season) across 24 countries / 25 labeled regions.
 
 ## Install
 
@@ -45,7 +45,7 @@ tests/
 
 ## Dataset
 
-The FTP dataset (66,584 patches, 25 countries) is described in
+The FTP dataset (66,584 patches across 24 countries / 25 labeled regions) is described in
 [docs/DATASET.md](docs/DATASET.md): S3 layout, the GeoParquet index schema,
 and how to read it. To build it from scratch from the Planet API, see
 [scripts/README.md](scripts/README.md).
