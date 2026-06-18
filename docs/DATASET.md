@@ -2,7 +2,7 @@
 
 Published at `s3://us-west-2.opendata.source.coop/ftw/ftw-planet/`.
 
-- 66,584 patches, 25 countries
+- 66,584 patches (two seasonal windows each = 133,168 image-window pairs) across 24 countries / 25 labeled regions (Corsica shipped separately from mainland France)
 - 52,235 patches with `usable_pair = True` (both windows pass UDM2)
 - Imagery: PlanetScope `ortho_analytic_4b_sr`, 4 bands (B/G/R/NIR), 3 m GSD, native UTM, `uint16` (reflectance = DN / 10000)
 - Labels: 3-class — 0 background, 1 field interior, 2 field boundary; `uint8` NBITS=2; boundaries rasterized `all_touched=True`
@@ -16,7 +16,7 @@ s3://us-west-2.opendata.source.coop/ftw/ftw-planet/
 └── dataset/
     ├── austria.tar
     ├── ...
-    └── vietnam.tar         # 25 country shards, ~94 GiB total
+    └── vietnam.tar         # 25 region shards (24 countries; Corsica separate), ~94 GiB total
 ```
 
 Each tar is a WebDataset shard, four files per `patch_id`:
@@ -60,7 +60,7 @@ Identity / geometry:
 | column        | type     | notes                                          |
 | ------------- | -------- | ---------------------------------------------- |
 | `patch_id`    | str      | unique within country                          |
-| `country`     | str      | one of 25 slugs                                |
+| `country`     | str      | one of 25 region slugs (24 countries; Corsica separate) |
 | `geometry`    | polygon  | EPSG:4326 patch footprint                      |
 | `crs`         | str      | native UTM CRS of the tifs (e.g. `EPSG:32636`) |
 | `bounds_4326` | float[4] | `[minx, miny, maxx, maxy]` convenience field   |
