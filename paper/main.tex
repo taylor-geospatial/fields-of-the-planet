@@ -99,7 +99,9 @@ Wang et al.~\cite{wang2022unlocking} use 3m PlanetScope for French and Indian pa
 
 \subsection{Pairing strategy}
 
-For each FTW chip and each seasonal window, we identify a single PSScene whose acquisition date falls inside the window and whose footprint fully covers the chip polygon. We rank candidates first by scene-level cloud cover (Planet's reported \texttt{cloud\_cover}, ceiling $\le$\,10\%), then by absolute day-distance to the window midpoint, with ties broken by item\_id (deterministic). If no candidate covers the chip fully, we drop the (patch, window) target; partial-coverage scenes are not stitched. We use scene-level cloud cover during search because UDM2 is only available after asset activation. After extraction, we compute patch-level UDM2 quality and resample cloudy patches from alternate same-season scenes when a better candidate exists (\Cref{sec:quality}).
+For each FTW chip and each seasonal window, we identify a single PSScene whose acquisition date falls inside the window and whose footprint fully covers the chip polygon. We rank candidates first by scene-level cloud cover (Planet's reported \texttt{cloud\_cover}, ceiling $\le$\,10\%), then by absolute day-distance to the window midpoint, with ties broken by item\_id (deterministic). If no candidate covers the chip fully, we drop the (patch, window) target; partial-coverage scenes are not stitched.
+
+We use scene-level cloud cover during search because UDM2 is only available after asset activation. After extraction, we compute patch-level UDM2 quality and resample cloudy patches from alternate same-season scenes when a better candidate exists (\Cref{sec:quality}).
 
 \subsection{Labels}
 \label{sec:labels}
@@ -169,7 +171,11 @@ neighbours --- exactly the failure that higher resolution is meant to
 fix. We therefore lead with four metrics defined on \emph{vectorized
 parcels}, all computed on the field-interior class, so that ``did we
 recover this small field as a usable polygon?'' is the question being
-scored (\Cref{fig:metric_example}):
+scored (\Cref{fig:metric_example}). We report four rather than one
+because parcel quality fails in distinct ways --- a field can go
+undetected, be detected but poorly shaped, or be well-shaped yet
+mislocated at its edges --- and any single scalar hides which failure
+occurred:
 \begin{itemize}
 \itemsep0em
   \item \textbf{Object F1 at IoU\,$=\,0.5$} --- \emph{did we find the right
