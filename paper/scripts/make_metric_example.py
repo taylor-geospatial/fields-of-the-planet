@@ -121,7 +121,8 @@ def main() -> int:
     ap.add_argument("--ckpt", type=Path, default=REPO / "logs/best_checkpoints/planet_efnet3_augmax_full_best.ckpt")
     ap.add_argument("--root", type=str, default=str(REPO / "data"))
     ap.add_argument("--country", type=str, default="croatia")
-    ap.add_argument("--max-patches", type=int, default=30)
+    ap.add_argument("--max-patches", type=int, default=80)
+    ap.add_argument("--n-show", type=int, default=3)
     ap.add_argument("--out", type=Path, default=REPO / "paper/figs/metric_example.pdf")
     args = ap.parse_args()
 
@@ -134,7 +135,7 @@ def main() -> int:
         root=args.root, countries=[args.country], split="test", transforms=None, load_boundaries=True
     )
 
-    best = None
+    cands = []
     for idx in range(min(args.max_patches, len(ds))):
         sample = ds[idx]
         image = sample["image"].unsqueeze(0).float() / PLANET_SR_SCALE
@@ -155,52 +156,61 @@ def main() -> int:
         rgb = image[0, [2, 1, 0]].cpu().numpy()[:, :H, :W] * PLANET_SR_SCALE
         rgb = np.clip(np.transpose(rgb, (1, 2, 0)) / NORM_DIVISOR, 0, 1)
 
-        # Illustrative: enough fields to be interesting, mid-range recognition.
-        if not (6 <= met["n_gt"] <= 30):
+        # Need enough fields to be interesting and a finite boundary error.
+        if not (8 <= met["n_gt"] <= 30) or not np.isfinite(met["bnd_m"]):
             continue
-        score = -abs(met["objf1"] - 0.55)
-        if best is None or score > best["score"]:
-            best = {"idx": idx, "score": score, "rgb": rgb, "gt": gt_np, "met": met}
-            print(f"  cand idx={idx} n_gt={met['n_gt']} objf1={met['objf1']:.3f} pq={met['pq']:.3f}")
+        cands.append({"idx": idx, "rgb": rgb, "gt": gt_np, "met": met})
+        print(f"  cand idx={idx} n_gt={met['n_gt']} objf1={met['objf1']:.3f} pq={met['pq']:.3f}")
 
-    if best is None:
-        raise SystemExit(f"no illustrative patch found in first {args.max_patches} of {args.country}")
+    n_show = args.n_show
+    if len(cands) < n_show:
+        raise SystemExit(f"only {len(cands)} candidates in first {args.max_patches} of {args.country}")
 
-    met = best["met"]
-    gt_inst = gt_instances(best["gt"], field_class=1)
+    # Pick patches spanning the recognition range (a strong, a middling, and a
+    # harder case) so the figure shows how the metrics move with quality.
+    cands.sort(key=lambda c: c["met"]["objf1"])
+    quantiles = np.linspace(0.85, 0.2, n_show)  # high -> low obj F1
+    picks = [cands[int(round(q * (len(cands) - 1)))] for q in quantiles]
 
-    fig, axes = plt.subplots(1, 4, figsize=(10.5, 2.9), gridspec_kw={"width_ratios": [1, 1, 1, 0.95]})
-    axes[0].imshow(best["rgb"])
-    axes[0].set_title("PlanetScope (3 m)", fontsize=10, color=tg_style.BROWN, pad=3)
-    axes[0].set_xticks([])
-    axes[0].set_yticks([])
-    show_instances(axes[1], gt_inst, "Ground-truth fields")
-    show_instances(axes[2], met["inst_pred"], "Predicted fields (PRUE-FTP-B3)")
+    fig, axes = plt.subplots(
+        n_show, 4, figsize=(10.5, 2.85 * n_show), gridspec_kw={"width_ratios": [1, 1, 1, 0.95]}
+    )
+    if n_show == 1:
+        axes = axes.reshape(1, -1)
+    for r, pick in enumerate(picks):
+        met = pick["met"]
+        gt_inst = gt_instances(pick["gt"], field_class=1)
+        axes[r, 0].imshow(pick["rgb"])
+        axes[r, 0].set_xticks([])
+        axes[r, 0].set_yticks([])
+        show_instances(axes[r, 1], gt_inst, "Ground-truth fields" if r == 0 else "")
+        show_instances(axes[r, 2], met["inst_pred"], "Predicted fields" if r == 0 else "")
+        if r == 0:
+            axes[r, 0].set_title("PlanetScope (3 m)", fontsize=10, color=tg_style.BROWN, pad=3)
 
-    axes[3].axis("off")
-    rows = [
-        ("Object F1 @ 0.5 IoU", f"{met['objf1']:.3f}"),
-        ("PQ  (= SQ x RQ)", f"{met['pq']:.3f}"),
-        ("   SQ (mean matched IoU)", f"{met['sq']:.3f}"),
-        ("   RQ (recognition)", f"{met['rq']:.3f}"),
-        (r"F1 [.5:.95]", f"{met['ap']:.3f}"),
-        ("Boundary chamfer", f"{met['bnd_m']:.1f} m"),
-        ("|N_pred - N_gt|", f"{met['dN']}  ({met['n_pred']} vs {met['n_gt']})"),
-        ("Pixel IoU (field)", f"{met['pix_iou']:.3f}"),
-    ]
-    y = 0.94
-    axes[3].text(0.0, y, "Per-patch metrics", fontsize=10, weight="bold", color=tg_style.BROWN, transform=axes[3].transAxes)
-    y -= 0.13
-    for name, val in rows:
-        axes[3].text(0.0, y, name, fontsize=8.5, color=tg_style.BROWN, transform=axes[3].transAxes)
-        axes[3].text(1.0, y, val, fontsize=8.5, ha="right", color=tg_style.BROWN, transform=axes[3].transAxes)
-        y -= 0.105
+        axes[r, 3].axis("off")
+        rows = [
+            ("Object F1 @ 0.5 IoU", f"{met['objf1']:.3f}"),
+            ("PQ  (= SQ x RQ)", f"{met['pq']:.3f}"),
+            ("   SQ (mean matched IoU)", f"{met['sq']:.3f}"),
+            ("   RQ (recognition)", f"{met['rq']:.3f}"),
+            ("F1 [.5:.95]", f"{met['ap']:.3f}"),
+            ("Boundary chamfer", f"{met['bnd_m']:.1f} m"),
+            ("|N_pred - N_gt|", f"{met['dN']}  ({met['n_pred']} vs {met['n_gt']})"),
+            ("Pixel IoU (field)", f"{met['pix_iou']:.3f}"),
+        ]
+        y = 0.97
+        for name, val in rows:
+            axes[r, 3].text(0.0, y, name, fontsize=8.5, color=tg_style.BROWN, transform=axes[r, 3].transAxes)
+            axes[r, 3].text(1.0, y, val, fontsize=8.5, ha="right", color=tg_style.BROWN, transform=axes[r, 3].transAxes)
+            y -= 0.118
 
-    fig.tight_layout(pad=0.4, w_pad=0.6)
+    fig.tight_layout(pad=0.4, w_pad=0.6, h_pad=0.8)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=300, bbox_inches="tight")
-    print(f"wrote {args.out}  (idx={best['idx']}, country={args.country})")
-    print({k: (round(v, 3) if isinstance(v, float) else v) for k, v in met.items() if k != "inst_pred"})
+    print(f"wrote {args.out}  (country={args.country}, idxs={[p['idx'] for p in picks]})")
+    for p in picks:
+        print({k: (round(v, 3) if isinstance(v, float) else v) for k, v in p["met"].items() if k != "inst_pred"})
     return 0
 
 

@@ -371,16 +371,20 @@ and a mean symmetric boundary chamfer in \emph{meters}.
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figs/metric_example.pdf}
-    \caption{\textbf{The polygon metrics on a worked example.} A single
-    dense-smallholder PlanetScope patch: input image, ground-truth field
-    instances, and the PRUE-FTP-B3 \emph{augmax} prediction (each color is a
-    distinct field instance). The panel lists the per-patch metrics so their
-    behaviour is concrete: object F1 at IoU\,$=\,0.5$ rewards each field that
-    is matched as a whole parcel, PQ\,$=$\,SQ$\times$RQ factors that into how
-    many fields are found (RQ) and how tightly the matched ones overlap (SQ),
-    and the boundary chamfer reports the mean edge displacement in meters. A
-    high pixel IoU on this patch would not distinguish the merged-parcel
-    failure that the object metrics penalize.}
+    \caption{\textbf{The polygon metrics on worked examples.} Three
+    dense-smallholder held-out PlanetScope patches spanning a range of
+    recognition quality (top to bottom). Each row shows the input image,
+    ground-truth field instances, and the PRUE-FTP-B3 \emph{augmax}
+    prediction (each color is a distinct field instance), with the per-patch
+    metrics listed at right. The metrics make the failure modes concrete:
+    object F1 at IoU\,$=\,0.5$ rewards each field matched as a whole parcel,
+    PQ\,$=$\,SQ$\times$RQ factors that into how many fields are found (RQ) and
+    how tightly the matched ones overlap (SQ), and the boundary chamfer
+    reports the mean edge displacement in meters. The divergence we care
+    about is visible in the top row: pixel IoU is a healthy $0.81$ while
+    object F1 is only $0.58$, because several adjacent parcels are merged
+    into one region --- a failure pixel IoU cannot see but the object metrics
+    penalize directly.}
     \label{fig:metric_example}
 \end{figure}
 
