@@ -34,7 +34,6 @@ from polygon_metrics_eval import (  # noqa: E402
 from postprocess_eval import (  # noqa: E402
     _pad_min32,
     _predict_tta,
-    gt_instances,
     watershed_instances,
 )
 
@@ -50,11 +49,12 @@ def _f1(tps: int, fps: int, fns: int) -> float:
     return (2 * p * r / (p + r)) if (p + r) else 0.0
 
 
-def patch_metrics(seg_np: np.ndarray, gt_np: np.ndarray, dist: np.ndarray, gsd_m: float) -> dict:
-    """Per-patch PQ/SQ/RQ/AP/chamfer/|dN|/pixel-IoU on the field class."""
-    inst_pred = watershed_instances(seg_np, dist, h_min=2.0, field_class=1)
-    pred_bin = (inst_pred > 0).astype(np.uint8)
-    gt_bin = (gt_np == 1).astype(np.uint8)
+def polys_and_metrics(gt_bin: np.ndarray, pred_bin: np.ndarray, gsd_m: float) -> dict:
+    """Vectorize the GT and predicted field masks into polygons (the same
+    ``rasterio.features.shapes`` -> shapely step the eval uses), match them by
+    IoU, and return the polygons + the per-patch metrics. ``tp_js`` is the set
+    of predicted-polygon indices matched to a GT polygon at IoU >= 0.5."""
+    import rasterio.features
 
     gt_shapes = _extract_shapes(gt_bin)
     pred_shapes = _extract_shapes(pred_bin)
@@ -63,15 +63,13 @@ def patch_metrics(seg_np: np.ndarray, gt_np: np.ndarray, dist: np.ndarray, gsd_m
     t05 = AP_IOU_THRESHOLDS[0]
     tps, fps, fns = m["per_t"][t05]
     rq = _f1(tps, fps, fns)
-    matched_ious = [iou for _, _, iou in m["matched_pairs_low"]]
-    sq = float(np.mean(matched_ious)) if matched_ious else 0.0
+    matched = m["matched_pairs_low"]
+    sq = float(np.mean([iou for _, _, iou in matched])) if matched else 0.0
     pq = sq * rq
     ap = float(np.mean([_f1(*m["per_t"][t]) for t in AP_IOU_THRESHOLDS]))
 
     chamfers = []
-    import rasterio.features
-
-    for i, j, _ in m["matched_pairs_low"]:
+    for i, j, _ in matched:
         pb = _boundary_pixels(
             rasterio.features.rasterize([pred_shapes[j]], out_shape=pred_bin.shape, dtype=np.uint8)
         )
@@ -88,6 +86,9 @@ def patch_metrics(seg_np: np.ndarray, gt_np: np.ndarray, dist: np.ndarray, gsd_m
     pix_iou = inter / union if union else 0.0
 
     return {
+        "gt_shapes": gt_shapes,
+        "pred_shapes": pred_shapes,
+        "tp_js": {j for _, j, _ in matched},
         "n_gt": len(gt_shapes),
         "n_pred": len(pred_shapes),
         "objf1": rq,
@@ -98,8 +99,18 @@ def patch_metrics(seg_np: np.ndarray, gt_np: np.ndarray, dist: np.ndarray, gsd_m
         "bnd_m": bnd_m,
         "dN": abs(len(pred_shapes) - len(gt_shapes)),
         "pix_iou": pix_iou,
-        "inst_pred": inst_pred,
     }
+
+
+def patch_metrics(seg_np: np.ndarray, gt_np: np.ndarray, dist: np.ndarray, gsd_m: float) -> dict:
+    """Per-patch metrics on the field class, plus the watershed instance raster
+    and GT field coverage (used to pick densely-tiled patches)."""
+    inst_pred = watershed_instances(seg_np, dist, h_min=2.0, field_class=1)
+    res = polys_and_metrics((gt_np == 1).astype(np.uint8), (inst_pred > 0).astype(np.uint8), gsd_m)
+    valid = int((gt_np != 3).sum())
+    res["coverage"] = int((gt_np == 1).sum()) / valid if valid else 0.0
+    res["inst_pred"] = inst_pred
+    return res
 
 
 def _square_crop(arr: np.ndarray) -> np.ndarray:
@@ -116,7 +127,10 @@ def _inst_cmap(n: int, seed: int = 0) -> mpl.colors.ListedColormap:
     rng = np.random.default_rng(seed)
     cols = base[rng.integers(0, 20, size=max(n, 1))]
     cols = np.clip(cols + rng.uniform(-0.08, 0.08, cols.shape), 0, 1)
-    return mpl.colors.ListedColormap(np.vstack([[1, 1, 1], cols]))
+    # Background (label 0) is a soft ivory, not stark white, so any non-field
+    # area recedes instead of punching holes in the panel.
+    bg = np.array(mpl.colors.to_rgb(tg_style.IVORY))
+    return mpl.colors.ListedColormap(np.vstack([bg, cols]))
 
 
 def show_instances(ax, inst: np.ndarray, title: str) -> None:
@@ -124,9 +138,34 @@ def show_instances(ax, inst: np.ndarray, title: str) -> None:
     remap = np.zeros(inst.max() + 1, dtype=np.int32)
     remap[1:] = np.arange(1, n + 1)
     ax.imshow(remap[inst], cmap=_inst_cmap(n, seed=n), interpolation="nearest")
-    ax.set_title(title, fontsize=6.5, color=tg_style.BROWN, pad=2)
+    ax.set_title(title, fontsize=6.2, color=tg_style.BROWN, pad=1.5)
     ax.set_xticks([])
     ax.set_yticks([])
+
+
+def plot_polygons(ax, res: dict, size: int, title: str) -> None:
+    """Draw the vectorized polygons: GT as thin gray outlines, predicted
+    polygons filled by match status (green = TP matched to a GT parcel,
+    red = FP unmatched). This is the geopandas representation the object
+    metrics are actually computed on."""
+    import geopandas as gpd
+
+    if res["gt_shapes"]:
+        gpd.GeoSeries(res["gt_shapes"]).boundary.plot(ax=ax, color="0.35", linewidth=0.5)
+    tp = [s for j, s in enumerate(res["pred_shapes"]) if j in res["tp_js"]]
+    fp = [s for j, s in enumerate(res["pred_shapes"]) if j not in res["tp_js"]]
+    if tp:
+        gpd.GeoSeries(tp).plot(ax=ax, facecolor=tg_style.GREEN_INK, edgecolor="#2f5d23", linewidth=0.5, alpha=0.6)
+    if fp:
+        gpd.GeoSeries(fp).plot(ax=ax, facecolor=tg_style.RED, edgecolor="#7d2414", linewidth=0.5, alpha=0.6)
+    ax.set_xlim(0, size)
+    ax.set_ylim(size, 0)
+    ax.set_aspect("equal")
+    ax.set_title(title, fontsize=6.2, color=tg_style.BROWN, pad=1.5)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.4)
 
 
 def main() -> int:
@@ -134,7 +173,7 @@ def main() -> int:
     ap.add_argument("--ckpt", type=Path, default=REPO / "logs/best_checkpoints/planet_efnet3_augmax_full_best.ckpt")
     ap.add_argument("--root", type=str, default=str(REPO / "data"))
     ap.add_argument("--country", type=str, default="croatia")
-    ap.add_argument("--max-patches", type=int, default=80)
+    ap.add_argument("--max-patches", type=int, default=140)
     ap.add_argument("--n-show", type=int, default=2)
     ap.add_argument(
         "--idxs",
@@ -144,6 +183,12 @@ def main() -> int:
         help="Explicit patch indices to show (in order). Overrides quantile pick.",
     )
     ap.add_argument("--out", type=Path, default=REPO / "paper/figs/metric_example.pdf")
+    ap.add_argument(
+        "--min-coverage",
+        type=float,
+        default=0.55,
+        help="Min GT field-interior fraction; keeps panels densely tiled (no voids).",
+    )
     args = ap.parse_args()
 
     task = CustomSemanticSegmentationTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
@@ -176,11 +221,15 @@ def main() -> int:
         rgb = image[0, [2, 1, 0]].cpu().numpy()[:, :H, :W] * PLANET_SR_SCALE
         rgb = np.clip(np.transpose(rgb, (1, 2, 0)) / NORM_DIVISOR, 0, 1)
 
-        # Need enough fields to be interesting and a finite boundary error.
-        if not (8 <= met["n_gt"] <= 30) or not np.isfinite(met["bnd_m"]):
+        # Need enough fields and a finite boundary error. No upper n_gt cap:
+        # the densest (best-looking) patches have the most parcels.
+        if met["n_gt"] < 8 or not np.isfinite(met["bnd_m"]):
             continue
         cands.append({"idx": idx, "rgb": rgb, "gt": gt_np, "met": met})
-        print(f"  cand idx={idx} n_gt={met['n_gt']} objf1={met['objf1']:.3f} pq={met['pq']:.3f}")
+        print(
+            f"  cand idx={idx} n_gt={met['n_gt']} cov={met['coverage']:.2f} "
+            f"objf1={met['objf1']:.3f} pq={met['pq']:.3f}"
+        )
 
     n_show = args.n_show
     if len(cands) < n_show:
@@ -196,47 +245,92 @@ def main() -> int:
             raise SystemExit(f"requested idxs not among candidates: {missing}")
         picks = [by_idx[i] for i in args.idxs]
     else:
-        cands.sort(key=lambda c: c["met"]["objf1"])
-        quantiles = np.linspace(0.85, 0.45, n_show)  # high -> mid obj F1
-        picks = [cands[round(q * (len(cands) - 1))] for q in quantiles]
+        # Only densely-tiled patches (no forest voids), then take the strongest
+        # and the weakest of those for a clear, full-panel quality contrast.
+        dense = sorted(
+            (c for c in cands if c["met"]["coverage"] >= args.min_coverage),
+            key=lambda c: c["met"]["objf1"],
+        )
+        if len(dense) < n_show:
+            raise SystemExit(
+                f"only {len(dense)} patches with coverage>={args.min_coverage}; "
+                f"lower --min-coverage or raise --max-patches"
+            )
+        picks = [dense[-1], dense[0]] if n_show == 2 else dense[:: max(1, len(dense) // n_show)][:n_show]
+        print(f"  selected idxs={[p['idx'] for p in picks]} "
+              f"cov={[round(p['met']['coverage'],2) for p in picks]} "
+              f"objf1={[round(p['met']['objf1'],2) for p in picks]}")
 
-    # Single-column figure: author at column width with small fonts and
-    # square-cropped panels so it reads tight, not sparse.
-    fig, axes = plt.subplots(
-        n_show, 4, figsize=(3.4, 0.92 * n_show + 0.18), gridspec_kw={"width_ratios": [1, 1, 1, 1.25]}
+    # Single-column figure. Per row: PlanetScope image, the predicted raster
+    # field mask, and that mask vectorized into polygons (geopandas) matched to
+    # GT -- so the reader sees the raster->polygon step the metrics run on. One
+    # bordered metrics table spans both rows. Polygons + table are recomputed on
+    # the displayed square crop so image, mask, polygons, and numbers all agree.
+    titles = ["PlanetScope", "Pred mask", "Polygons (TP/FP)"]
+    fig = plt.figure(figsize=(3.5, 0.82 * n_show + 0.14))
+    gs = fig.add_gridspec(
+        n_show, 4, width_ratios=[1, 1, 1, 1.55],
+        wspace=0.04, hspace=0.04, left=0.004, right=0.996, top=0.86, bottom=0.02,
     )
-    if n_show == 1:
-        axes = axes.reshape(1, -1)
+    row_res = []
     for r, pick in enumerate(picks):
-        met = pick["met"]
-        rgb = _square_crop(pick["rgb"])
-        gt_inst = _square_crop(gt_instances(pick["gt"], field_class=1))
-        pred_inst = _square_crop(met["inst_pred"])
-        axes[r, 0].imshow(rgb)
-        axes[r, 0].set_xticks([])
-        axes[r, 0].set_yticks([])
-        show_instances(axes[r, 1], gt_inst, "GT fields" if r == 0 else "")
-        show_instances(axes[r, 2], pred_inst, "Prediction" if r == 0 else "")
+        inst_c = _square_crop(pick["met"]["inst_pred"])
+        gt_bin_c = _square_crop((pick["gt"] == 1).astype(np.uint8))
+        pred_bin_c = (inst_c > 0).astype(np.uint8)
+        size = gt_bin_c.shape[0]
+        res = polys_and_metrics(gt_bin_c, pred_bin_c, gsd_m)
+        row_res.append(res)
+
+        ax0 = fig.add_subplot(gs[r, 0])
+        ax0.imshow(_square_crop(pick["rgb"]))
+        ax0.set_xticks([])
+        ax0.set_yticks([])
         if r == 0:
-            axes[r, 0].set_title("PlanetScope", fontsize=6.5, color=tg_style.BROWN, pad=2)
+            ax0.set_title(titles[0], fontsize=6.2, color=tg_style.BROWN, pad=1.5)
+        show_instances(fig.add_subplot(gs[r, 1]), inst_c, titles[1] if r == 0 else "")
+        plot_polygons(fig.add_subplot(gs[r, 2]), res, size, titles[2] if r == 0 else "")
 
-        axes[r, 3].axis("off")
-        rows = [
-            ("Obj F1$_{.5}$", f"{met['objf1']:.2f}"),
-            ("PQ", f"{met['pq']:.2f}"),
-            ("SQ$\\cdot$RQ", f"{met['sq']:.2f}$\\cdot${met['rq']:.2f}"),
-            ("F1$_{.5:.95}$", f"{met['ap']:.2f}"),
-            ("chamfer", f"{met['bnd_m']:.0f} m"),
-            ("$|\\Delta N|$", f"{met['dN']}"),
-            ("pixel IoU", f"{met['pix_iou']:.2f}"),
-        ]
-        y = 0.98
-        for name, val in rows:
-            axes[r, 3].text(0.02, y, name, fontsize=5.2, va="top", color=tg_style.BROWN, transform=axes[r, 3].transAxes)
-            axes[r, 3].text(1.0, y, val, fontsize=5.2, va="top", ha="right", color=tg_style.BROWN, transform=axes[r, 3].transAxes)
-            y -= 0.142
+    # Bordered metrics table (rows = metrics, one value column per example).
+    metric_rows = [
+        ("Obj F1@.5", "objf1", "{:.2f}"),
+        ("PQ", "pq", "{:.2f}"),
+        ("SQ", "sq", "{:.2f}"),
+        ("RQ", "rq", "{:.2f}"),
+        ("F1 .5:.95", "ap", "{:.2f}"),
+        ("chamfer m", "bnd_m", "{:.0f}"),
+        ("|dN|", "dN", "{:d}"),
+        ("pixel IoU", "pix_iou", "{:.2f}"),
+    ]
 
-    fig.tight_layout(pad=0.15, w_pad=0.25, h_pad=0.3)
+    def _fmt(value: float, spec: str) -> str:
+        return spec.format(int(value)) if spec == "{:d}" else spec.format(value)
+
+    cell_text = [[_fmt(res[key], spec) for res in row_res] for (_, key, spec) in metric_rows]
+    row_labels = [name for name, _, _ in metric_rows]
+    col_labels = (["top", "bot"] if n_show == 2 else [f"#{i + 1}" for i in range(n_show)])[:n_show]
+
+    ax_t = fig.add_subplot(gs[:, 3])
+    ax_t.axis("off")
+    tbl = ax_t.table(
+        cellText=cell_text,
+        rowLabels=row_labels,
+        colLabels=col_labels,
+        cellLoc="center",
+        rowLoc="left",
+        loc="center",
+        bbox=[0.42, 0.0, 0.58, 1.0],
+    )
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(5.3)
+    for (rr, cc), cell in tbl.get_celld().items():
+        cell.set_edgecolor("#cfc8b8")
+        cell.set_linewidth(0.4)
+        cell.get_text().set_color(tg_style.BROWN)
+        if rr == 0:
+            cell.set_facecolor("#efece0")
+        if cc == -1:  # row-label column
+            cell.get_text().set_ha("left")
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=300, bbox_inches="tight")
     print(f"wrote {args.out}  (country={args.country}, idxs={[p['idx'] for p in picks]})")

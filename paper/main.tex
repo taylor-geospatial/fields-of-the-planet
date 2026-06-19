@@ -372,19 +372,21 @@ and a mean symmetric boundary chamfer in \emph{meters}.
     \centering
     \includegraphics[width=\linewidth]{figs/metric_example.pdf}
     \caption{\textbf{The polygon metrics on worked examples.} Two
-    dense-smallholder held-out PlanetScope patches, a stronger (top) and a
-    harder (bottom) case. Each row shows the input image, ground-truth field
-    instances, and the PRUE-FTP-B3 \emph{augmax} prediction (each color is a
-    distinct field instance), with the per-patch metrics at right. The metrics
-    make the failure modes concrete:
-    object F1 at IoU\,$=\,0.5$ rewards each field matched as a whole parcel,
-    PQ\,$=$\,SQ$\times$RQ factors that into how many fields are found (RQ) and
-    how tightly the matched ones overlap (SQ), and the boundary chamfer
-    reports the mean edge displacement in meters. The divergence we care
-    about is visible in the top row: pixel IoU is a healthy $0.81$ while
-    object F1 is only $0.58$, because several adjacent parcels are merged
-    into one region --- a failure pixel IoU cannot see but the object metrics
-    penalize directly.}
+    dense-smallholder held-out PlanetScope patches, a strong case (top) and a
+    hard one (bottom). Left to right: the PlanetScope image, the PRUE-FTP-B3
+    \emph{augmax} predicted field mask, and that mask vectorized into polygons
+    and matched to the ground-truth parcels by IoU --- the same raster-to-vector
+    step the evaluation runs on. Green polygons are matched to a GT parcel
+    (true positives), red are unmatched (false positives), and gray outlines
+    are the GT parcels; the table lists the per-patch metrics. Object F1 at
+    IoU\,$=\,0.5$ rewards each field matched as a whole parcel,
+    PQ\,$=$\,SQ$\times$RQ factors that into how many parcels are found (RQ) and
+    how tightly the matched ones overlap (SQ), and the boundary chamfer is the
+    mean edge displacement in meters. The bottom row is the divergence we care
+    about: pixel IoU is still $0.72$ while object F1 collapses to $0.27$,
+    because the model fragments the dense parcels into many unmatched polygons
+    (red) even though the bulk field area is roughly right --- a failure pixel
+    IoU cannot see but the object metrics penalize directly.}
     \label{fig:metric_example}
 \end{figure}
 
