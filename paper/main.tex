@@ -420,7 +420,16 @@ misleading. We therefore report pixel IoU only in the protocol-comparison
 table and use polygon metrics for the main claims. A controlled
 re-gridding check shows that re-projecting Planet predictions to the
 $10$m S2 grid changes macro pixel IoU by $<0.001$
-(\Cref{tab:gsd_controlled}, appendix).
+(\Cref{tab:gsd_controlled}, appendix). A complementary input-side
+control points the same way: retraining the S2 model on imagery
+upsampled to PlanetScope's $3$m grid recovers $\sim$45\% of its
+object-F1 / PQ gap to PlanetScope and matches Planet's SQ, yet its
+boundary chamfer does \emph{not} improve --- it degrades to $28.0$m,
+versus $7.4$m for native PlanetScope (\Cref{tab:upsampled_s2},
+appendix). Output-grid resolution can inflate the object-detection
+scores, but only genuine higher-resolution imagery delivers
+meter-scale boundary precision --- which is why we report the chamfer
+alongside the object metrics.
 
 \paragraph{What the metrics are computed on.} All object metrics are
 computed on the field-interior class after vectorization: predicted and
@@ -819,6 +828,60 @@ artifact, not a model property.
     Planet B3 augmax full & $10$m (NN-reprojected)     & $0.677$ \\
     S2 B7 augmax full     & $10$m (native)             & $0.654$ \\
     S2 B7 augmax full     & $3$m (NN-reprojected)      & $0.630$ \\
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Upsampled-Sentinel-2 control}
+\label{app:upsampled_s2}
+
+The re-gridding check in \Cref{app:gsd_controlled} moves a fixed model's
+predictions across grids; this is the complementary \emph{input-side}
+control. We retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery
+bilinearly upsampled to PlanetScope's $512\times512$ ($3$m) grid --- identical
+\emph{augmax} recipe, same field of view, no new image information --- and
+score it through the full polygon pipeline (\Cref{tab:upsampled_s2}). Giving
+the S2 model the finer output grid recovers roughly $45\%$ of its PQ and
+object-F1 gap to native PlanetScope and brings segmentation quality to
+near-parity ($0.775$ vs $0.779$): for the parcels it matches, the overlap is
+as good as $3$m imagery.
+
+Boundary precision tells the opposite story. The mean symmetric chamfer does
+not improve --- it \emph{worsens} from $17.5$m to $28.0$m, against $7.4$m for
+native PlanetScope --- even though the upsampled predictions are scored on a
+finer $3$m grid that could in principle localize edges more precisely.
+Upsampling lets the model detect and loosely overlap more small fields, but
+their boundaries are interpolated from $10$m content and wobble; only genuine
+$3$m imagery recovers meter-scale boundary accuracy. The absolute chamfer is
+inflated by large-field countries (e.g.\ South Africa $44$m, Germany $39$m),
+but the direction --- worse than native S2 despite a finer scoring grid --- is
+unambiguous. This is direct evidence that object F1 / PQ are partly sensitive
+to output-grid resolution while the boundary chamfer is not, and motivates
+reporting both. (Training was stopped at $77/100$ epochs on a converged
+val-loss plateau; we evaluate its best-val/loss checkpoint, matching the
+protocol used for every other row.)
+
+\begin{table}[h]
+    \centering
+    \small
+    \caption{\textbf{Upsampled-Sentinel-2 control.} Full polygon metrics on the
+    10-country dense held-out set (presence-only Kenya excluded), WS\,+\,TTA, B3
+    \emph{augmax} full recipe. Upsampling S2 to PlanetScope's $3$m grid recovers
+    much of the object-level gap (PQ, RQ, and especially SQ) but does not recover
+    --- indeed worsens --- the meter-scale boundary error, which only native
+    PlanetScope brings down. Native-S2 and native-Planet rows are reproduced from
+    \Cref{tab:polygon_metrics}.}
+    \label{tab:upsampled_s2}
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{lcccccc}
+    \toprule
+    & & & & & \multicolumn{2}{c}{Bd.\ err (m)} \\
+    \cmidrule(lr){6-7}
+    Imagery (grid) & PQ & SQ & RQ & F1$_{[.5:.95]}$ & mean & p95 \\
+    \midrule
+    S2 ($256$, native)        & $0.271$ & $0.684$ & $0.349$ & $0.210$ & $17.5$ & $53.5$ \\
+    S2 ($512$, upsampled)     & $0.315$ & $0.775$ & $0.395$ & $0.255$ & $28.0$ & $90.0$ \\
+    Planet ($512$, native)    & $\mathbf{0.360}$ & $\mathbf{0.779}$ & $\mathbf{0.452}$ & $\mathbf{0.291}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
     \bottomrule
     \end{tabular}
 \end{table}

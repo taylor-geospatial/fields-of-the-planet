@@ -21,10 +21,13 @@ cd "$SLURM_SUBMIT_DIR"
 mkdir -p logs/polygon_metrics
 
 CKPT_DIR="logs/prue/ftw_s2-unet-efnet3-crop512-upsampled-v3-augmax-full"
-# Prefer last.ckpt; fall back to the best (lowest val/loss) epoch checkpoint.
-CKPT="$(find "$CKPT_DIR" -name 'last.ckpt' -print 2>/dev/null | head -1)"
+# Match the Table 3 protocol: evaluate the best-val/loss checkpoint (the run
+# uses ModelCheckpoint monitor=val/loss, save_top_k=1), NOT last.ckpt. The
+# 'val/loss' in the filename creates a subdir, so the file is the lone non-last
+# '*.ckpt'. Fall back to last.ckpt only if that is somehow absent.
+CKPT="$(find "$CKPT_DIR" -name '*.ckpt' ! -name 'last.ckpt' -print 2>/dev/null | head -1)"
 if [ -z "$CKPT" ]; then
-    CKPT="$(find "$CKPT_DIR" -name '*.ckpt' -print 2>/dev/null | sort | tail -1)"
+    CKPT="$(find "$CKPT_DIR" -name 'last.ckpt' -print 2>/dev/null | head -1)"
 fi
 if [ -z "$CKPT" ]; then
     echo "ERROR: no checkpoint found under $CKPT_DIR" >&2
