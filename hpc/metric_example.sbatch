@@ -19,7 +19,7 @@ mkdir -p logs
 
 COUNTRY="${COUNTRY:-croatia}"
 
-uv run --no-sync python paper/scripts/make_metric_example.py --country "$COUNTRY"
+uv run --no-sync python paper/scripts/make_metric_example.py --country "$COUNTRY" ${EXTRA:-}
 
 # Light PNG preview for review (negligible cost).
 uv run --no-sync --with pdf2image python -c "

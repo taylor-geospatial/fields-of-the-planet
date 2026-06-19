@@ -371,12 +371,12 @@ and a mean symmetric boundary chamfer in \emph{meters}.
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figs/metric_example.pdf}
-    \caption{\textbf{The polygon metrics on worked examples.} Three
-    dense-smallholder held-out PlanetScope patches spanning a range of
-    recognition quality (top to bottom). Each row shows the input image,
-    ground-truth field instances, and the PRUE-FTP-B3 \emph{augmax}
-    prediction (each color is a distinct field instance), with the per-patch
-    metrics listed at right. The metrics make the failure modes concrete:
+    \caption{\textbf{The polygon metrics on worked examples.} Two
+    dense-smallholder held-out PlanetScope patches, a stronger (top) and a
+    harder (bottom) case. Each row shows the input image, ground-truth field
+    instances, and the PRUE-FTP-B3 \emph{augmax} prediction (each color is a
+    distinct field instance), with the per-patch metrics at right. The metrics
+    make the failure modes concrete:
     object F1 at IoU\,$=\,0.5$ rewards each field matched as a whole parcel,
     PQ\,$=$\,SQ$\times$RQ factors that into how many fields are found (RQ) and
     how tightly the matched ones overlap (SQ), and the boundary chamfer
@@ -460,6 +460,31 @@ adds little and the sharper Planet mask fragments large parcels
 (detailed above). Cambodia is now a modest Planet win ($+2.5$\,pp PQ)
 after accounting for its monsoon-season imagery degradation
 (see \Cref{sec:limitations}).
+
+\paragraph{Where higher resolution helps most.}
+\Cref{fig:improvement} shows the held-out patches with the largest per-patch
+object-F1 gain from Sentinel-2 to PlanetScope under the matched recipe. They
+are uniformly dense smallholder scenes: the 10m model collapses adjacent
+parcels into a few blobs or misses them entirely (per-patch object F1
+$0.08$--$0.31$), while the 3m model recovers the parcel grid (object F1
+$0.69$--$1.00$). This is the qualitative signature of the resolution change ---
+the gain concentrates precisely on the small, tightly-packed fields that are
+sub-resolvable at 10m, which is the regime the dataset is built to serve.
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figs/improvement_examples.pdf}
+    \caption{\textbf{Where the 3m imagery helps most.} The five held-out
+    patches with the largest per-patch object-F1 improvement (PRUE-FTP-B3
+    \emph{augmax} full $-$ S2-augmax-B7 full, both WS+TTA). Columns: Sentinel-2
+    (10m), PlanetScope (3m), ground-truth field instances, the S2-model
+    prediction, and the Planet-model prediction (each color is a distinct field
+    instance). Per-patch object F1 is annotated at left. In every case the S2
+    model leaves large gaps or merges neighbours while the Planet model recovers
+    the dense parcel structure, confirming that the gain is driven by small,
+    closely-spaced fields.}
+    \label{fig:improvement}
+\end{figure*}
 
 \begin{table}[t]
     \centering

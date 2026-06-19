@@ -169,6 +169,49 @@ def _make_crop_transform(size: int, train: bool, pad_mode: str = "zero") -> Call
     return _t
 
 
+def _upsample_sample(sample: dict, size: int) -> dict:
+    """Resize ``image`` (bilinear) and ``mask`` (nearest) to ``size`` x ``size``.
+
+    Used by the resized-S2 control: native 256x256 S2 chips are upsampled to
+    512x512 so the model sees the same field-of-view at a larger pixel grid
+    with **no new information** (bilinear interp adds no detail). Mask uses
+    nearest to keep class labels (0/1/2/3) discrete. ``edge``/``sdf`` are not
+    present on the S2 path, so only image+mask are handled here.
+    """
+    img = sample["image"]
+    msk = sample["mask"]
+    if img.shape[-1] == size and img.shape[-2] == size:
+        return sample
+    sample["image"] = torch.nn.functional.interpolate(
+        img.unsqueeze(0), size=(size, size), mode="bilinear", align_corners=False
+    ).squeeze(0)
+    sample["mask"] = (
+        torch.nn.functional.interpolate(
+            msk.unsqueeze(0).unsqueeze(0).float(), size=(size, size), mode="nearest"
+        )
+        .squeeze(0)
+        .squeeze(0)
+        .to(msk.dtype)
+    )
+    return sample
+
+
+def _make_upsample_crop_transform(
+    size: int, train: bool, upsample_to: int, pad_mode: str = "zero"
+) -> Callable[[dict], dict]:
+    """Upsample the sample to ``upsample_to`` then apply the standard crop.
+
+    The crop at ``size == upsample_to`` is a no-op (no pad, offset 0), but we
+    reuse it so geometry/keys stay identical to the native path.
+    """
+    crop = _make_crop_transform(size, train=train, pad_mode=pad_mode)
+
+    def _t(sample: dict) -> dict:
+        return crop(_upsample_sample(sample, upsample_to))
+
+    return _t
+
+
 class FTWPlanetDataModule(LightningDataModule):
     """LightningDataModule for the PlanetScope ftw-planet dataset."""
 
@@ -221,6 +264,7 @@ class FTWPlanetDataModule(LightningDataModule):
         pad_mode: str = "zero",
         dataset_backend: str = "planet",
         s2_data_scale: float = 3000.0,
+        upsample_to: int | None = None,
         **_: Any,
     ) -> None:
         super().__init__()
@@ -295,6 +339,19 @@ class FTWPlanetDataModule(LightningDataModule):
         if pad_mode not in ("zero", "replicate"):
             raise ValueError(f"pad_mode must be 'zero' or 'replicate', got {pad_mode!r}")
         self.pad_mode = pad_mode
+        # Resized-S2 control: bilinear-upsample image + nearest-upsample mask
+        # to ``upsample_to`` before cropping. Only supported on the S2 backend;
+        # ``crop_size`` should equal ``upsample_to`` so the whole upsampled chip
+        # is used. ``None`` keeps native resolution (default).
+        if upsample_to is not None:
+            if dataset_backend != "s2":
+                raise ValueError("upsample_to is only supported with dataset_backend='s2'")
+            if int(upsample_to) != int(crop_size):
+                raise ValueError(
+                    f"upsample_to ({upsample_to}) must equal crop_size ({crop_size}) "
+                    "so the full upsampled chip is used"
+                )
+        self.upsample_to = int(upsample_to) if upsample_to is not None else None
 
         # Normalization branch: either fixed /``self._data_scale`` or random
         # divisor in [0.5x, 1.5x] of the fixed scale (mirrors FTW PRUE
@@ -399,6 +456,14 @@ class FTWPlanetDataModule(LightningDataModule):
             K.Normalize(mean=self.mean, std=self.std), data_keys=None
         )
 
+    def _crop_transform(self, train: bool) -> Callable[[dict], dict]:
+        """Crop transform, upsampling first when ``upsample_to`` is set."""
+        if self.upsample_to is not None:
+            return _make_upsample_crop_transform(
+                self.crop_size, train=train, upsample_to=self.upsample_to, pad_mode=self.pad_mode
+            )
+        return _make_crop_transform(self.crop_size, train=train, pad_mode=self.pad_mode)
+
     def setup(self, stage: str) -> None:
         ds_ctor: Any
         extra: dict[str, Any]
@@ -431,7 +496,7 @@ class FTWPlanetDataModule(LightningDataModule):
                 root=self.root,
                 countries=self.train_countries,
                 split="train",
-                transforms=_make_crop_transform(self.crop_size, train=True, pad_mode=self.pad_mode),
+                transforms=self._crop_transform(train=True),
                 load_boundaries=self.load_boundaries,
                 **train_extra,
             )
@@ -449,9 +514,7 @@ class FTWPlanetDataModule(LightningDataModule):
                 root=self.root,
                 countries=self.val_countries,
                 split="val",
-                transforms=_make_crop_transform(
-                    self.crop_size, train=False, pad_mode=self.pad_mode
-                ),
+                transforms=self._crop_transform(train=False),
                 load_boundaries=self.load_boundaries,
                 **val_extra,
             )
@@ -468,9 +531,7 @@ class FTWPlanetDataModule(LightningDataModule):
                 root=self.root,
                 countries=self.test_countries,
                 split="test",
-                transforms=_make_crop_transform(
-                    self.crop_size, train=False, pad_mode=self.pad_mode
-                ),
+                transforms=self._crop_transform(train=False),
                 load_boundaries=self.load_boundaries,
                 **test_extra,
             )

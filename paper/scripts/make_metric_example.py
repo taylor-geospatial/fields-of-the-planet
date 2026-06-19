@@ -17,7 +17,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import tg_style
-import torch
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 from scipy.ndimage import distance_transform_edt
 
@@ -32,7 +31,12 @@ from polygon_metrics_eval import (  # noqa: E402
     _match_shapes,
     _symmetric_chamfer,
 )
-from postprocess_eval import _pad_min32, _predict_tta, gt_instances, watershed_instances  # noqa: E402
+from postprocess_eval import (  # noqa: E402
+    _pad_min32,
+    _predict_tta,
+    gt_instances,
+    watershed_instances,
+)
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet  # noqa: E402
 
@@ -98,6 +102,15 @@ def patch_metrics(seg_np: np.ndarray, gt_np: np.ndarray, dist: np.ndarray, gsd_m
     }
 
 
+def _square_crop(arr: np.ndarray) -> np.ndarray:
+    """Center-crop a (H,W[,C]) array to its largest centered square, so figure
+    panels are uniform and tight (no letterbox whitespace)."""
+    h, w = arr.shape[:2]
+    s = min(h, w)
+    top, left = (h - s) // 2, (w - s) // 2
+    return arr[top : top + s, left : left + s]
+
+
 def _inst_cmap(n: int, seed: int = 0) -> mpl.colors.ListedColormap:
     base = plt.get_cmap("tab20")(np.linspace(0, 1, 20))[:, :3]
     rng = np.random.default_rng(seed)
@@ -111,7 +124,7 @@ def show_instances(ax, inst: np.ndarray, title: str) -> None:
     remap = np.zeros(inst.max() + 1, dtype=np.int32)
     remap[1:] = np.arange(1, n + 1)
     ax.imshow(remap[inst], cmap=_inst_cmap(n, seed=n), interpolation="nearest")
-    ax.set_title(title, fontsize=10, color=tg_style.BROWN, pad=3)
+    ax.set_title(title, fontsize=6.5, color=tg_style.BROWN, pad=2)
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -122,7 +135,14 @@ def main() -> int:
     ap.add_argument("--root", type=str, default=str(REPO / "data"))
     ap.add_argument("--country", type=str, default="croatia")
     ap.add_argument("--max-patches", type=int, default=80)
-    ap.add_argument("--n-show", type=int, default=3)
+    ap.add_argument("--n-show", type=int, default=2)
+    ap.add_argument(
+        "--idxs",
+        type=int,
+        nargs="*",
+        default=None,
+        help="Explicit patch indices to show (in order). Overrides quantile pick.",
+    )
     ap.add_argument("--out", type=Path, default=REPO / "paper/figs/metric_example.pdf")
     args = ap.parse_args()
 
@@ -166,46 +186,57 @@ def main() -> int:
     if len(cands) < n_show:
         raise SystemExit(f"only {len(cands)} candidates in first {args.max_patches} of {args.country}")
 
-    # Pick patches spanning the recognition range (a strong, a middling, and a
-    # harder case) so the figure shows how the metrics move with quality.
-    cands.sort(key=lambda c: c["met"]["objf1"])
-    quantiles = np.linspace(0.85, 0.2, n_show)  # high -> low obj F1
-    picks = [cands[int(round(q * (len(cands) - 1)))] for q in quantiles]
+    # Pick patches spanning the recognition range (a strong case and a harder
+    # one) so the figure shows how the metrics move with quality. Explicit
+    # --idxs overrides for a reproducible, hand-picked pair.
+    by_idx = {c["idx"]: c for c in cands}
+    if args.idxs:
+        missing = [i for i in args.idxs if i not in by_idx]
+        if missing:
+            raise SystemExit(f"requested idxs not among candidates: {missing}")
+        picks = [by_idx[i] for i in args.idxs]
+    else:
+        cands.sort(key=lambda c: c["met"]["objf1"])
+        quantiles = np.linspace(0.85, 0.45, n_show)  # high -> mid obj F1
+        picks = [cands[round(q * (len(cands) - 1))] for q in quantiles]
 
+    # Single-column figure: author at column width with small fonts and
+    # square-cropped panels so it reads tight, not sparse.
     fig, axes = plt.subplots(
-        n_show, 4, figsize=(10.5, 2.85 * n_show), gridspec_kw={"width_ratios": [1, 1, 1, 0.95]}
+        n_show, 4, figsize=(3.4, 0.92 * n_show + 0.18), gridspec_kw={"width_ratios": [1, 1, 1, 1.25]}
     )
     if n_show == 1:
         axes = axes.reshape(1, -1)
     for r, pick in enumerate(picks):
         met = pick["met"]
-        gt_inst = gt_instances(pick["gt"], field_class=1)
-        axes[r, 0].imshow(pick["rgb"])
+        rgb = _square_crop(pick["rgb"])
+        gt_inst = _square_crop(gt_instances(pick["gt"], field_class=1))
+        pred_inst = _square_crop(met["inst_pred"])
+        axes[r, 0].imshow(rgb)
         axes[r, 0].set_xticks([])
         axes[r, 0].set_yticks([])
-        show_instances(axes[r, 1], gt_inst, "Ground-truth fields" if r == 0 else "")
-        show_instances(axes[r, 2], met["inst_pred"], "Predicted fields" if r == 0 else "")
+        show_instances(axes[r, 1], gt_inst, "GT fields" if r == 0 else "")
+        show_instances(axes[r, 2], pred_inst, "Prediction" if r == 0 else "")
         if r == 0:
-            axes[r, 0].set_title("PlanetScope (3 m)", fontsize=10, color=tg_style.BROWN, pad=3)
+            axes[r, 0].set_title("PlanetScope", fontsize=6.5, color=tg_style.BROWN, pad=2)
 
         axes[r, 3].axis("off")
         rows = [
-            ("Object F1 @ 0.5 IoU", f"{met['objf1']:.3f}"),
-            ("PQ  (= SQ x RQ)", f"{met['pq']:.3f}"),
-            ("   SQ (mean matched IoU)", f"{met['sq']:.3f}"),
-            ("   RQ (recognition)", f"{met['rq']:.3f}"),
-            ("F1 [.5:.95]", f"{met['ap']:.3f}"),
-            ("Boundary chamfer", f"{met['bnd_m']:.1f} m"),
-            ("|N_pred - N_gt|", f"{met['dN']}  ({met['n_pred']} vs {met['n_gt']})"),
-            ("Pixel IoU (field)", f"{met['pix_iou']:.3f}"),
+            ("Obj F1$_{.5}$", f"{met['objf1']:.2f}"),
+            ("PQ", f"{met['pq']:.2f}"),
+            ("SQ$\\cdot$RQ", f"{met['sq']:.2f}$\\cdot${met['rq']:.2f}"),
+            ("F1$_{.5:.95}$", f"{met['ap']:.2f}"),
+            ("chamfer", f"{met['bnd_m']:.0f} m"),
+            ("$|\\Delta N|$", f"{met['dN']}"),
+            ("pixel IoU", f"{met['pix_iou']:.2f}"),
         ]
-        y = 0.97
+        y = 0.98
         for name, val in rows:
-            axes[r, 3].text(0.0, y, name, fontsize=8.5, color=tg_style.BROWN, transform=axes[r, 3].transAxes)
-            axes[r, 3].text(1.0, y, val, fontsize=8.5, ha="right", color=tg_style.BROWN, transform=axes[r, 3].transAxes)
-            y -= 0.118
+            axes[r, 3].text(0.02, y, name, fontsize=5.2, va="top", color=tg_style.BROWN, transform=axes[r, 3].transAxes)
+            axes[r, 3].text(1.0, y, val, fontsize=5.2, va="top", ha="right", color=tg_style.BROWN, transform=axes[r, 3].transAxes)
+            y -= 0.142
 
-    fig.tight_layout(pad=0.4, w_pad=0.6, h_pad=0.8)
+    fig.tight_layout(pad=0.15, w_pad=0.25, h_pad=0.3)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=300, bbox_inches="tight")
     print(f"wrote {args.out}  (country={args.country}, idxs={[p['idx'] for p in picks]})")

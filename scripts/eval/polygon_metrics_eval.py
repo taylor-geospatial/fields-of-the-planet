@@ -151,6 +151,7 @@ def evaluate_country(
     pad_mode: str,
     dataset_backend: str,
     s2_data_scale: float,
+    upsample_to: int | None,
 ) -> dict[str, float]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -189,6 +190,19 @@ def evaluate_country(
     for batch in tqdm(dl, desc=country, leave=False):
         image = batch["image"].to(device) / scale
         mask = batch["mask"].to(device)
+        if upsample_to is not None:
+            # Resized-S2 control: bilinear-upsample image, nearest-upsample mask
+            # 256->upsample_to to match the upsampled-S2 training resolution.
+            image = torch.nn.functional.interpolate(
+                image, size=(upsample_to, upsample_to), mode="bilinear", align_corners=False
+            )
+            mask = (
+                torch.nn.functional.interpolate(
+                    mask.unsqueeze(1).float(), size=(upsample_to, upsample_to), mode="nearest"
+                )
+                .squeeze(1)
+                .to(mask.dtype)
+            )
         image, mask, H, W = _pad_min32(image, mask, min_size=min_pad_size, pad_mode=pad_mode)
 
         if use_tta:
@@ -301,6 +315,13 @@ def main() -> int:
     p.add_argument("--pad-mode", type=str, default="zero", choices=["zero", "replicate"])
     p.add_argument("--dataset-backend", type=str, default="planet", choices=["planet", "s2"])
     p.add_argument("--s2-data-scale", type=float, default=3000.0)
+    p.add_argument(
+        "--upsample-to",
+        type=int,
+        default=None,
+        help="Resized-S2 control: upsample image (bilinear) + mask (nearest) "
+        "256->N before padding. Use with --dataset-backend s2 and N==min-pad-size.",
+    )
     args = p.parse_args()
 
     device = torch.device(
@@ -375,6 +396,7 @@ def main() -> int:
                 pad_mode=args.pad_mode,
                 dataset_backend=args.dataset_backend,
                 s2_data_scale=args.s2_data_scale,
+                upsample_to=args.upsample_to,
             )
         except Exception as e:
             import traceback
