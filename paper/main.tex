@@ -191,24 +191,30 @@ recover this small field as a usable polygon?'' is the question being
 scored (\Cref{fig:metric_example}):
 \begin{itemize}
 \itemsep0em
-  \item \textbf{Object F1 at IoU\,$=\,0.5$}: a predicted parcel counts as a
-  true positive if it overlaps a ground-truth parcel with IoU\,$\ge\,0.5$;
-  F1 is the harmonic mean of the resulting precision and recall.
+  \item \textbf{Object F1 at IoU\,$=\,0.5$} --- \emph{did we find the right
+  fields?} A predicted parcel counts as a true positive when it overlaps a
+  ground-truth parcel with IoU\,$\ge\,0.5$; F1 is the harmonic mean of the
+  resulting precision (of the parcels we predict, how many are real) and
+  recall (of the real parcels, how many we find).
   \item \textbf{Panoptic quality}~\cite{kirillov2019panoptic}
-  (PQ\,$=$\,SQ$\times$RQ): recognition quality RQ is the object F1 at
-  IoU\,$=\,0.5$, and segmentation quality SQ is the mean IoU of the
-  matched parcels, so PQ cleanly separates ``found the field'' from
-  ``placed it accurately''.
+  (PQ\,$=$\,SQ$\times$RQ) --- \emph{did we find the fields, and are the ones
+  we found the right shape?} Recognition quality RQ is the object F1 above
+  (detection); segmentation quality SQ is the mean IoU of the matched parcels
+  (how tightly each found parcel sits on the true one). Their product
+  separates ``found the field'' from ``placed it accurately''.
   \item \textbf{Object F1 averaged over IoU thresholds}
-  $\{0.5, 0.55, \ldots, 0.95\}$~\cite{lin2014coco}, which rewards tight
-  localization rather than loose detection.
-  \item \textbf{Mean symmetric boundary chamfer}~\cite{cheng2021biou} in
-  meters: the average over predicted boundary pixels of the distance to
-  the nearest ground-truth boundary pixel, symmetrized with the reverse
-  direction. It measures, in physical units, how far a predicted edge
-  sits from the true edge.
+  $\{0.5, 0.55, \ldots, 0.95\}$~\cite{lin2014coco} --- \emph{did we find them
+  precisely, not just roughly?} Raising the required overlap from 0.5 toward
+  0.95 only credits increasingly exact parcels, rewarding tight localization
+  over loose detection.
+  \item \textbf{Mean symmetric boundary chamfer}~\cite{cheng2021biou}, in
+  meters --- \emph{are the field edges in the right place?} The average
+  distance from a predicted parcel boundary to the nearest ground-truth
+  boundary, symmetrized with the reverse direction, in physical units --- so
+  a $3$\,m edge slip reads as $3$\,m regardless of pixel size.
 \end{itemize}
-These reward what downstream pipelines consume. Pixel IoU is secondary:
+Formal, implementation-exact definitions of every metric are given in
+\Cref{app:metrics}. These reward what downstream pipelines consume. Pixel IoU is secondary:
 it is dominated by majority background and conflates boundary localization
 with bulk-area accuracy. We keep pixel IoU only for continuity
 with the released PRUE protocol and make the full case in
@@ -594,6 +600,97 @@ Fields of the Planet (FTP) is a 3m PlanetScope companion to Fields of The World.
 
 \appendix
 \onecolumn
+
+\section{Polygon-metric definitions}
+\label{app:metrics}
+
+All benchmark metrics are computed \emph{after vectorization}, on the
+field-interior class only. This appendix gives the exact definitions
+implemented in our evaluation code, so that every column of
+\Cref{tab:polygon_metrics} is reproducible from this text alone.
+
+\paragraph{Vectorization.}
+For a patch, let the predicted field-interior mask be the set of its
+connected components, each traced to a simple polygon, giving a predicted
+polygon set $\mathcal{P}=\{p_1,\ldots,p_M\}$; the ground-truth polygons form
+$\mathcal{G}=\{g_1,\ldots,g_N\}$. All set operations below use polygon
+\emph{areas} (via exact geometry), not pixel counts.
+
+\paragraph{Polygon IoU and matching.}
+For a ground-truth/prediction pair the intersection-over-union is
+\begin{equation}
+\mathrm{IoU}(g,p)=\frac{\mathrm{area}(g\cap p)}{\mathrm{area}(g\cup p)}
+=\frac{\mathrm{area}(g\cap p)}{\mathrm{area}(g)+\mathrm{area}(p)-\mathrm{area}(g\cap p)}.
+\end{equation}
+At an IoU threshold $\tau$, a prediction is a true positive iff it overlaps a
+ground-truth polygon with $\mathrm{IoU}>\tau$. For $\tau\ge 0.5$ a polygon can
+exceed $\tau$ with at most one polygon of the other set, so the matching
+$\mathcal{M}_\tau\subseteq\mathcal{G}\times\mathcal{P}$ is a well-defined
+partial bijection (greedy and optimal matching coincide). Writing
+$\mathrm{TP}_\tau=|\mathcal{M}_\tau|$, $\mathrm{FP}_\tau=M-\mathrm{TP}_\tau$,
+and $\mathrm{FN}_\tau=N-\mathrm{TP}_\tau$:
+\begin{equation}
+\mathrm{Prec}_\tau=\frac{\mathrm{TP}_\tau}{\mathrm{TP}_\tau+\mathrm{FP}_\tau},\qquad
+\mathrm{Rec}_\tau=\frac{\mathrm{TP}_\tau}{\mathrm{TP}_\tau+\mathrm{FN}_\tau},\qquad
+\mathrm{F1}_\tau=\frac{2\,\mathrm{TP}_\tau}{2\,\mathrm{TP}_\tau+\mathrm{FP}_\tau+\mathrm{FN}_\tau}.
+\end{equation}
+
+\paragraph{Recognition, segmentation, and panoptic quality~\cite{kirillov2019panoptic}.}
+With the match set fixed at $\tau=0.5$,
+\begin{equation}
+\mathrm{RQ}=\mathrm{F1}_{0.5},\qquad
+\mathrm{SQ}=\frac{1}{\mathrm{TP}_{0.5}}\!\!\sum_{(g,p)\in\mathcal{M}_{0.5}}\!\!\mathrm{IoU}(g,p),\qquad
+\mathrm{PQ}=\mathrm{SQ}\times\mathrm{RQ}.
+\end{equation}
+RQ is identically the object F1 at IoU\,$=0.5$ reported elsewhere in the
+paper. Substituting shows this is the original panoptic quality,
+$\mathrm{PQ}=\big(\sum_{(g,p)\in\mathcal{M}_{0.5}}\mathrm{IoU}(g,p)\big)\big/\big(\mathrm{TP}_{0.5}+\tfrac12\mathrm{FP}_{0.5}+\tfrac12\mathrm{FN}_{0.5}\big)$,
+since $\mathrm{F1}_\tau=\mathrm{TP}_\tau/(\mathrm{TP}_\tau+\tfrac12\mathrm{FP}_\tau+\tfrac12\mathrm{FN}_\tau)$.
+
+\paragraph{Threshold-averaged F1.}
+With $\mathcal{T}=\{0.5,0.55,\ldots,0.95\}$ ($|\mathcal{T}|=10$)~\cite{lin2014coco},
+\begin{equation}
+\mathrm{F1}_{[.5:.95]}=\frac{1}{|\mathcal{T}|}\sum_{\tau\in\mathcal{T}}\mathrm{F1}_\tau .
+\end{equation}
+
+\paragraph{Polygon-count error.}
+Per patch we report $|\Delta N_\text{poly}|=|M-N|$, the absolute difference
+between the number of predicted and ground-truth polygons, averaged over
+patches. It is a coarse over/under-segmentation check independent of matching.
+
+\paragraph{Symmetric boundary chamfer~\cite{cheng2021biou}.}
+For each matched pair $(g,p)\in\mathcal{M}_{0.5}$, let $B_g$ and $B_p$ be the
+one-pixel-thick boundary pixel sets of the two polygons. The symmetric
+chamfer distance, in pixels, is
+\begin{equation}
+\mathrm{Ch}(g,p)=\frac{1}{2}\!\left(
+\frac{1}{|B_g|}\sum_{x\in B_g}\min_{y\in B_p}\lVert x-y\rVert_2
+\;+\;
+\frac{1}{|B_p|}\sum_{y\in B_p}\min_{x\in B_g}\lVert y-x\rVert_2
+\right),
+\end{equation}
+where each inner nearest-boundary distance is read from the Euclidean
+distance transform of the opposing boundary. The boundary error in meters is
+$\mathrm{Ch}(g,p)\cdot\text{GSD}$ (GSD\,$=3$\,m for PlanetScope). We report
+its mean and 95th percentile over all matched pairs; pairs with an empty
+boundary on either side are excluded. Only matched pairs contribute, so the
+chamfer scores edge precision for the fields that were found (the same
+scoping as SQ); missed and hallucinated fields are accounted for by RQ.
+
+\paragraph{Pixel IoU (secondary).}
+For continuity with the released PRUE protocol we also report the pixel-level
+Jaccard index of the field-interior class, $\mathrm{IoU}_\text{px}=
+|\hat{Y}\cap Y|/|\hat{Y}\cup Y|$ over all field-interior pixels, computed
+before vectorization. Unlike the metrics above it has no notion of individual
+parcels.
+
+\paragraph{Aggregation.}
+$\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ counts and matched IoUs are pooled
+across all patches \emph{within} a country before forming that country's
+RQ, SQ, PQ, and $\mathrm{F1}_{[.5:.95]}$; the chamfer is averaged over that
+country's matched pairs. \Cref{tab:polygon_metrics} reports the macro-average
+across the ten dense-label held-out countries (presence-only Kenya excluded;
+see \Cref{sec:limitations}).
 
 \section{Access pipeline and operational lessons}
 \label{app:pipeline}
