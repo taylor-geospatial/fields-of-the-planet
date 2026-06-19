@@ -316,7 +316,7 @@ def main() -> int:
         rowLabels=row_labels,
         colLabels=col_labels,
         cellLoc="center",
-        rowLoc="left",
+        rowLoc="center",
         loc="center",
         bbox=[0.42, 0.0, 0.58, 1.0],
     )
@@ -326,10 +326,9 @@ def main() -> int:
         cell.set_edgecolor("#cfc8b8")
         cell.set_linewidth(0.4)
         cell.get_text().set_color(tg_style.BROWN)
+        cell.get_text().set_ha("center")
         if rr == 0:
             cell.set_facecolor("#efece0")
-        if cc == -1:  # row-label column
-            cell.get_text().set_ha("left")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=300, bbox_inches="tight")
