@@ -463,14 +463,14 @@ metrics on a worked example.
 
 \paragraph{Per-region head-to-head.}
 On the FTW \texttt{full\_data} protocol, macro PQ across the 23 regions
-with complete polygon-metric outputs is $0.379$ (Planet) vs $0.311$
-(S2-augmax-B7, same recipe), a $+6.9$\,pp Planet win. Figure~\ref{fig:per_country_bars}
-unpacks PQ into per-region deltas. Planet improves PQ in $20$ of $23$ regions
-(Estonia is a statistical tie at $-0.01$\,pp); a two-sided sign test over the
-$22$ decided regions gives $p \approx 1.2\times10^{-4}$.
-The largest gains are Netherlands $+19.9$, Brazil $+15.0$,
-Luxembourg $+14.7$, Lithuania $+13.0$, and Denmark $+10.4$.
-The losses are Germany ($-7.2$\,pp) and Portugal ($-1.1$\,pp).
+with complete polygon-metric outputs is $0.383$ (Planet) vs $0.311$
+(S2-augmax-B7, same recipe), a $+7.2$\,pp Planet win. Figure~\ref{fig:per_country_bars}
+unpacks PQ into per-region deltas. Planet wins on $21/23$ regions and
+loses two (two-sided sign test over the 23 decided regions:
+$p \approx 6.6\times10^{-5}$).
+The largest gains include Netherlands $+20.1$, Brazil $+15.5$,
+Luxembourg $+15.3$, Lithuania $+13.7$, and Corsica $+10.6$.
+The losses are Germany ($-7.0$\,pp) and Portugal ($-0.2$\,pp).
 Germany is the clearest S2 win, and it is informative rather than alarming:
 its fields are large and regular (median $3.5$\,ha, near the largest in the
 release) and are already well resolved at $10$\,m, so PlanetScope's finer GSD
@@ -531,7 +531,7 @@ sub-resolvable at 10m, which is the regime the dataset is built to serve.
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.95\linewidth]{figs/per_country_bars_pq.pdf}
-\caption{\textbf{Per-region $\Delta$ PQ on the FTW \texttt{full\_data} protocol} (PRUE-FTP-B3 \emph{augmax} full $-$ S2-augmax-B7 full). Wins (olive) and losses (sienna). Planet improves PQ in $20$ of $23$ regions; Estonia is effectively tied ($-0.01$\,pp), and Germany and Portugal favor S2. $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
+\caption{\textbf{Per-region $\Delta$ PQ on the FTW \texttt{full\_data} protocol} (PRUE-FTP-B3 \emph{augmax} full $-$ S2-augmax-B7 full). Wins (olive) and losses (sienna). Planet wins PQ on $21$ of $23$ regions; Germany and Portugal are the two losses. $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
     \label{fig:per_country_bars}
 \end{figure}
 
