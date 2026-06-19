@@ -179,8 +179,9 @@ def main() -> int:
         "--idxs",
         type=int,
         nargs="*",
-        default=None,
-        help="Explicit patch indices to show (in order). Overrides quantile pick.",
+        default=[87, 71],
+        help="Explicit patch indices to show (in order). Overrides quantile pick. "
+        "Default is the croatia (strong-but-imperfect, weak) pair used in the paper.",
     )
     ap.add_argument("--out", type=Path, default=REPO / "paper/figs/metric_example.pdf")
     ap.add_argument(
