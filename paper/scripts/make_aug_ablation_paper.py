@@ -69,26 +69,39 @@ def main():
             zorder=4,
         )
 
-    # S2 reference lines (dotted), periwinkle shades to read as the baseline.
+    # S2 reference lines: the two same-recipe S2 augmax baselines on the
+    # full split (B3 = architecture-matched, B7 = best S2). The CC-BY S2
+    # numbers are reported in the caption instead of plotted -- earlier all
+    # four lines were drawn and two of them coincided at ~34.8 pp, which is
+    # what made the panel unreadable. Distinct color + linestyle + a value
+    # label at the right margin keep the two remaining lines unambiguous.
     ref_styles = {
-        "+ augmax, B3 full": ("#80a0d8", "PRUE-B3 (S2, full)"),
-        "+ augmax, B7 full": ("#3f5c93", "PRUE-B7 (S2, full)"),
-        "+ augmax, B3 CC-BY": ("#b3c4e6", "PRUE-B3 (S2, CC-BY)"),
-        "+ augmax, B7 CC-BY": ("#5f7cba", "PRUE-B7 (S2, CC-BY)"),
+        "+ augmax, B3 full": ("#5a7ab8", "-", "PRUE-B3 (S2, full)"),
+        "+ augmax, B7 full": ("#1f3a6b", "--", "PRUE-B7 (S2, full)"),
     }
     for _, row in s2.iterrows():
         if row.label in ref_styles:
-            color, label = ref_styles[row.label]
-            ax.axhline(row.pp, color=color, linestyle=":", linewidth=0.7, zorder=2, label=label)
+            color, ls, label = ref_styles[row.label]
+            ax.axhline(row.pp, color=color, linestyle=ls, linewidth=1.0, zorder=2, label=label)
+            ax.text(
+                n - 0.5,
+                row.pp + 0.5,
+                f"{row.pp:.1f}",
+                ha="right",
+                va="bottom",
+                fontsize=6.0,
+                color=color,
+                zorder=4,
+            )
 
     leg = ax.legend(
         loc="lower right",
         fontsize=5.8,
         framealpha=0.9,
         edgecolor="#d9d6c8",
-        handlelength=2.0,
+        handlelength=2.4,
         borderpad=0.4,
-        labelspacing=0.25,
+        labelspacing=0.3,
     )
     leg.get_frame().set_linewidth(0.4)
 
