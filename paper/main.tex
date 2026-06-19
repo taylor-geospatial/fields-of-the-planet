@@ -268,7 +268,7 @@ full protocol-comparison table is in \Cref{tab:full_data} (appendix).
 \begin{figure}[t!]
     \centering
     \includegraphics[width=0.95\linewidth]{figs/aug_ablation_paper.pdf}
-\caption{\textbf{Cumulative augmentation lift on Obj F1.} Dense-label held-out evaluation (10 countries) with WS+TTA inference. The Planet B3 recipe improves from 0.291 (PRUE recipe, no extra augmentations) to 0.452 (augmax, full-data training). Horizontal lines mark the same-recipe S2 \emph{augmax} baselines on the full split (solid: EfficientNet-B3, the architecture-matched comparison; dashed: EfficientNet-B7, the strongest S2 model); the corresponding CC-BY S2 baselines are 33.3 (B3) and 34.8 (B7). The final Planet B3 model (45.2) exceeds every S2 reference, so the dataset change accounts for the gain even at matched architecture.}
+\caption{\textbf{Cumulative augmentation lift on Obj F1} (FTP-PRUE B3, dense held-out, WS+TTA). Each step adds one augmentation group to the PRUE recipe. Horizontal lines mark the same-recipe FTW-PRUE \emph{augmax} baselines (solid: B3, architecture-matched; dashed: B7, strongest S2 model). The final FTP-PRUE model exceeds every S2 reference, so the dataset change drives the gain even at matched architecture.}
     \label{fig:aug_ablation}
 \end{figure}
 
