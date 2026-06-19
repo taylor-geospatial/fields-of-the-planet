@@ -241,7 +241,7 @@ regularization.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE / FTP-PRUE: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is an off-the-shelf zero-shot baseline (\Cref{app:qualitative_delineate}).}
+    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE / FTP-PRUE: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is an off-the-shelf zero-shot baseline (\Cref{app:qualitative_delineate}). PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -438,15 +438,15 @@ setup are in \Cref{app:upsampled_s2}.
     \caption{\textbf{Grid resolution vs.\ true resolution} (B3 \emph{augmax} full,
     dense held-out, WS\,+\,TTA). Upsampling Sentinel-2 to PlanetScope's $3$m grid
     recovers much of the object-level gap but not the boundary error. Full table in
-    \Cref{tab:upsampled_s2}.}
+    \Cref{tab:upsampled_s2}. PQ/SQ/RQ are shown $\times 100$; boundary error is in meters.}
     \label{tab:upsampled_s2_main}
     \begin{tabular}{lcccc}
     \toprule
     Imagery (grid) & PQ & SQ & RQ & Bd.\ err (m) \\
     \midrule
-    S2 ($256$, native)     & $0.271$ & $0.684$ & $0.349$ & $17.5$ \\
-    S2 ($512$, upsampled)  & $0.315$ & $0.775$ & $0.395$ & $28.0$ \\
-    Planet ($512$, native) & $\mathbf{0.360}$ & $\mathbf{0.779}$ & $\mathbf{0.452}$ & $\mathbf{7.4}$ \\
+    S2 ($256$, native)     & $27.1$ & $68.4$ & $34.9$ & $17.5$ \\
+    S2 ($512$, upsampled)  & $31.5$ & $77.5$ & $39.5$ & $28.0$ \\
+    Planet ($512$, native) & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{7.4}$ \\
     \bottomrule
     \end{tabular}
 \end{table}
@@ -751,7 +751,7 @@ held-out set referenced from the main text.
     listed as reference (their numbers are on the FTW
     \texttt{full\_data} test split, not held-out only;
     see~\Cref{tab:full_data} for the held-out macro of our own runs).
-    Best per row in bold.}
+    Best per row in bold. Obj F1 and pixel IoU are shown $\times 100$.}
     \label{tab:heldout}
     \input{figs/heldout_results.tex}
 \end{table*}
@@ -759,7 +759,7 @@ held-out set referenced from the main text.
 \begin{table}[h]
     \centering
     \small
-\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the FTW \texttt{full\_data} split. Our rows: 10-country dense held-out macro summaries for orientation only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary.}
+\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the FTW \texttt{full\_data} split. Our rows: 10-country dense held-out macro summaries for orientation only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary. Pixel IoU and Obj F1 are shown $\times 100$.}
     \label{tab:full_data}
     \input{figs/full_data_compare.tex}
 \end{table}
@@ -812,7 +812,7 @@ held-out set referenced from the main text.
     (main Planet row). The S2 model is trained on the CC-BY 14-country split;
     ours on the full 24-country / 25-region release. Kenya is
     presence-only, so its supervised pixel/object metrics are omitted
-    and the macro row averages the 10 dense-label regions only.}
+    and the macro row averages the 10 dense-label regions only. IoU and Obj F1 are shown $\times 100$.}
     \label{tab:heldout_pc}
     \input{figs/heldout_per_country.tex}
 \end{table*}
@@ -864,16 +864,16 @@ artifact, not a model property.
 \begin{table}[h]
     \centering
     \small
-    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 10-country dense held-out set (presence-only kenya excluded), no TTA, no watershed. Native-grid inference, then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$m changes IoU by $<0.001$.}
+    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 10-country dense held-out set (presence-only kenya excluded), no TTA, no watershed. Native-grid inference, then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$m changes IoU by $<0.001$. Pixel IoU is shown $\times 100$.}
     \label{tab:gsd_controlled}
     \begin{tabular}{llc}
     \toprule
     Model & Eval grid & Macro Pixel IoU \\
     \midrule
-    Planet B3 augmax full & $3$m (native)              & $0.678$ \\
-    Planet B3 augmax full & $10$m (NN-reprojected)     & $0.677$ \\
-    S2 B7 augmax full     & $10$m (native)             & $0.654$ \\
-    S2 B7 augmax full     & $3$m (NN-reprojected)      & $0.630$ \\
+    Planet B3 augmax full & $3$m (native)              & $67.8$ \\
+    Planet B3 augmax full & $10$m (NN-reprojected)     & $67.7$ \\
+    S2 B7 augmax full     & $10$m (native)             & $65.4$ \\
+    S2 B7 augmax full     & $3$m (NN-reprojected)      & $63.0$ \\
     \bottomrule
     \end{tabular}
 \end{table}
@@ -916,7 +916,7 @@ protocol used for every other row.)
     much of the object-level gap (PQ, RQ, and especially SQ) but does not recover
     --- indeed worsens --- the meter-scale boundary error, which only native
     PlanetScope brings down. Native-S2 and native-Planet rows are reproduced from
-    \Cref{tab:polygon_metrics}.}
+    \Cref{tab:polygon_metrics}. PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
     \label{tab:upsampled_s2}
     \setlength{\tabcolsep}{4pt}
     \begin{tabular}{lcccccc}
@@ -925,9 +925,9 @@ protocol used for every other row.)
     \cmidrule(lr){6-7}
     Imagery (grid) & PQ & SQ & RQ & F1$_{[.5:.95]}$ & mean & p95 \\
     \midrule
-    S2 ($256$, native)        & $0.271$ & $0.684$ & $0.349$ & $0.210$ & $17.5$ & $53.5$ \\
-    S2 ($512$, upsampled)     & $0.315$ & $0.775$ & $0.395$ & $0.255$ & $28.0$ & $90.0$ \\
-    Planet ($512$, native)    & $\mathbf{0.360}$ & $\mathbf{0.779}$ & $\mathbf{0.452}$ & $\mathbf{0.291}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
+    S2 ($256$, native)        & $27.1$ & $68.4$ & $34.9$ & $21.0$ & $17.5$ & $53.5$ \\
+    S2 ($512$, upsampled)     & $31.5$ & $77.5$ & $39.5$ & $25.5$ & $28.0$ & $90.0$ \\
+    Planet ($512$, native)    & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{29.1}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
     \bottomrule
     \end{tabular}
 \end{table}
