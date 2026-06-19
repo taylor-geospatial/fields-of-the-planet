@@ -63,16 +63,16 @@ def main() -> None:
     )
     for model, backbone, split, iou, f1 in RELEASED_FULL:
         bold = backbone == "B7"
-        f1s = rf"\textbf{{{f1:.2f}}}" if bold else f"{f1:.2f}"
-        rows.append(f"{model} & {backbone} & {split} & {iou:.2f} & {f1s} \\\\")
+        f1s = rf"\textbf{{{f1 * 100:.1f}}}" if bold else f"{f1 * 100:.1f}"
+        rows.append(f"{model} & {backbone} & {split} & {iou * 100:.1f} & {f1s} \\\\")
     rows.append(r"\midrule")
     rows.append(
         r"\multicolumn{5}{l}{\textit{FTW-PRUE, CC-BY, released by \cite{muhawenayo2026prue}}} \\"
     )
     for model, backbone, split, iou, f1 in RELEASED_CCBY:
         bold_iou = backbone == "B7"
-        ious = rf"\textbf{{{iou:.2f}}}" if bold_iou else f"{iou:.2f}"
-        rows.append(f"{model} & {backbone} & {split} & {ious} & {f1:.2f} \\\\")
+        ious = rf"\textbf{{{iou * 100:.1f}}}" if bold_iou else f"{iou * 100:.1f}"
+        rows.append(f"{model} & {backbone} & {split} & {ious} & {f1 * 100:.1f} \\\\")
     rows.append(r"\midrule")
     rows.append(
         r"\multicolumn{5}{l}{\textit{Ours --- FTP-PRUE \emph{augmax} (10-country dense held-out macro)}} \\"
@@ -84,7 +84,7 @@ def main() -> None:
             raise RuntimeError(f"{csv_path}: macro over {nc}/{ne} countries")
         rows.append(
             f"{model} & {backbone} & {split} & "
-            f"{agg['pixel_level_iou']:.2f} & {agg['object_ws_f1']:.2f} \\\\"
+            f"{agg['pixel_level_iou'] * 100:.1f} & {agg['object_ws_f1'] * 100:.1f} \\\\"
         )
     rows.append(r"\bottomrule")
     rows.append(r"\end{tabular}")

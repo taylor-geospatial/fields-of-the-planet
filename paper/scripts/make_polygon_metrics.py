@@ -71,8 +71,10 @@ def main() -> None:
         vals = [a[c] for a in aggregates]
         best[c] = max(vals) if c in higher_better else min(vals)
 
-    def cell(v: float, c: str, decimals: int = 3) -> str:
-        s = f"{v:.{decimals}f}"
+    # [0,1] metrics (PQ/SQ/RQ/F1) are shown x100 at 1 decimal; counts and
+    # meter-scale boundary errors keep their natural units at 1 decimal.
+    def cell(v: float, c: str, decimals: int = 1, scale: float = 100.0) -> str:
+        s = f"{v * scale:.{decimals}f}"
         if abs(v - best[c]) < 1e-9:
             s = rf"\textbf{{{s}}}"
         return s
@@ -83,9 +85,9 @@ def main() -> None:
             f"{m} & {b} & {s} & "
             f"{cell(agg['pq'], 'pq')} & {cell(agg['pq_sq'], 'pq_sq')} & "
             f"{cell(agg['pq_rq'], 'pq_rq')} & {cell(agg['ap_5_95'], 'ap_5_95')} & "
-            f"{cell(agg['polygon_count_delta_mean'], 'polygon_count_delta_mean', 1)} & "
-            f"{cell(agg['boundary_error_m_mean'], 'boundary_error_m_mean', 2)} & "
-            f"{cell(agg['boundary_error_m_p95'], 'boundary_error_m_p95', 2)} \\\\"
+            f"{cell(agg['polygon_count_delta_mean'], 'polygon_count_delta_mean', 1, 1.0)} & "
+            f"{cell(agg['boundary_error_m_mean'], 'boundary_error_m_mean', 1, 1.0)} & "
+            f"{cell(agg['boundary_error_m_p95'], 'boundary_error_m_p95', 1, 1.0)} \\\\"
         )
 
     lines: list[str] = []

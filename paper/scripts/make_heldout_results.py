@@ -69,7 +69,7 @@ def _cells(vals: list[float]) -> list[str]:
     best = max(vals)
     out = []
     for v in vals:
-        s = f"{v:.3f}"
+        s = f"{v * 100:.1f}"
         if v == best:
             s = rf"\textbf{{{s}}}"
         out.append(s)
@@ -97,15 +97,15 @@ def main() -> None:
     # macro; kept for orientation).
     rows.append(
         r"FTW-PRUE & B3 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- "
-        r"& 0.39$^\ddag$ & 0.76$^\ddag$ \\"
+        r"& 39.0$^\ddag$ & 76.0$^\ddag$ \\"
     )
     rows.append(
         r"FTW-PRUE & B7 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- "
-        r"& 0.44$^\ddag$ & 0.77$^\ddag$ \\"
+        r"& 44.0$^\ddag$ & 77.0$^\ddag$ \\"
     )
     rows.append(
         r"FTW-PRUE & B7 & full~\cite{muhawenayo2026prue}  & --- & --- & --- "
-        r"& 0.47$^\ddag$ & 0.76$^\ddag$ \\"
+        r"& 47.0$^\ddag$ & 76.0$^\ddag$ \\"
     )
     rows.append(r"\midrule")
     rows.append(r"\multicolumn{8}{@{}l}{\textit{Ours --- FTP-PRUE \textbf{augmax}}} \\")
@@ -119,7 +119,7 @@ def main() -> None:
                 f"expected all {len(HELDOUT_10_DENSE)} of HELDOUT_10_DENSE."
             )
         cells = _cells(vals)
-        iou_s = f"{pix_iou:.3f}"
+        iou_s = f"{pix_iou * 100:.1f}"
         if pix_iou == planet_best_iou:
             iou_s = rf"\textbf{{{iou_s}}}"
         rows.append(
@@ -140,7 +140,7 @@ def main() -> None:
         cells = _cells(vals)
         rows.append(
             f"{model} & {backbone} & {split} & "
-            f"{cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {pix_iou:.3f} \\\\"
+            f"{cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {pix_iou * 100:.1f} \\\\"
         )
     rows.append(r"\bottomrule")
     rows.append(r"\end{tabular}")
