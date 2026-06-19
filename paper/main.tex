@@ -144,26 +144,7 @@ Total dataset size              & 102\,GB \\
 \section{Per-patch quality analysis}
 \label{sec:quality}
 
-\Cref{tab:udm2} reports per-patch UDM2 statistics across the full 133\,k UDM2 release, computed by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{86.6\%} of patches are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%).
-
-\begin{table}[t]
-\centering
-\caption{\textbf{Per-patch UDM2 statistics.} Fractions are pixel-area within the patch. Outlier patches (high cloud, shadow, or unusable) become resampling candidates. \textbf{p99} column bolded as the most informative percentile.}
-\label{tab:udm2}
-\small
-\begin{tabular}{l S[table-format=3.1] S[table-format=3.1] S[table-format=3.1] S[table-format=3.1]}
-\toprule
-{Band} & {median} & {p90} & {\bfseries p99} & {max} \\
-\midrule
-\texttt{clear}      & 100.0 & 100.0 & \bfseries 100.0 & 100.0 \\
-\texttt{cloud}      &   0.0 &   0.0 & \bfseries  88.0 & 100.0 \\
-\texttt{shadow}     &   0.0 &   0.0 & \bfseries  21.0 & 100.0 \\
-\texttt{light\_haze}&   0.0 &   0.0 & \bfseries  41.0 & 100.0 \\
-\texttt{unusable}   &   0.0 &   0.8 & \bfseries  51.9 & 100.0 \\
-\bottomrule
-\end{tabular}
-\par\vspace{2pt}\footnotesize Values are percent of patch area.
-\end{table}
+We compute per-patch UDM2 statistics across the full 133\,k UDM2 release by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{86.6\%} of patches are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%); the per-band percentile breakdown is in \Cref{tab:udm2} (appendix).
 
 \paragraph{Patch-level resampling.}
 The search filter rejects scenes whose \emph{scene-level} cloud cover exceeds 10\%; this is a coarse proxy because clouds can concentrate over a single patch even in a low-cloud scene. The released index uses a patch-level resampling pass: for each patch failing any UDM2 threshold, we search alternative scenes within the same season ($\pm$60\,d), probe UDM2 over the patch AOI, and replace the SR + UDM2 pair when a candidate strictly improves quality. We ship the tool and the final QA table so users can reproduce the decisions or apply stricter thresholds.
@@ -270,7 +251,11 @@ same augmax recipe on PQ (0.360 vs 0.311), F1$_{[.5:.95]}$ (0.291 vs 0.247),
 and boundary error (7.4m vs 15.2m); the S2 B7 model retains a slight edge
 on polygon-count error ($|\Delta N|$ 54.9 vs 55.5). These comparisons use
 object and polygon metrics because both sensors are scored after
-vectorization from the same FTW polygon source.
+vectorization from the same FTW polygon source. Against the released
+PRUE Sentinel-2 checkpoints~\cite{muhawenayo2026prue}, our full-data
+PRUE-FTP-B3 reaches $0.45$ object F1 --- within $0.02$ of the best
+released S2 model (PRUE-B7, $0.47$) despite a far smaller backbone; the
+full protocol-comparison table is in \Cref{tab:full_data} (appendix).
 
 \subsection{Better augmentations}
 
@@ -420,16 +405,46 @@ misleading. We therefore report pixel IoU only in the protocol-comparison
 table and use polygon metrics for the main claims. A controlled
 re-gridding check shows that re-projecting Planet predictions to the
 $10$m S2 grid changes macro pixel IoU by $<0.001$
-(\Cref{tab:gsd_controlled}, appendix). A complementary input-side
-control points the same way: retraining the S2 model on imagery
-upsampled to PlanetScope's $3$m grid recovers $\sim$45\% of its
-object-F1 / PQ gap to PlanetScope and matches Planet's SQ, yet its
-boundary chamfer does \emph{not} improve --- it degrades to $28.0$m,
-versus $7.4$m for native PlanetScope (\Cref{tab:upsampled_s2},
-appendix). Output-grid resolution can inflate the object-detection
-scores, but only genuine higher-resolution imagery delivers
-meter-scale boundary precision --- which is why we report the chamfer
-alongside the object metrics.
+(\Cref{tab:gsd_controlled}, appendix).
+
+\paragraph{Grid resolution vs.\ true resolution.}
+A second, input-side control isolates how much of the Sentinel-2-to-PlanetScope
+gap is genuine resolution rather than output grid. We retrain the Sentinel-2
+model on imagery bilinearly upsampled to PlanetScope's $512\times512$ ($3$m)
+grid --- same recipe, same field of view, no new image information --- and
+score it through the full polygon pipeline (\Cref{tab:upsampled_s2_main}). The
+finer grid recovers $\sim$45\% of the object-F1 / PQ gap to native PlanetScope
+and lifts segmentation quality to near-parity ($0.775$ vs $0.779$): for the
+parcels it matches, the overlap is as good as $3$m imagery. The boundary
+chamfer, however, does \emph{not} improve --- it \emph{worsens} from $17.5$m to
+$28.0$m, against $7.4$m for native PlanetScope --- even though the upsampled
+predictions are scored on a finer grid that could in principle localize edges
+more precisely. Output-grid resolution can inflate the object-detection scores,
+but only genuine higher-resolution imagery delivers meter-scale boundary
+precision. This is exactly why we report the boundary chamfer, in meters,
+alongside the object metrics. Per-country numbers and the full experimental
+setup are in \Cref{app:upsampled_s2}.
+
+\begin{table}[t]
+    \centering
+    \small
+    \setlength{\tabcolsep}{5pt}
+    \caption{\textbf{Grid resolution vs.\ true resolution.} B3 \emph{augmax}
+    full, 10-country dense held-out, WS\,+\,TTA. Upsampling Sentinel-2 to
+    PlanetScope's $3$m grid recovers much of the object-level gap (PQ, RQ, and
+    SQ to near-parity) but \emph{worsens} the meter-scale boundary error, which
+    only native PlanetScope brings down. Full table in \Cref{tab:upsampled_s2}.}
+    \label{tab:upsampled_s2_main}
+    \begin{tabular}{lcccc}
+    \toprule
+    Imagery (grid) & PQ & SQ & RQ & Bd.\ err (m) \\
+    \midrule
+    S2 ($256$, native)     & $0.271$ & $0.684$ & $0.349$ & $17.5$ \\
+    S2 ($512$, upsampled)  & $0.315$ & $0.775$ & $0.395$ & $28.0$ \\
+    Planet ($512$, native) & $\mathbf{0.360}$ & $\mathbf{0.779}$ & $\mathbf{0.452}$ & $\mathbf{7.4}$ \\
+    \bottomrule
+    \end{tabular}
+\end{table}
 
 \paragraph{What the metrics are computed on.} All object metrics are
 computed on the field-interior class after vectorization: predicted and
@@ -462,10 +477,10 @@ simple fields --- where higher resolution is least needed, which is the
 mirror image of the smallholder regions where FTP gains most.
 
 \paragraph{Does the 3m GSD advantage track field size?}
-Figure~\ref{fig:smallholder_scatter} plots $\Delta$\,PQ against
-per-region median FTW field area. The trend is weak (Pearson $r$ $=$
-$+0.10$ on log-hectares, Spearman $\rho$ $=$ $+0.11$, $n$ $=$ 22):
-the PQ gain is spread across regions and not tied to parcel size alone.
+Across regions, $\Delta$\,PQ is only weakly correlated with per-region
+median FTW field area (Pearson $r$ $=$ $+0.10$ on log-hectares, Spearman
+$\rho$ $=$ $+0.11$, $n$ $=$ 22; scatter in \Cref{fig:smallholder_scatter},
+appendix): the PQ gain is spread across regions and not tied to parcel size alone.
 Small-field regions do anchor several top wins (Luxembourg $+14.7$\,pp at
 $0.3$\,ha; Rwanda $+9.7$\,pp at $1.4$\,ha; Lithuania $+13.0$\,pp at
 $1.4$\,ha), but so does large-field Netherlands
@@ -503,14 +518,6 @@ sub-resolvable at 10m, which is the regime the dataset is built to serve.
     \label{fig:improvement}
 \end{figure*}
 
-\begin{table}[t]
-    \centering
-    \small
-\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the FTW \texttt{full\_data} split. Our rows: 10-country dense held-out macro summaries for orientation only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary.}
-    \label{tab:full_data}
-    \input{figs/full_data_compare.tex}
-\end{table}
-
 % tab:heldout_pc (per-country pixel IoU on 11 held-out countries) is
 % moved to the supplementary appendix; macro pixel IoU is in
 % \Cref{tab:full_data}.
@@ -522,60 +529,13 @@ sub-resolvable at 10m, which is the regime the dataset is built to serve.
     \label{fig:per_country_bars}
 \end{figure}
 
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figs/smallholder_scatter_paper.pdf}
-    \caption{\textbf{PQ gain vs.\ field size.}
-    Per-region median FTW polygon area (hectares, log scale; EPSG:6933
-    equal-area) vs $\Delta$\,PQ (PRUE-FTP-B3 \emph{augmax} full WS+TTA $-$
-    S2-augmax-B7 full) on the FTW \texttt{full\_data} protocol
-    ($n=22$ regions with complete polygon-metric outputs). Positive $y$ = Planet wins.
-    Countries $<\!2$\,ha median (sienna, \cite{lowder2016farms}) are
-    smallholder; remainder olive. Pearson $r=+0.10$, Spearman
-    $\rho=+0.11$: the gain holds across field sizes, not just small ones.
-    Small-field anchors: luxembourg $+14.7$, rwanda $+9.7$, lithuania
-    $+13.0$; large-field netherlands $+19.9$ shows the gain extends to
-    large parcel sizes. Germany ($-7.2$) is the largest loss.}
-    \label{fig:smallholder_scatter}
-\end{figure}
-
 \subsection{Ablation summary}
 
-\Cref{tab:ablation_summary} consolidates the recipe sweep into a single ablation table. Wins are bolded green and quoted in pp on the 10-country dense evaluation set unless otherwise noted; losses are bolded red. The largest effects are augmentations, full-data training, and the rejected SDF auxiliary head.
-
-\begin{table}[h]
-    \centering
-    \footnotesize
-    \setlength{\tabcolsep}{3pt}
-    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 10-country dense-label held-out set unless noted (Obj F1 with WS+TTA where applicable; presence-only kenya excluded). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
-    \label{tab:ablation_summary}
-    \begin{tabular}{@{}p{0.62\linewidth} @{\hspace{2pt}}c@{\hspace{2pt}} r@{}}
-    \toprule
-    \textbf{Lever} & \textbf{Use} & \textbf{$\Delta$ ObjF1} \\
-    \midrule
-    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Augmentation \& training}} \\
-    PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.8} \\
-    \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +1.0} \\
-    Geometry/noise bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
-    Train on full release vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +7.8} \\
-    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -1.6} \\
-    Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries failed} \\
-    SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}, full) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
-    Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries -1.7} \\
-    CutMix~\cite{yun2019cutmix} (2\,px ignore) & $\times$ & {\color{earthSienna}\bfseries -0.1} \\
-    Curriculum~\cite{bengio2009curriculum} boundary dilation $3\!\to\!0$\,px & $\times$ & {\color{earthSienna}\bfseries -0.4} \\
-    \midrule
-    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Inference \& post-processing}} \\
-    Marker-controlled watershed & \checkmark & {\color{earthDark}\bfseries +0.5} \\
-    D4 8-way TTA (with \emph{augmax}) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
-    Replicate input padding & $\times$ & {\color{earthSienna}\bfseries -8\,/\,-10} \\
-    \midrule
-    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Checkpoint selection}} \\
-    Austria-only val vs mixed & \checkmark & {\color{earthDark}\bfseries +4\,IoU} \\
-    Last vs best-by-val checkpoint & either & {\color{black!50}\bfseries $\pm$0.5} \\
-    \bottomrule
-    \end{tabular}
-\end{table}
+The full lever-by-lever recipe sweep --- including the rejected clDice,
+SDF, frame-field, CutMix, and curriculum variants --- is consolidated in
+\Cref{tab:ablation_summary} (appendix). The largest effects are the
+augmentation bundle, full-data training ($+7.8$\,pp Obj F1), and, among the
+rejected levers, the SDF auxiliary head ($-2.6$).
 
 The main ablation result is that FTP needs stronger regularization than the S2 recipe: \textbf{augmax} adds +4.1 Obj F1 over \emph{augplus}, while CutMix, clDice, frame fields, and curriculum boundary dilation do not improve the final model. Full-data training adds +6.5 Obj F1 over the CC-BY split. The SDF auxiliary head helps without augmentations but hurts with \emph{augmax}, suggesting that the auxiliary task is redundant once the model is already regularized.
 
@@ -742,6 +702,25 @@ The activation step dominates wall-time. Cold-storage scenes thaw in 1--46min (m
 \section{Per-country UDM2 quality}
 \label{app:udm2_country}
 
+\begin{table}[h]
+\centering
+\caption{\textbf{Per-patch UDM2 statistics.} Fractions are pixel-area within the patch. Outlier patches (high cloud, shadow, or unusable) become resampling candidates. \textbf{p99} column bolded as the most informative percentile.}
+\label{tab:udm2}
+\small
+\begin{tabular}{l S[table-format=3.1] S[table-format=3.1] S[table-format=3.1] S[table-format=3.1]}
+\toprule
+{Band} & {median} & {p90} & {\bfseries p99} & {max} \\
+\midrule
+\texttt{clear}      & 100.0 & 100.0 & \bfseries 100.0 & 100.0 \\
+\texttt{cloud}      &   0.0 &   0.0 & \bfseries  88.0 & 100.0 \\
+\texttt{shadow}     &   0.0 &   0.0 & \bfseries  21.0 & 100.0 \\
+\texttt{light\_haze}&   0.0 &   0.0 & \bfseries  41.0 & 100.0 \\
+\texttt{unusable}   &   0.0 &   0.8 & \bfseries  51.9 & 100.0 \\
+\bottomrule
+\end{tabular}
+\par\vspace{2pt}\footnotesize Values are percent of patch area.
+\end{table}
+
 Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release: the lowest rates are Portugal (40.9\%), South Africa (56.5\%), and the Netherlands (76.5\%); Brazil and Croatia exceed 98\%. Smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
 
 \section{Held-out post-processing sweep}
@@ -768,6 +747,48 @@ held-out set referenced from the main text.
     \label{tab:heldout}
     \input{figs/heldout_results.tex}
 \end{table*}
+
+\begin{table}[h]
+    \centering
+    \small
+\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the FTW \texttt{full\_data} split. Our rows: 10-country dense held-out macro summaries for orientation only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary.}
+    \label{tab:full_data}
+    \input{figs/full_data_compare.tex}
+\end{table}
+
+\begin{table}[h]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{3pt}
+    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 10-country dense-label held-out set unless noted (Obj F1 with WS+TTA where applicable; presence-only kenya excluded). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
+    \label{tab:ablation_summary}
+    \begin{tabular}{@{}p{0.62\linewidth} @{\hspace{2pt}}c@{\hspace{2pt}} r@{}}
+    \toprule
+    \textbf{Lever} & \textbf{Use} & \textbf{$\Delta$ ObjF1} \\
+    \midrule
+    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Augmentation \& training}} \\
+    PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.8} \\
+    \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +1.0} \\
+    Geometry/noise bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
+    Train on full release vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +7.8} \\
+    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -1.6} \\
+    Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries failed} \\
+    SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}, full) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
+    Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries -1.7} \\
+    CutMix~\cite{yun2019cutmix} (2\,px ignore) & $\times$ & {\color{earthSienna}\bfseries -0.1} \\
+    Curriculum~\cite{bengio2009curriculum} boundary dilation $3\!\to\!0$\,px & $\times$ & {\color{earthSienna}\bfseries -0.4} \\
+    \midrule
+    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Inference \& post-processing}} \\
+    Marker-controlled watershed & \checkmark & {\color{earthDark}\bfseries +0.5} \\
+    D4 8-way TTA (with \emph{augmax}) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
+    Replicate input padding & $\times$ & {\color{earthSienna}\bfseries -8\,/\,-10} \\
+    \midrule
+    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Checkpoint selection}} \\
+    Austria-only val vs mixed & \checkmark & {\color{earthDark}\bfseries +4\,IoU} \\
+    Last vs best-by-val checkpoint & either & {\color{black!50}\bfseries $\pm$0.5} \\
+    \bottomrule
+    \end{tabular}
+\end{table}
 
 \section{Per-region pixel IoU on the held-out regions}
 \label{app:heldout_pc}
@@ -798,6 +819,23 @@ held-out set referenced from the main text.
     \includegraphics[width=0.75\linewidth]{figs/per_country_bars_paper.pdf}
     \caption{\textbf{Per-region $\Delta$ Obj F1 on the FTW \texttt{full\_data} protocol} (PRUE-FTP-B3 \emph{augmax} full $-$ S2-augmax-B7 full). For comparison with the $\Delta$ PQ version in \Cref{fig:per_country_bars}.}
     \label{fig:per_country_objf1_appx}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.75\linewidth]{figs/smallholder_scatter_paper.pdf}
+    \caption{\textbf{PQ gain vs.\ field size.}
+    Per-region median FTW polygon area (hectares, log scale; EPSG:6933
+    equal-area) vs $\Delta$\,PQ (PRUE-FTP-B3 \emph{augmax} full WS+TTA $-$
+    S2-augmax-B7 full) on the FTW \texttt{full\_data} protocol
+    ($n=22$ regions with complete polygon-metric outputs). Positive $y$ = Planet wins.
+    Countries $<\!2$\,ha median (sienna, \cite{lowder2016farms}) are
+    smallholder; remainder olive. Pearson $r=+0.10$, Spearman
+    $\rho=+0.11$: the gain holds across field sizes, not just small ones.
+    Small-field anchors: luxembourg $+14.7$, rwanda $+9.7$, lithuania
+    $+13.0$; large-field netherlands $+19.9$ shows the gain extends to
+    large parcel sizes. Germany ($-7.2$) is the largest loss.}
+    \label{fig:smallholder_scatter}
 \end{figure}
 
 \section{Controlled GSD experiment}
