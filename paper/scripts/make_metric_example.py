@@ -4,7 +4,7 @@ Renders a single PlanetScope patch as [image | GT field instances | predicted
 field instances] and prints the per-patch polygon metrics next to it, so the
 reader can see what object F1 / PQ / SQ / boundary chamfer actually measure.
 
-Inference (Planet PRUE-FTP-B3 augmax) and the metric computation reuse the
+Inference (FTP-PRUE augmax) and the metric computation reuse the
 exact functions from ``scripts/eval`` so the example numbers match the paper's
 evaluation protocol. Runs on CPU; one patch is a few seconds.
 """

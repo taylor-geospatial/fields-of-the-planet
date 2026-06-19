@@ -1,26 +1,26 @@
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.05}
-\begin{tabular}{@{}l l ccc c c@{}}
+\begin{tabular}{@{}l l l ccc c c@{}}
 \toprule
-& & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\
-\cmidrule(lr){3-6}
-Img. & Recipe (CC-BY 14-country train unless noted) & \makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & \makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & \makecell{Pix\\IoU} \\
+& & & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\
+\cmidrule(lr){4-7}
+Model & Backbone & Split & \makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & \makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & \makecell{Pix\\IoU} \\
 \midrule
-S2 & PRUE-B3 (S2, CC-BY)~\cite{muhawenayo2026prue} & --- & --- & --- & 0.39$^\ddag$ & 0.76$^\ddag$ \\
-S2 & PRUE-B7 (S2, CC-BY)~\cite{muhawenayo2026prue} & --- & --- & --- & 0.44$^\ddag$ & 0.77$^\ddag$ \\
-S2 & PRUE-B7 (S2, full)~\cite{muhawenayo2026prue}  & --- & --- & --- & 0.47$^\ddag$ & 0.76$^\ddag$ \\
+FTW-PRUE & B3 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- & 0.39$^\ddag$ & 0.76$^\ddag$ \\
+FTW-PRUE & B7 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- & 0.44$^\ddag$ & 0.77$^\ddag$ \\
+FTW-PRUE & B7 & full~\cite{muhawenayo2026prue}  & --- & --- & --- & 0.47$^\ddag$ & 0.76$^\ddag$ \\
 \midrule
-\multicolumn{7}{@{}l}{\textit{Ours --- PRUE-FTP \textbf{augmax}}} \\
-Planet & PRUE-FTP-B3 (CC-BY) & 0.360 & 0.361 & 0.365 & \textbf{0.374} & 0.581 \\
-Planet & PRUE-FTP-B7 (CC-BY) & 0.368 & 0.372 & 0.372 & \textbf{0.383} & 0.583 \\
-Planet & PRUE-FTP-B3 (full)  & 0.435 & 0.439 & 0.441 & \textbf{0.452} & \textbf{0.688} \\
+\multicolumn{8}{@{}l}{\textit{Ours --- FTP-PRUE \textbf{augmax}}} \\
+FTP-PRUE & B3 & CC-BY & 0.360 & 0.361 & 0.365 & \textbf{0.374} & 0.581 \\
+FTP-PRUE & B7 & CC-BY & 0.368 & 0.372 & 0.372 & \textbf{0.383} & 0.583 \\
+FTP-PRUE & B3 & full & 0.435 & 0.439 & 0.441 & \textbf{0.452} & \textbf{0.688} \\
 \midrule
-\multicolumn{7}{@{}l}{\textit{S2 baselines re-trained with our \textbf{augmax} recipe}} \\
-S2 & PRUE-B3 (S2, CC-BY) & 0.323 & 0.324 & 0.328 & \textbf{0.333} & 0.576 \\
-S2 & PRUE-B7 (S2, CC-BY) & 0.332 & 0.337 & 0.339 & \textbf{0.348} & 0.568 \\
-S2 & PRUE-B3 (S2, full)  & 0.334 & 0.339 & 0.341 & \textbf{0.349} & 0.590 \\
-S2 & PRUE-B7 (S2, full)  & 0.378 & 0.383 & 0.386 & \textbf{0.394} & 0.622 \\
+\multicolumn{8}{@{}l}{\textit{FTW-PRUE baselines re-trained with our \textbf{augmax} recipe}} \\
+FTW-PRUE & B3 & CC-BY & 0.323 & 0.324 & 0.328 & \textbf{0.333} & 0.576 \\
+FTW-PRUE & B7 & CC-BY & 0.332 & 0.337 & 0.339 & \textbf{0.348} & 0.568 \\
+FTW-PRUE & B3 & full & 0.334 & 0.339 & 0.341 & \textbf{0.349} & 0.590 \\
+FTW-PRUE & B7 & full & 0.378 & 0.383 & 0.386 & \textbf{0.394} & 0.622 \\
 \bottomrule
 \end{tabular}
 

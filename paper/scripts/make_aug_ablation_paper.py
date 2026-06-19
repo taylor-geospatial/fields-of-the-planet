@@ -1,7 +1,7 @@
 """Cumulative augmentation ablation (paper-style, seaborn notebook).
 
-Bars: cumulative Obj F1 (pp) of the PRUE-FTP recipe as we add aug stages.
-Dotted reference lines: released PRUE-B3/B7 (S2) numbers.
+Bars: cumulative Obj F1 (pp) of the FTP-PRUE recipe as we add aug stages.
+Dotted reference lines: released FTW-PRUE (B3/B7) numbers.
 
 Minimal styling -- no figure title, single accent color, value labels in
 grey, restrained grid.
@@ -76,8 +76,8 @@ def main():
     # what made the panel unreadable. Distinct color + linestyle + a value
     # label at the right margin keep the two remaining lines unambiguous.
     ref_styles = {
-        "+ augmax, B3 full": ("#5a7ab8", "-", "PRUE-B3 (S2, full)"),
-        "+ augmax, B7 full": ("#1f3a6b", "--", "PRUE-B7 (S2, full)"),
+        "+ augmax, B3 full": ("#5a7ab8", "-", "FTW-PRUE (B3, full)"),
+        "+ augmax, B7 full": ("#1f3a6b", "--", "FTW-PRUE (B7, full)"),
     }
     for _, row in s2.iterrows():
         if row.label in ref_styles:

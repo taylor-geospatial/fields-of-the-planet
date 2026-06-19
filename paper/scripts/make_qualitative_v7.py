@@ -11,7 +11,7 @@ connected component as a distinct color (perturbed tab20).  Background is
 black.
 
 Layout (5 columns x N rows):
-  Planet RGB | S2 RGB | GT instances | PRUE-FTP-B3 (TTA+WS) | PRUE-B7 S2 (TTA+WS)
+  Planet RGB | S2 RGB | GT instances | FTP-PRUE (TTA+WS) | FTW-PRUE (B7) (TTA+WS)
 """
 
 import argparse
@@ -326,8 +326,8 @@ def main():
         "Planet RGB (3 m)",
         "S2 RGB (10 m)",
         "GT instances",
-        "PRUE-FTP-B3 (ours)",
-        "PRUE-B7 (S2 baseline)",
+        "FTP-PRUE (ours)",
+        "FTW-PRUE (B7 baseline)",
     ]
     for i, (country, pid, window, rgb_pl, rgb_s2, igt, ipl, is2) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)

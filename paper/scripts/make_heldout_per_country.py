@@ -1,7 +1,7 @@
 """Generate ``paper/figs/heldout_per_country.tex`` (``tab:heldout_pc``).
 
 Per-country pixel IoU + Planet Obj F1 (WS+TTA) on the 11 held-out
-countries. S2 column is the released FTW S2 PRUE-B3 CC-BY checkpoint as
+countries. S2 column is the released FTW-PRUE (B3, CC-BY) checkpoint as
 evaluated in ``logs/ftw_official_ccby/s2_ccby_per_country.csv``; Planet
 column is our best B3 \\emph{augmax} full + WS + D4 TTA
 (``logs/postproc_ablation/planet_b3_augmax_full_ws_tta.csv``).
@@ -48,9 +48,9 @@ def main() -> None:
     rows.append(r"\begin{tabular}{@{}l c c c c@{}}")
     rows.append(r"\toprule")
     rows.append(
-        r"Country & \makecell{PRUE-B3\\(S2, CC-BY)\\IoU} & "
-        r"\makecell{PRUE-FTP-B3\\(full)\\IoU} & \makecell{$\Delta$\\IoU} & "
-        r"\makecell{PRUE-FTP\\Obj F1\\(WS+TTA)} \\"
+        r"Country & \makecell{FTW-PRUE\\(B3, CC-BY)\\IoU} & "
+        r"\makecell{FTP-PRUE\\(B3, full)\\IoU} & \makecell{$\Delta$\\IoU} & "
+        r"\makecell{FTP-PRUE\\Obj F1\\(WS+TTA)} \\"
     )
     rows.append(r"\midrule")
 
