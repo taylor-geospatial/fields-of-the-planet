@@ -273,8 +273,8 @@ def main() -> int:
                 s.set_color(tg_style.BROWN)
         label = (
             f"{row['country'].replace('_', ' ')}\n"
-            f"$\\Delta$F1 = +{row['delta']:.2f}\n"
-            f"(S2 {row['f1_s2']:.2f} $\\rightarrow$ Planet {row['f1_pl']:.2f})"
+            f"$\\Delta$F1 = +{row['delta'] * 100:.1f}\n"
+            f"(S2 {row['f1_s2'] * 100:.1f} $\\rightarrow$ Planet {row['f1_pl'] * 100:.1f})"
         )
         axes[i, 0].set_ylabel(label, fontsize=6.6, fontweight="bold", linespacing=1.25)
         if i == 0:

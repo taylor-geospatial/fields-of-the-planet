@@ -30,7 +30,7 @@ REPRO = REPO / "logs" / "repro_eval"
 
 # (model, backbone, split, csv path, midrule-before, bold-row)
 ROWS = [
-    ("DelineateAnything (zero-shot)$^{*}$", "--", "--", SRC / "delineate_anything_conf0005.csv", False, False),
+    ("DelineateAnything$^{*}$", "--", "--", SRC / "delineate_anything_conf0005.csv", False, False),
     ("FTW-PRUE", "B3", "CC-BY", SRC / "s2_b3_augmax_ccby.csv", True, False),
     ("FTW-PRUE", "B3", "full", SRC / "s2_b3_augmax_full.csv", False, False),
     ("FTW-PRUE", "B7", "CC-BY", SRC / "s2_b7_augmax_ccby.csv", False, False),

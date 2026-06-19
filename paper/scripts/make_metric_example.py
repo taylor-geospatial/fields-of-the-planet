@@ -292,22 +292,25 @@ def main() -> int:
         plot_polygons(fig.add_subplot(gs[r, 2]), res, size, titles[2] if r == 0 else "")
 
     # Bordered metrics table (rows = metrics, one value column per example).
+    # [0,1] metrics shown x100 at 1 decimal (matching the paper tables);
+    # chamfer in meters; |dN| an integer count.
     metric_rows = [
-        ("Obj F1@.5", "objf1", "{:.2f}"),
-        ("PQ", "pq", "{:.2f}"),
-        ("SQ", "sq", "{:.2f}"),
-        ("RQ", "rq", "{:.2f}"),
-        ("F1 .5:.95", "ap", "{:.2f}"),
-        ("chamfer m", "bnd_m", "{:.0f}"),
-        ("|dN|", "dN", "{:d}"),
-        ("pixel IoU", "pix_iou", "{:.2f}"),
+        ("Obj F1@.5", "objf1", "{:.1f}", 100.0),
+        ("PQ", "pq", "{:.1f}", 100.0),
+        ("SQ", "sq", "{:.1f}", 100.0),
+        ("RQ", "rq", "{:.1f}", 100.0),
+        ("F1 .5:.95", "ap", "{:.1f}", 100.0),
+        ("chamfer m", "bnd_m", "{:.1f}", 1.0),
+        ("|dN|", "dN", "{:d}", 1.0),
+        ("pixel IoU", "pix_iou", "{:.1f}", 100.0),
     ]
 
-    def _fmt(value: float, spec: str) -> str:
-        return spec.format(int(value)) if spec == "{:d}" else spec.format(value)
+    def _fmt(value: float, spec: str, scale: float) -> str:
+        v = value * scale
+        return spec.format(int(round(v))) if spec == "{:d}" else spec.format(v)
 
-    cell_text = [[_fmt(res[key], spec) for res in row_res] for (_, key, spec) in metric_rows]
-    row_labels = [name for name, _, _ in metric_rows]
+    cell_text = [[_fmt(res[key], spec, scale) for res in row_res] for (_, key, spec, scale) in metric_rows]
+    row_labels = [name for name, _, _, _ in metric_rows]
     col_labels = (["top", "bot"] if n_show == 2 else [f"#{i + 1}" for i in range(n_show)])[:n_show]
 
     ax_t = fig.add_subplot(gs[:, 3])
