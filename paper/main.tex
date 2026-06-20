@@ -1,7 +1,4 @@
 \documentclass[10pt,twocolumn,letterpaper]{article}
-
-% WACV 2027 style (Applications track, review mode). Drop the `review`
-% option for the camera-ready version.
 \usepackage[applications,review]{wacv}
 
 \usepackage{microtype}
@@ -27,7 +24,7 @@
 \definecolor{earthDark}{rgb}{0.30, 0.40, 0.18}
 \definecolor{earthSienna}{rgb}{0.55, 0.34, 0.20}
 
-\def\wacvPaperID{****}
+\def\wacvPaperID{1157}
 \def\confName{WACV}
 \def\confYear{2027}
 
@@ -44,18 +41,16 @@
 \begin{document}
 
 \title{Fields of the Planet: Field Boundary Mapping Beyond 10m}
-\author{Anonymous WACV 2027 submission\\
+\author{Isaac Corley, Caleb Robinson, Jennifer Marcus, Hannah Kerner\\
 Paper ID \wacvPaperID}
-% Trick to put a full-width hero figure above the abstract: emit
-% \maketitle plus the figure inside the single-column argument of
-% \twocolumn[..]. Body resumes two-column mode after the closing ].
+
 \twocolumn[{%
 \maketitle
 \centering
 \includegraphics[width=0.99\textwidth]{hero.pdf}
 \vspace{2pt}
 \captionof{figure}{\textbf{Fields of the Planet (FTP) pairs Fields of The World Sentinel-2 patches with co-registered 3m PlanetScope imagery and field boundary labels.} Each triplet left-to-right, FTW's Sentinel-2 patch at 10m (reprojected onto the Planet patch UTM grid for comparison), the matched PlanetScope SR image (4-band; RGB shown), and the label rasterized from FTW polygons at 3m (background / field interior / boundary).}\label{fig:hero}
-\vspace{12pt}
+%\vspace{12pt}
 }]
 \begin{abstract}
 Fields of The World (FTW) pairs global field-boundary labels with publicly available 10m Sentinel-2 imagery, making global agricultural field delineation practical at scale. But in many regions smallholder fields are too small to resolve accurately at Sentinel-2's 10m resolution. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope variant of FTW that keeps the same polygon labels and data splits but pairs them with higher-resolution imagery. With the task, geography, labels, architecture, and training recipe all fixed, training on PlanetScope instead of Sentinel-2 improves panoptic quality from 27.1 to 36.0 (on a 0--100 scale) and more than halves mean boundary error, from 17.5m to 7.4m. We additionally evaluate with polygon-level metrics that score whether predicted fields are recognized and localized as usable geometric parcels, rather than measuring overlap at the pixel level. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
@@ -158,7 +153,7 @@ Per-country usable-patch rates vary widely (Portugal 41\%, Netherlands 77\%, vs 
 
 \begin{figure*}[t!]
     \centering
-    \includegraphics[width=\linewidth]{figs/qualitative_v8_main.pdf}
+    \includegraphics[width=0.95\linewidth]{figs/qualitative_v8_main.pdf}
     \caption{\textbf{Qualitative predictions: FTP-PRUE \emph{augmax} full vs.\ released FTW-PRUE (B7, full)~\cite{muhawenayo2026prue}, before and after post-processing.} Four dense-smallholder rows from countries where $\Delta$ PQ favors FTP-PRUE (Croatia, Slovenia, Austria, Lithuania; see \Cref{fig:per_country_bars}). All cells are center-cropped square and resized; both modalities show the \emph{same} season. Columns 1--2: Planet RGB (3m) and matched S2 RGB (10m, reprojected to the Planet grid). Column 3: 3-class ground truth (green = field interior, black = bg + boundary). Columns 4--5: raw argmax predictions (same color scheme). Columns 6--7: post-processed instance segmentations (D4 TTA + marker-controlled watershed); each color is a distinct field instance (perturbed \texttt{tab20}). FTP-PRUE recovers near-complete field coverage and adjacent parcels stay separated after watershed; FTW-PRUE (B7) leaves large black gaps in the raw mask and merges neighboring parcels into single instances after WS. Eight more raw-mask samples in \Cref{fig:qualitative_appx} and eight more instance samples in \Cref{fig:qualitative_post_appx}.}
     \label{fig:qualitative}
 \end{figure*}
@@ -269,7 +264,7 @@ so we report the comparison for orientation only, not as a head-to-head
 
 \begin{figure}[t!]
     \centering
-    \includegraphics[width=0.95\linewidth]{figs/aug_ablation_paper.pdf}
+    \includegraphics[width=0.7\linewidth]{figs/aug_ablation_paper.pdf}
 \caption{\textbf{Cumulative augmentation lift on Obj F1} (FTP-PRUE B3, dense held-out, WS+TTA). Each step adds one augmentation group to the PRUE recipe. Horizontal lines mark the same-recipe FTW-PRUE \emph{augmax} baselines (solid: B3, architecture-matched; dashed: B7, strongest S2 model). The final FTP-PRUE model exceeds every S2 reference, so the dataset change drives the gain even at matched architecture.}
     \label{fig:aug_ablation}
 \end{figure}
@@ -514,7 +509,7 @@ tied to field size (\Cref{fig:smallholder_scatter}).
 
 \begin{figure*}[t]
     \centering
-    \includegraphics[width=\linewidth]{figs/improvement_examples.pdf}
+    \includegraphics[width=0.8\linewidth]{figs/improvement_examples.pdf}
     \caption{\textbf{Where the 3m imagery helps most.} The five held-out
     patches with the largest per-patch object-F1 improvement (FTP-PRUE
     \emph{augmax} full $-$ FTW-PRUE (B7) full, both WS+TTA). Columns: Sentinel-2
@@ -533,7 +528,7 @@ tied to field size (\Cref{fig:smallholder_scatter}).
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.95\linewidth]{figs/per_country_bars_pq.pdf}
+    \includegraphics[width=0.8\linewidth]{figs/per_country_bars_pq.pdf}
 \caption{\textbf{Per-region $\Delta$ PQ on the FTW \texttt{full\_data} protocol} (FTP-PRUE \emph{augmax} full $-$ FTW-PRUE (B7) full). Wins (olive) and losses (sienna). Planet wins PQ on $21$ of $23$ regions; Germany and Portugal are the two losses. $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
     \label{fig:per_country_bars}
 \end{figure}
@@ -814,14 +809,14 @@ held-out set referenced from the main text.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{figs/per_country_both.pdf}
+    \includegraphics[width=0.7\linewidth]{figs/per_country_both.pdf}
     \caption{\textbf{Per-region $\Delta$ (FTP-PRUE $-$ FTW-PRUE (B7)) under two metrics, same region order.} Left: polygon panoptic quality (PQ; released B3-full checkpoint vs.\ S2 B7-full, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 used by the released PRUE models~\cite{muhawenayo2026prue}. Polygon PQ shows a broad, consistent PlanetScope advantage ($21/23$ regions), whereas the pixel-instance object F1 is far noisier and barely favors Planet ($11/22$). The two metrics disagree because pixel-instance object F1 is recall-sensitive and grid-dependent, so it \emph{understates} the resolution benefit that the polygon metrics surface --- which is why we lead with polygon-level metrics.}
     \label{fig:per_country_objf1_appx}
 \end{figure}
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.75\linewidth]{figs/smallholder_scatter_paper.pdf}
+    \includegraphics[width=0.6\linewidth]{figs/smallholder_scatter_paper.pdf}
     \caption{\textbf{PQ gain vs.\ field size.}
     Per-region median FTW polygon area (hectares, log scale; EPSG:6933
     equal-area) vs $\Delta$\,PQ (FTP-PRUE \emph{augmax} full WS+TTA $-$
@@ -930,14 +925,14 @@ protocol used for every other row.)
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.78\linewidth]{figs/qualitative_v6_appx.pdf}
+    \includegraphics[width=0.9\linewidth]{figs/qualitative_v6_appx.pdf}
     \caption{\textbf{Additional raw-prediction samples} (companion to \Cref{fig:qualitative}). Eight more dense-smallholder patches. Green = predicted field interior; black = background and boundary. FTP-PRUE (col 4) recovers the parcel grid; FTW-PRUE (B7, col 5) leaves large black gaps.}
     \label{fig:qualitative_appx}
 \end{figure*}
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.78\linewidth]{figs/qualitative_v7_appx.pdf}
+    \includegraphics[width=0.9\linewidth]{figs/qualitative_v7_appx.pdf}
     \caption{\textbf{Additional post-processed instance samples} (D4 TTA + watershed; companion to \Cref{fig:qualitative}). Eight more dense-smallholder patches. Each color = a distinct field instance.}
     \label{fig:qualitative_post_appx}
 \end{figure*}
@@ -949,7 +944,7 @@ protocol used for every other row.)
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=\linewidth]{figs/qualitative_delineate.pdf}
+    \includegraphics[width=0.8\linewidth]{figs/qualitative_delineate.pdf}
     \caption{\textbf{FTP-PRUE (ours) vs DelineateAnything.} Same four dense-smallholder rows as \Cref{fig:qualitative}. Columns: Planet RGB, GT instances, FTP-PRUE (TTA + watershed), DelineateAnything (YOLO11x-seg, RGB uint8, canonical inference settings; no FTW or PlanetScope fine-tuning). Each color = a distinct field instance.}
     \label{fig:qualitative_delineate}
 \end{figure}
