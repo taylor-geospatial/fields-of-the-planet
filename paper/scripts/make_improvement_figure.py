@@ -125,7 +125,7 @@ def _predict_instances_planet(task, model, country, pid):
     mask = s["mask"].unsqueeze(0)
     device = next(model.parameters()).device
     image, mask, H, W = _pad_min32(image.to(device), mask.to(device), min_size=512, pad_mode="zero")
-    probs, sdf = _predict_tta(task, model, image, 20.0)
+    probs, _sdf = _predict_tta(task, model, image, 20.0)
     seg_np = probs.argmax(dim=1).squeeze(0).cpu().numpy().astype(np.uint8)[:H, :W]
     boundary = (seg_np == 2).astype(np.uint8)
     dist = distance_transform_edt(boundary == 0).astype(np.float32)
@@ -147,8 +147,10 @@ def _predict_instances_s2_on_planet_grid(task, model, country, pid):
     image = torch.from_numpy(np.concatenate([b_arr, a_arr], axis=0)).unsqueeze(0) / S2_NORM_DIVISOR
     dummy_mask = torch.zeros((1, image.shape[-2], image.shape[-1]), dtype=torch.long)
     device = next(model.parameters()).device
-    image, _, H, W = _pad_min32(image.to(device), dummy_mask.to(device), min_size=512, pad_mode="zero")
-    probs, sdf = _predict_tta(task, model, image, 20.0)
+    image, _, H, W = _pad_min32(
+        image.to(device), dummy_mask.to(device), min_size=512, pad_mode="zero"
+    )
+    probs, _sdf = _predict_tta(task, model, image, 20.0)
     seg_np = probs.argmax(dim=1).squeeze(0).cpu().numpy().astype(np.uint8)[:H, :W]
     boundary = (seg_np == 2).astype(np.uint8)
     dist = distance_transform_edt(boundary == 0).astype(np.float32)
@@ -186,8 +188,7 @@ def select_patches(planet_csv, s2_csv, top_n, min_n_gt):
     # Use the GT count from the Planet side (both share the same label geometry,
     # but Planet GT is at native 3m resolution; n_gt should agree closely).
     sel = j[(j["delta_obj_f1"] > 0) & (j["n_gt_pl"] >= min_n_gt)].copy()
-    sel = sel.sort_values("delta_obj_f1", ascending=False).head(top_n)
-    return sel
+    return sel.sort_values("delta_obj_f1", ascending=False).head(top_n)
 
 
 def main() -> int:

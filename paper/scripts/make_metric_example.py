@@ -155,9 +155,13 @@ def plot_polygons(ax, res: dict, size: int, title: str) -> None:
     tp = [s for j, s in enumerate(res["pred_shapes"]) if j in res["tp_js"]]
     fp = [s for j, s in enumerate(res["pred_shapes"]) if j not in res["tp_js"]]
     if tp:
-        gpd.GeoSeries(tp).plot(ax=ax, facecolor=tg_style.GREEN_INK, edgecolor="#2f5d23", linewidth=0.5, alpha=0.6)
+        gpd.GeoSeries(tp).plot(
+            ax=ax, facecolor=tg_style.GREEN_INK, edgecolor="#2f5d23", linewidth=0.5, alpha=0.6
+        )
     if fp:
-        gpd.GeoSeries(fp).plot(ax=ax, facecolor=tg_style.RED, edgecolor="#7d2414", linewidth=0.5, alpha=0.6)
+        gpd.GeoSeries(fp).plot(
+            ax=ax, facecolor=tg_style.RED, edgecolor="#7d2414", linewidth=0.5, alpha=0.6
+        )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
     ax.set_aspect("equal")
@@ -170,7 +174,11 @@ def plot_polygons(ax, res: dict, size: int, title: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--ckpt", type=Path, default=REPO / "logs/best_checkpoints/planet_efnet3_augmax_full_best.ckpt")
+    ap.add_argument(
+        "--ckpt",
+        type=Path,
+        default=REPO / "logs/best_checkpoints/planet_efnet3_augmax_full_best.ckpt",
+    )
     ap.add_argument("--root", type=str, default=str(REPO / "data"))
     ap.add_argument("--country", type=str, default="croatia")
     ap.add_argument("--max-patches", type=int, default=140)
@@ -198,7 +206,11 @@ def main() -> int:
     gsd_m = GSD_M["planet"]
 
     ds = FTWPlanet(
-        root=args.root, countries=[args.country], split="test", transforms=None, load_boundaries=True
+        root=args.root,
+        countries=[args.country],
+        split="test",
+        transforms=None,
+        load_boundaries=True,
     )
 
     cands = []
@@ -234,7 +246,9 @@ def main() -> int:
 
     n_show = args.n_show
     if len(cands) < n_show:
-        raise SystemExit(f"only {len(cands)} candidates in first {args.max_patches} of {args.country}")
+        raise SystemExit(
+            f"only {len(cands)} candidates in first {args.max_patches} of {args.country}"
+        )
 
     # Pick patches spanning the recognition range (a strong case and a harder
     # one) so the figure shows how the metrics move with quality. Explicit
@@ -257,10 +271,16 @@ def main() -> int:
                 f"only {len(dense)} patches with coverage>={args.min_coverage}; "
                 f"lower --min-coverage or raise --max-patches"
             )
-        picks = [dense[-1], dense[0]] if n_show == 2 else dense[:: max(1, len(dense) // n_show)][:n_show]
-        print(f"  selected idxs={[p['idx'] for p in picks]} "
-              f"cov={[round(p['met']['coverage'],2) for p in picks]} "
-              f"objf1={[round(p['met']['objf1'],2) for p in picks]}")
+        picks = (
+            [dense[-1], dense[0]]
+            if n_show == 2
+            else dense[:: max(1, len(dense) // n_show)][:n_show]
+        )
+        print(
+            f"  selected idxs={[p['idx'] for p in picks]} "
+            f"cov={[round(p['met']['coverage'], 2) for p in picks]} "
+            f"objf1={[round(p['met']['objf1'], 2) for p in picks]}"
+        )
 
     # Single-column figure. Per row: PlanetScope image, the predicted raster
     # field mask, and that mask vectorized into polygons (geopandas) matched to
@@ -270,8 +290,15 @@ def main() -> int:
     titles = ["PlanetScope", "Pred mask", "Polygons (TP/FP)"]
     fig = plt.figure(figsize=(3.5, 0.82 * n_show + 0.14))
     gs = fig.add_gridspec(
-        n_show, 4, width_ratios=[1, 1, 1, 1.55],
-        wspace=0.04, hspace=0.04, left=0.004, right=0.996, top=0.86, bottom=0.02,
+        n_show,
+        4,
+        width_ratios=[1, 1, 1, 1.55],
+        wspace=0.04,
+        hspace=0.04,
+        left=0.004,
+        right=0.996,
+        top=0.86,
+        bottom=0.02,
     )
     row_res = []
     for r, pick in enumerate(picks):
@@ -307,9 +334,11 @@ def main() -> int:
 
     def _fmt(value: float, spec: str, scale: float) -> str:
         v = value * scale
-        return spec.format(int(round(v))) if spec == "{:d}" else spec.format(v)
+        return spec.format(round(v)) if spec == "{:d}" else spec.format(v)
 
-    cell_text = [[_fmt(res[key], spec, scale) for res in row_res] for (_, key, spec, scale) in metric_rows]
+    cell_text = [
+        [_fmt(res[key], spec, scale) for res in row_res] for (_, key, spec, scale) in metric_rows
+    ]
     row_labels = [name for name, _, _, _ in metric_rows]
     col_labels = (["top", "bot"] if n_show == 2 else [f"#{i + 1}" for i in range(n_show)])[:n_show]
 
@@ -338,7 +367,13 @@ def main() -> int:
     fig.savefig(args.out, dpi=300, bbox_inches="tight")
     print(f"wrote {args.out}  (country={args.country}, idxs={[p['idx'] for p in picks]})")
     for p in picks:
-        print({k: (round(v, 3) if isinstance(v, float) else v) for k, v in p["met"].items() if k != "inst_pred"})
+        print(
+            {
+                k: (round(v, 3) if isinstance(v, float) else v)
+                for k, v in p["met"].items()
+                if k != "inst_pred"
+            }
+        )
     return 0
 
 

@@ -80,7 +80,11 @@ def main() -> None:
         return s
 
     def row_line(model: str, backbone: str, split: str, bold: bool, agg: dict[str, float]) -> str:
-        m, b, s = (rf"\textbf{{{x}}}" for x in (model, backbone, split)) if bold else (model, backbone, split)
+        m, b, s = (
+            (rf"\textbf{{{x}}}" for x in (model, backbone, split))
+            if bold
+            else (model, backbone, split)
+        )
         return (
             f"{m} & {b} & {s} & "
             f"{cell(agg['pq'], 'pq')} & {cell(agg['pq_sq'], 'pq_sq')} & "

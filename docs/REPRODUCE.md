@@ -32,11 +32,11 @@ Runs watershed + D4 TTA inference over the 10 dense-label held-out countries,
 writes per-country CSVs to `logs/eval/<checkpoint>/`, and prints the macro
 table next to the published paper numbers:
 
-| Metric | Expected |
-| --- | --- |
-| PQ | 0.360 |
-| Obj F1 (WS+TTA) | 0.452 |
-| Pixel IoU | 0.688 |
+| Metric          | Expected |
+| --------------- | -------- |
+| PQ              | 0.360    |
+| Obj F1 (WS+TTA) | 0.452    |
+| Pixel IoU       | 0.688    |
 
 Presence-only Kenya is excluded from these aggregates; pass `--split full23`
 for the 23-region full-data protocol.
