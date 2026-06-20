@@ -67,6 +67,7 @@ def evaluate_country_per_patch(
     pad_mode: str,
     dataset_backend: str,
     s2_data_scale: float,
+    upsample_to: int | None,
 ) -> list[dict]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -106,6 +107,20 @@ def evaluate_country_per_patch(
     for i, batch in enumerate(tqdm(dl, desc=country, leave=False)):
         image = batch["image"].to(device) / scale
         mask = batch["mask"].to(device)
+        if upsample_to is not None:
+            # resize_factor>1 equivalent: bilinear-upsample the image (nearest
+            # the mask) 256->upsample_to, matching ftw_tools inference and the
+            # upsampled-S2 training resolution.
+            image = torch.nn.functional.interpolate(
+                image, size=(upsample_to, upsample_to), mode="bilinear", align_corners=False
+            )
+            mask = (
+                torch.nn.functional.interpolate(
+                    mask.unsqueeze(1).float(), size=(upsample_to, upsample_to), mode="nearest"
+                )
+                .squeeze(1)
+                .to(mask.dtype)
+            )
         image, mask, H, W = _pad_min32(image, mask, min_size=min_pad_size, pad_mode=pad_mode)
 
         if use_tta:
@@ -205,6 +220,13 @@ def main() -> int:
     p.add_argument("--pad-mode", type=str, default="zero", choices=["zero", "replicate"])
     p.add_argument("--dataset-backend", type=str, default="planet", choices=["planet", "s2"])
     p.add_argument("--s2-data-scale", type=float, default=3000.0)
+    p.add_argument(
+        "--upsample-to",
+        type=int,
+        default=None,
+        help="Bilinear-upsample 256->N before padding (resize_factor equivalent). "
+        "Use with --dataset-backend s2 and N==min-pad-size.",
+    )
     args = p.parse_args()
 
     device = torch.device(
@@ -244,6 +266,7 @@ def main() -> int:
             pad_mode=args.pad_mode,
             dataset_backend=args.dataset_backend,
             s2_data_scale=args.s2_data_scale,
+            upsample_to=args.upsample_to,
         )
         with args.out.open("a") as f:
             for row in rows:
