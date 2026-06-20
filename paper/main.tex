@@ -565,6 +565,8 @@ The main ablation result is that FTP needs stronger regularization than the S2 r
 
 \textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia Obj F1 loss; on PQ and boundary chamfer Cambodia is still a Planet win (see \Cref{sec:polygon-first}).
 
+\textbf{Societal impact.} Parcel-level field maps can be misused --- for example, by firms for farm-level surveillance or for insurance and credit profiling of individual growers, which would fall hardest on smallholders. We judge the benefits to global agricultural and food-security monitoring to outweigh these risks, and intend the labels and predictions for aggregate analysis rather than targeting individual farms.
+
 \textbf{Future work.} Country-scale inference is the next practical test of FTP, especially in regions where small fields and dense parcel boundaries make 10m products brittle. We also plan to release trained PlanetScope checkpoints and investigate resolution-agnostic joint training that combines the Planet and Sentinel-2 versions of FTW in a single model. These directions are outside the scope of this paper.
 
 \section{Conclusion}
