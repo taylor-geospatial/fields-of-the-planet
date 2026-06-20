@@ -26,17 +26,13 @@ SRC = REPO / "logs" / "postproc_ablation"
 REPRO = REPO / "logs" / "repro_eval"
 REPRO_STEM = "planet_b3_augmax_full"
 
-# (model, backbone, split, csv stem) — same row order as the previous table.
+# (model, backbone, csv stem). Full-data split only.
 CONFIGS_OURS_PLANET = [
-    ("FTP-PRUE", "B3", "CC-BY", "planet_b3_augmax_ccby"),
-    ("FTP-PRUE", "B7", "CC-BY", "planet_b7_augmax_ccby"),
-    ("FTP-PRUE", "B3", "full", "planet_b3_augmax_full"),
+    ("FTP-PRUE", "B3", "planet_b3_augmax_full"),
 ]
 CONFIGS_OURS_S2 = [
-    ("FTW-PRUE", "B3", "CC-BY", "s2_b3_augmax_ccby"),
-    ("FTW-PRUE", "B7", "CC-BY", "s2_b7_augmax_ccby"),
-    ("FTW-PRUE", "B3", "full", "s2_b3_augmax_full"),
-    ("FTW-PRUE", "B7", "full", "s2_b7_augmax_full"),
+    ("FTW-PRUE", "B3", "s2_b3_augmax_full"),
+    ("FTW-PRUE", "B7", "s2_b7_augmax_full"),
 ]
 
 COMBOS = (
@@ -81,43 +77,33 @@ def main() -> None:
     rows.append(r"\footnotesize")
     rows.append(r"\setlength{\tabcolsep}{3pt}")
     rows.append(r"\renewcommand{\arraystretch}{1.05}")
-    rows.append(r"\begin{tabular}{@{}l l l ccc c c@{}}")
+    rows.append(r"\begin{tabular}{@{}l l ccc c c@{}}")
     rows.append(r"\toprule")
-    rows.append(r"& & & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\")
-    rows.append(r"\cmidrule(lr){4-7}")
+    rows.append(r"& & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\")
+    rows.append(r"\cmidrule(lr){3-6}")
     rows.append(
-        r"Model & Backbone & Split & "
+        r"Model & Backbone & "
         r"\makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & "
         r"\makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & "
         r"\makecell{Pix\\IoU} \\"
     )
     rows.append(r"\midrule")
-    # Released PRUE reference numbers (constants from muhawenayo2026prue, on
-    # the FTW full_data test split — not directly comparable to our held-out
-    # macro; kept for orientation).
+    # Released PRUE reference number (constant from muhawenayo2026prue, on the
+    # FTW full_data test split — not directly comparable to our held-out macro;
+    # kept for orientation).
     rows.append(
-        r"FTW-PRUE & B3 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- "
-        r"& 39.0$^\ddag$ & 76.0$^\ddag$ \\"
-    )
-    rows.append(
-        r"FTW-PRUE & B7 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- "
-        r"& 44.0$^\ddag$ & 77.0$^\ddag$ \\"
-    )
-    rows.append(
-        r"FTW-PRUE & B7 & full~\cite{muhawenayo2026prue}  & --- & --- & --- "
+        r"FTW-PRUE & B7~\cite{muhawenayo2026prue}  & --- & --- & --- "
         r"& 47.0$^\ddag$ & 76.0$^\ddag$ \\"
     )
     rows.append(r"\midrule")
-    rows.append(r"\multicolumn{8}{@{}l}{\textit{Ours --- FTP-PRUE \textbf{augmax}}} \\")
+    rows.append(r"\multicolumn{7}{@{}l}{\textit{Ours --- FTP-PRUE \textbf{augmax}}} \\")
 
     planet_vals = [_row(stem) for *_, stem in CONFIGS_OURS_PLANET]
     planet_best_iou = max(v[1] for v in planet_vals)
-    for (model, backbone, split, _), (vals, pix_iou, nc, ne) in zip(
-        CONFIGS_OURS_PLANET, planet_vals
-    ):
+    for (model, backbone, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_PLANET, planet_vals):
         if nc != ne:
             raise RuntimeError(
-                f"Planet config {model} {backbone} {split}: macro over {nc}/{ne} countries; "
+                f"Planet config {model} {backbone}: macro over {nc}/{ne} countries; "
                 f"expected all {len(HELDOUT_10_DENSE)} of HELDOUT_10_DENSE."
             )
         cells = _cells(vals)
@@ -125,23 +111,23 @@ def main() -> None:
         if pix_iou == planet_best_iou:
             iou_s = rf"\textbf{{{iou_s}}}"
         rows.append(
-            f"{model} & {backbone} & {split} & "
+            f"{model} & {backbone} & "
             f"{cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {iou_s} \\\\"
         )
     rows.append(r"\midrule")
     rows.append(
-        r"\multicolumn{8}{@{}l}{\textit{FTW-PRUE baselines re-trained with our \textbf{augmax} recipe}} \\"
+        r"\multicolumn{7}{@{}l}{\textit{FTW-PRUE baselines re-trained with our \textbf{augmax} recipe}} \\"
     )
     s2_vals = [_row(stem) for *_, stem in CONFIGS_OURS_S2]
-    for (model, backbone, split, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_S2, s2_vals):
+    for (model, backbone, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_S2, s2_vals):
         if nc != ne:
             raise RuntimeError(
-                f"S2 config {model} {backbone} {split}: macro over {nc}/{ne} countries; "
+                f"S2 config {model} {backbone}: macro over {nc}/{ne} countries; "
                 f"expected all {len(HELDOUT_10_DENSE)} of HELDOUT_10_DENSE."
             )
         cells = _cells(vals)
         rows.append(
-            f"{model} & {backbone} & {split} & "
+            f"{model} & {backbone} & "
             f"{cells[0]} & {cells[1]} & {cells[2]} & {cells[3]} & {pix_iou * 100:.1f} \\\\"
         )
     rows.append(r"\bottomrule")
@@ -154,10 +140,10 @@ def main() -> None:
     )
     OUT.write_text("\n".join(rows) + "\n")
     print(f"wrote {OUT}")
-    for (model, backbone, split, _), (vals, pix_iou, _, _) in zip(
+    for (model, backbone, _), (vals, pix_iou, _, _) in zip(
         CONFIGS_OURS_PLANET + CONFIGS_OURS_S2, planet_vals + s2_vals
     ):
-        print(f"  {model} {backbone} {split}: ws_tta={vals[3]:.3f} pix_iou={pix_iou:.3f}")
+        print(f"  {model} {backbone}: ws_tta={vals[3]:.3f} pix_iou={pix_iou:.3f}")
 
 
 if __name__ == "__main__":

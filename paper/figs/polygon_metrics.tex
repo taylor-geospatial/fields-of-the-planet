@@ -1,20 +1,15 @@
 \footnotesize
 \setlength{\tabcolsep}{3.5pt}
-\begin{tabular}{@{}l l l ccc c c cc@{}}
+\begin{tabular}{@{}l l ccc c c cc@{}}
 \toprule
-& & & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} \\
-\cmidrule(lr){4-6} \cmidrule(lr){9-10}
-Model & Backbone & Split & PQ & SQ & \makecell{RQ\\($=$F1$_{.5}$)} & F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|$} & mean & p95 \\
+& & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} \\
+\cmidrule(lr){3-5} \cmidrule(lr){8-9}
+Model & Backbone & PQ & SQ & \makecell{RQ\\($=$F1$_{.5}$)} & F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|$} & mean & p95 \\
 \midrule
-DelineateAnything$^{*}$ & -- & -- & 14.6 & 74.0 & 19.5 & 11.0 & 85.8 & 12.2 & 35.6 \\
+DelineateAnything$^{*}$ & -- & 14.6 & 74.0 & 19.5 & 11.0 & 85.8 & 12.2 & 35.6 \\
 \midrule
-FTW-PRUE & B3 & CC-BY & 25.8 & 68.2 & 33.3 & 20.0 & 58.8 & 17.7 & 52.0 \\
-FTW-PRUE & B3 & full & 27.1 & 68.4 & 34.9 & 21.0 & 56.7 & 17.5 & 53.5 \\
-FTW-PRUE & B7 & CC-BY & 27.3 & 69.0 & 34.8 & 21.5 & 58.7 & 16.7 & 51.7 \\
-FTW-PRUE & B7 & full & 31.1 & 75.8 & 39.4 & 24.7 & \textbf{54.9} & 15.2 & 45.3 \\
-\midrule
-FTP-PRUE & B3 & CC-BY & 30.0 & 70.6 & 37.4 & 24.5 & 64.0 & 8.1 & 25.2 \\
-FTP-PRUE & B7 & CC-BY & 30.6 & 70.5 & 38.3 & 24.9 & 61.4 & 8.0 & 25.3 \\
-\textbf{FTP-PRUE} & \textbf{B3} & \textbf{full} & \textbf{36.0} & \textbf{77.9} & \textbf{45.2} & \textbf{29.1} & 55.5 & \textbf{7.4} & \textbf{22.8} \\
+FTW-PRUE & B3 & 27.1 & 68.4 & 34.9 & 21.0 & 56.7 & 17.5 & 53.5 \\
+FTW-PRUE & B7 & 31.1 & 75.8 & 39.4 & 24.7 & \textbf{54.9} & 15.2 & 45.3 \\
+\textbf{FTP-PRUE} & \textbf{B3} & \textbf{36.0} & \textbf{77.9} & \textbf{45.2} & \textbf{29.1} & 55.5 & \textbf{7.4} & \textbf{22.8} \\
 \bottomrule
 \end{tabular}

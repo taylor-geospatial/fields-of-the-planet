@@ -1,10 +1,10 @@
 """Generate ``paper/figs/heldout_per_country.tex`` (``tab:heldout_pc``).
 
 Per-country pixel IoU + Planet Obj F1 (WS+TTA) on the 11 held-out
-countries. S2 column is the released FTW-PRUE (B3, CC-BY) checkpoint as
-evaluated in ``logs/ftw_official_ccby/s2_ccby_per_country.csv``; Planet
+countries. S2 column is our FTW-PRUE (B3) \\emph{augmax} full model
+(``logs/postproc_ablation/s2_b3_augmax_full_ws_tta.csv``); Planet
 column is our best B3 \\emph{augmax} full + WS + D4 TTA
-(``logs/postproc_ablation/planet_b3_augmax_full_ws_tta.csv``).
+(``logs/repro_eval/pp_ws_tta.csv``).
 
 Kenya's labels are presence-only (background untrusted): its supervised
 pixel/object metrics are not comparable, so the kenya row shows dashes and
@@ -24,7 +24,7 @@ HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "heldout_per_country.tex"
 
-S2_CSV = REPO / "logs" / "ftw_official_ccby" / "s2_ccby_per_country.csv"
+S2_CSV = REPO / "logs" / "postproc_ablation" / "s2_b3_augmax_full_ws_tta.csv"
 # Released B3-full checkpoint (retrained Jun 2026, epoch 92): reproduction eval.
 PL_CSV = REPO / "logs" / "repro_eval" / "pp_ws_tta.csv"
 
@@ -48,8 +48,8 @@ def main() -> None:
     rows.append(r"\begin{tabular}{@{}l c c c c@{}}")
     rows.append(r"\toprule")
     rows.append(
-        r"Country & \makecell{FTW-PRUE\\(B3, CC-BY)\\IoU} & "
-        r"\makecell{FTP-PRUE\\(B3, full)\\IoU} & \makecell{$\Delta$\\IoU} & "
+        r"Country & \makecell{FTW-PRUE\\(B3)\\IoU} & "
+        r"\makecell{FTP-PRUE\\(B3)\\IoU} & \makecell{$\Delta$\\IoU} & "
         r"\makecell{FTP-PRUE\\Obj F1\\(WS+TTA)} \\"
     )
     rows.append(r"\midrule")

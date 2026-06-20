@@ -81,6 +81,33 @@ def _instance_render(inst):
     return _instance_cmap(n)(inst)[..., :3]
 
 
+def _square_crop(arr):
+    """Center-crop along the longer axis so output is square."""
+    h, w = arr.shape[:2]
+    side = min(h, w)
+    y0, x0 = (h - side) // 2, (w - side) // 2
+    return arr[y0 : y0 + side, x0 : x0 + side]
+
+
+def _resize_square(arr, size):
+    """Square-crop then resize to (size, size). Integer label maps use NEAREST
+    (preserve instance ids); float RGB uses bilinear.
+
+    The Planet patches are portrait (~518x350), so without this the predicted
+    instance maps and RGB render as rectangles. Square-cropping + resizing here
+    makes every panel a uniform square, matching the qualitative figures.
+    """
+    from PIL import Image
+
+    arr = _square_crop(arr)
+    if np.issubdtype(arr.dtype, np.integer):
+        im = Image.fromarray(arr.astype(np.int32), mode="I")
+        return np.array(im.resize((size, size), Image.Resampling.NEAREST)).astype(arr.dtype)
+    a = (np.clip(arr, 0, 1) * 255).astype(np.uint8)
+    out = np.array(Image.fromarray(a).resize((size, size), Image.Resampling.BILINEAR)) / 255.0
+    return out.astype(np.float32)
+
+
 def _gt_instances(mask):
     field = (mask == 1).astype(np.uint8)
     inst, _ = cc_label(field)
@@ -201,6 +228,7 @@ def main() -> int:
     p.add_argument("--ckpt-s2", default="logs/best_checkpoints/s2_efnet7_best.ckpt")
     p.add_argument("--top-n", type=int, default=5)
     p.add_argument("--min-n-gt", type=int, default=8)
+    p.add_argument("--sq-size", type=int, default=512, help="Square-crop+resize each panel to this.")
     p.add_argument("--window", default="a")
     p.add_argument("--out", default="paper/figs/improvement_examples.pdf")
     p.add_argument("--png", default="logs/improvement_examples.png")
@@ -221,6 +249,7 @@ def main() -> int:
     task_pl, model_pl = _load_model(args.ckpt_planet, device)
     task_s2, model_s2 = _load_model(args.ckpt_s2, device)
 
+    sq = args.sq_size
     rows = []
     for _, r in sel.iterrows():
         country, pid = r["country"], str(r["patch_id"])
@@ -234,11 +263,11 @@ def main() -> int:
             {
                 "country": country,
                 "pid": pid,
-                "rgb_s2": rgb_s2,
-                "rgb_pl": rgb_pl,
-                "gt": gt_inst,
-                "inst_s2": inst_s2,
-                "inst_pl": inst_pl,
+                "rgb_s2": _resize_square(rgb_s2, sq),
+                "rgb_pl": _resize_square(rgb_pl, sq),
+                "gt": _resize_square(gt_inst, sq),
+                "inst_s2": _resize_square(inst_s2, sq),
+                "inst_pl": _resize_square(inst_pl, sq),
                 "f1_pl": r["obj_f1_pl"],
                 "f1_s2": r["obj_f1_s2"],
                 "delta": r["delta_obj_f1"],
