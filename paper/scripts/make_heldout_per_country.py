@@ -79,7 +79,9 @@ def main() -> None:
         else:
             s2_cell = rf"\textbf{{{s2_iou * 100:.1f}}}"
             pl_cell = f"{pl_iou * 100:.1f}"
-        rows.append(f"{c_pretty} & {s2_cell} & {pl_cell} & {delta * 100:+.1f} & {pl_f1 * 100:.1f} \\\\")
+        rows.append(
+            f"{c_pretty} & {s2_cell} & {pl_cell} & {delta * 100:+.1f} & {pl_f1 * 100:.1f} \\\\"
+        )
 
     n = len(HELDOUT_10_DENSE)
     rows.append(r"\midrule")

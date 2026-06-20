@@ -57,13 +57,13 @@ WHERE bbox.xmin > -10 AND bbox.xmax < 25
 
 Identity / geometry:
 
-| column        | type     | notes                                          |
-| ------------- | -------- | ---------------------------------------------- |
-| `patch_id`    | str      | unique within country                          |
+| column        | type     | notes                                                   |
+| ------------- | -------- | ------------------------------------------------------- |
+| `patch_id`    | str      | unique within country                                   |
 | `country`     | str      | one of 25 region slugs (24 countries; Corsica separate) |
-| `geometry`    | polygon  | EPSG:4326 patch footprint                      |
-| `crs`         | str      | native UTM CRS of the tifs (e.g. `EPSG:32636`) |
-| `bounds_4326` | float[4] | `[minx, miny, maxx, maxy]` convenience field   |
+| `geometry`    | polygon  | EPSG:4326 patch footprint                               |
+| `crs`         | str      | native UTM CRS of the tifs (e.g. `EPSG:32636`)          |
+| `bounds_4326` | float[4] | `[minx, miny, maxx, maxy]` convenience field            |
 
 Paths (relative to tar / planet root):
 

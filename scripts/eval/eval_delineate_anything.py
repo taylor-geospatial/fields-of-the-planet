@@ -132,7 +132,9 @@ def evaluate_country_yolo(
 
         pred_shapes: list[shapely.geometry.base.BaseGeometry] = []
         if r.masks is not None and r.masks.data is not None and len(r.masks.data) > 0:
-            masks = r.masks.data.cpu().numpy().astype(np.uint8)  # ty: ignore[unresolved-attribute]  # YOLO Results.masks.data is always Tensor here; guarded by None-check above  # (N, h, w)
+            masks = (
+                r.masks.data.cpu().numpy().astype(np.uint8)
+            )  # YOLO Results.masks.data is always Tensor here; guarded by None-check above  # (N, h, w)
             # Per-instance polygons.
             for k in range(masks.shape[0]):
                 m_k = masks[k]

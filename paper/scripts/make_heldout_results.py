@@ -112,7 +112,9 @@ def main() -> None:
 
     planet_vals = [_row(stem) for *_, stem in CONFIGS_OURS_PLANET]
     planet_best_iou = max(v[1] for v in planet_vals)
-    for (model, backbone, split, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_PLANET, planet_vals):
+    for (model, backbone, split, _), (vals, pix_iou, nc, ne) in zip(
+        CONFIGS_OURS_PLANET, planet_vals
+    ):
         if nc != ne:
             raise RuntimeError(
                 f"Planet config {model} {backbone} {split}: macro over {nc}/{ne} countries; "
