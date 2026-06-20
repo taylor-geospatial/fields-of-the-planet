@@ -56,6 +56,19 @@ def main():
     args = p.parse_args()
 
     df = pd.read_csv(args.src).rename(columns={"median_field_size_ha": "ha"})
+    # Recompute delta PQ from the released B3-full checkpoint (repro_eval),
+    # matching the Table 3 headline and make_per_country_bars_pq.py. Earlier
+    # this read the stale pq columns baked into the CSV, which came from our
+    # original (un-released) B3 checkpoint.
+    pq_pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(
+        columns={"pq": "pq_pl"}
+    )
+    pq_s2 = pd.read_csv("logs/polygon_metrics/s2_b7_augmax_full_22.csv")[["country", "pq"]].rename(
+        columns={"pq": "pq_s2"}
+    )
+    df = df.drop(columns=["pq_pl", "pq_s2", "delta_pq"], errors="ignore")
+    df = df.merge(pq_pl, on="country", how="inner").merge(pq_s2, on="country", how="inner")
+    df["delta_pq"] = df["pq_pl"] - df["pq_s2"]
     df["d_f1"] = df["delta_pq"] * 100.0
     df["country_lbl"] = df["country"].str.replace("_", " ").str.title()
     df["focus"] = df["country"].isin(FOCUS)
@@ -108,7 +121,7 @@ def main():
     ax.set_xticklabels([f"{v:g}" for v in tick_vals])
     ax.set_xlim(np.log10(0.08), np.log10(60))
     ax.set_xlabel("Median field area (ha, log scale)")
-    ax.set_ylabel(r"$\Delta$ PQ (pp, PRUE-FTP-B3 $-$ S2-B7)")
+    ax.set_ylabel(r"$\Delta$ PQ (pp, FTP-PRUE $-$ FTW-PRUE)")
     ax.text(
         0.97,
         0.03,

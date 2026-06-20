@@ -45,7 +45,7 @@ tests/
 
 ## Dataset
 
-The FTP dataset (66,584 patches across 24 countries / 25 labeled regions) is described in
+The FTP dataset (66,584 patches paired with PlanetScope, from the 70,484 labeled FTW patches, across 24 countries / 25 labeled regions) is described in
 [docs/DATASET.md](docs/DATASET.md): S3 layout, the GeoParquet index schema,
 and how to read it. To build it from scratch from the Planet API, see
 [scripts/README.md](scripts/README.md).

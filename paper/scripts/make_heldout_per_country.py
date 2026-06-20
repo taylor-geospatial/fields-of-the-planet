@@ -1,7 +1,7 @@
 """Generate ``paper/figs/heldout_per_country.tex`` (``tab:heldout_pc``).
 
 Per-country pixel IoU + Planet Obj F1 (WS+TTA) on the 11 held-out
-countries. S2 column is the released FTW S2 PRUE-B3 CC-BY checkpoint as
+countries. S2 column is the released FTW-PRUE (B3, CC-BY) checkpoint as
 evaluated in ``logs/ftw_official_ccby/s2_ccby_per_country.csv``; Planet
 column is our best B3 \\emph{augmax} full + WS + D4 TTA
 (``logs/postproc_ablation/planet_b3_augmax_full_ws_tta.csv``).
@@ -48,9 +48,9 @@ def main() -> None:
     rows.append(r"\begin{tabular}{@{}l c c c c@{}}")
     rows.append(r"\toprule")
     rows.append(
-        r"Country & \makecell{PRUE-B3\\(S2, CC-BY)\\IoU} & "
-        r"\makecell{PRUE-FTP-B3\\(full)\\IoU} & \makecell{$\Delta$\\IoU} & "
-        r"\makecell{PRUE-FTP\\Obj F1\\(WS+TTA)} \\"
+        r"Country & \makecell{FTW-PRUE\\(B3, CC-BY)\\IoU} & "
+        r"\makecell{FTP-PRUE\\(B3, full)\\IoU} & \makecell{$\Delta$\\IoU} & "
+        r"\makecell{FTP-PRUE\\Obj F1\\(WS+TTA)} \\"
     )
     rows.append(r"\midrule")
 
@@ -74,19 +74,19 @@ def main() -> None:
         f1_sum += pl_f1
         if pl_iou > s2_iou:
             wins += 1
-            s2_cell = f"{s2_iou:.3f}"
-            pl_cell = rf"\textbf{{{pl_iou:.3f}}}"
+            s2_cell = f"{s2_iou * 100:.1f}"
+            pl_cell = rf"\textbf{{{pl_iou * 100:.1f}}}"
         else:
-            s2_cell = rf"\textbf{{{s2_iou:.3f}}}"
-            pl_cell = f"{pl_iou:.3f}"
-        rows.append(f"{c_pretty} & {s2_cell} & {pl_cell} & {delta:+.3f} & {pl_f1:.3f} \\\\")
+            s2_cell = rf"\textbf{{{s2_iou * 100:.1f}}}"
+            pl_cell = f"{pl_iou * 100:.1f}"
+        rows.append(f"{c_pretty} & {s2_cell} & {pl_cell} & {delta * 100:+.1f} & {pl_f1 * 100:.1f} \\\\")
 
     n = len(HELDOUT_10_DENSE)
     rows.append(r"\midrule")
     rows.append(
-        f"Macro ({n}, dense) & {s2_sum / n:.3f} "
-        rf"& \textbf{{{pl_sum / n:.3f}}} & {delta_sum / n:+.3f} "
-        rf"& \textbf{{{f1_sum / n:.3f}}} \\"
+        f"Macro ({n}, dense) & {s2_sum / n * 100:.1f} "
+        rf"& \textbf{{{pl_sum / n * 100:.1f}}} & {delta_sum / n * 100:+.1f} "
+        rf"& \textbf{{{f1_sum / n * 100:.1f}}} \\"
     )
     rows.append(r"\bottomrule")
     rows.append(r"\end{tabular}")

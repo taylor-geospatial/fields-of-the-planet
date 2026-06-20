@@ -92,7 +92,7 @@ def main():
 
     ax.set_yticks(y)
     ax.set_yticklabels(df.country_lbl, fontsize=7.5)
-    ax.set_xlabel(r"$\Delta$ PQ (pp, PRUE-FTP-B3 $-$ S2-augmax-B7)", labelpad=4)
+    ax.set_xlabel(r"$\Delta$ PQ (pp, FTP-PRUE $-$ FTW-PRUE)", labelpad=4)
     ax.set_xlim(min(df.d_pq) - 3.0, max(df.d_pq) + 3.0)
     ax.invert_yaxis()
     ax.grid(axis="x", linewidth=0.3, color="#d9d6c8", alpha=0.9, zorder=0)

@@ -96,7 +96,7 @@ def main():
 
     ax.set_yticks(y)
     ax.set_yticklabels(df.country_lbl, fontsize=7.5)
-    ax.set_xlabel(r"$\Delta$ Obj F1 (pp, PRUE-FTP-B3 $-$ PRUE-B7)", labelpad=4)
+    ax.set_xlabel(r"$\Delta$ Obj F1 (pp, FTP-PRUE $-$ FTW-PRUE)", labelpad=4)
     ax.set_xlim(min(df.d_f1) - 2.5, max(df.d_f1) + 2.5)
     ax.invert_yaxis()  # largest gain on top
     ax.grid(axis="x", linewidth=0.3, color="#d9d6c8", alpha=0.9, zorder=0)

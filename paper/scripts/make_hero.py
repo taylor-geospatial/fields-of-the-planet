@@ -40,6 +40,12 @@ plt.rcParams.update({"font.family": "serif", "font.serif": ["Nimbus Roman", "Tim
 # [Blue, Green, Red, NIR] -> RGB = (3, 2, 1).
 SQUARE_PX = 512
 
+# Both sensors store surface reflectance scaled by 1e4 (uint16). A single
+# constant divisor preserves true color balance; the earlier per-channel
+# percentile stretch normalized each band independently and shifted the
+# white balance (the "looks BGR/oddly normalized" artifact).
+NORM_DIVISOR = 3000.0
+
 DEFAULT_PATCHES = (
     ("cambodia", "g33_0000000000-0000000000", "a"),
     ("croatia", "g10-3_00009_2", "a"),
@@ -53,14 +59,10 @@ DEFAULT_PATCHES = (
 )
 
 
-def _percentile_stretch(rgb: np.ndarray, p_lo: float = 2, p_hi: float = 98) -> np.ndarray:
-    """Per-channel percentile stretch to [0, 1]."""
-    out = np.empty(rgb.shape, dtype=np.float32)
-    for c in range(rgb.shape[-1]):
-        ch = rgb[..., c].astype(np.float32)
-        lo, hi = np.percentile(ch, p_lo), np.percentile(ch, p_hi)
-        out[..., c] = np.clip((ch - lo) / (hi - lo), 0.0, 1.0) if hi - lo > 1e-6 else 0.0
-    return out
+def _stretch(rgb: np.ndarray, divisor: float = NORM_DIVISOR) -> np.ndarray:
+    """Constant-divisor reflectance stretch to [0, 1], same divisor on every
+    channel so the true color balance is preserved."""
+    return np.clip(rgb.astype(np.float32) / divisor, 0.0, 1.0)
 
 
 def _largest_valid_square(valid: np.ndarray) -> tuple[int, int, int, int]:
@@ -128,8 +130,8 @@ def _load_triplet(
     s2_grid = np.transpose(s2_grid, (1, 2, 0))
 
     y0, y1, x0, x1 = _largest_valid_square(valid > 0.5)
-    s2_rgb = _resize(_percentile_stretch(s2_grid[y0:y1, x0:x1]), order=0)
-    planet_rgb = _resize(_percentile_stretch(planet[y0:y1, x0:x1]), order=1)
+    s2_rgb = _resize(_stretch(s2_grid[y0:y1, x0:x1]), order=0)
+    planet_rgb = _resize(_stretch(planet[y0:y1, x0:x1]), order=1)
     label_sq = _resize(label[y0:y1, x0:x1], order=0).astype(np.uint8)
     return s2_rgb, planet_rgb, label_sq
 

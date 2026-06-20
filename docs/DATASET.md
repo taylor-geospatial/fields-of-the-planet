@@ -2,7 +2,7 @@
 
 Published at `s3://us-west-2.opendata.source.coop/ftw/ftw-planet/`.
 
-- 66,584 patches (two seasonal windows each = 133,168 image-window pairs) across 24 countries / 25 labeled regions (Corsica shipped separately from mainland France)
+- 66,584 patches (two seasonal windows each = 133,168 image-window pairs) across 24 countries / 25 labeled regions (Corsica shipped separately from mainland France). These are the patches successfully paired with PlanetScope, drawn from the 70,484 labeled FTW patches (140,968 patch-window targets); the 3,900 patches (7,800 targets) lacking a usable cloud-screened scene are dropped.
 - 52,235 patches with `usable_pair = True` (both windows pass UDM2)
 - Imagery: PlanetScope `ortho_analytic_4b_sr`, 4 bands (B/G/R/NIR), 3 m GSD, native UTM, `uint16` (reflectance = DN / 10000)
 - Labels: 3-class — 0 background, 1 field interior, 2 field boundary; `uint8` NBITS=2; boundaries rasterized `all_touched=True`

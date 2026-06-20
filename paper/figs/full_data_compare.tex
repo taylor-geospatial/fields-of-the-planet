@@ -1,22 +1,22 @@
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}l@{\hspace{4pt}}l@{\hspace{4pt}}c@{\hspace{4pt}}c@{}}
+\begin{tabular}{@{}l@{\hspace{4pt}}l@{\hspace{4pt}}l@{\hspace{4pt}}c@{\hspace{4pt}}c@{}}
 \toprule
-Model & Train set & Pix IoU & Obj F1 \\
+Model & Backbone & Split & Pix IoU & Obj F1 \\
 \midrule
-\multicolumn{4}{l}{\textit{S2 PRUE CC-BY-NC (released by \cite{muhawenayo2026prue})}} \\
-PRUE-B3 (S2, full) & 24/25 & 0.74 & 0.43 \\
-PRUE-B5 (S2, full) & 24/25 & 0.75 & 0.46 \\
-PRUE-B7 (S2, full) & 24/25 & 0.76 & \textbf{0.47} \\
+\multicolumn{5}{l}{\textit{FTW-PRUE, full (CC-BY-NC), released by \cite{muhawenayo2026prue}}} \\
+FTW-PRUE & B3 & full & 74.0 & 43.0 \\
+FTW-PRUE & B5 & full & 75.0 & 46.0 \\
+FTW-PRUE & B7 & full & 76.0 & \textbf{47.0} \\
 \midrule
-\multicolumn{4}{l}{\textit{S2 PRUE CC-BY (released by \cite{muhawenayo2026prue})}} \\
-PRUE-B3 (S2, CC-BY) & 14 & 0.76 & 0.39 \\
-PRUE-B5 (S2, CC-BY) & 14 & 0.76 & 0.41 \\
-PRUE-B7 (S2, CC-BY) & 14 & \textbf{0.77} & 0.44 \\
+\multicolumn{5}{l}{\textit{FTW-PRUE, CC-BY, released by \cite{muhawenayo2026prue}}} \\
+FTW-PRUE & B3 & CC-BY & 76.0 & 39.0 \\
+FTW-PRUE & B5 & CC-BY & 76.0 & 41.0 \\
+FTW-PRUE & B7 & CC-BY & \textbf{77.0} & 44.0 \\
 \midrule
-\multicolumn{4}{l}{\textit{Ours (PRUE-FTP, 10-country dense held-out macro)}} \\
-PRUE-FTP-B3 \emph{augmax} & 14 & 0.58 & 0.37 \\
-PRUE-FTP-B3 \emph{augmax} & 24/25 & 0.69 & 0.45 \\
-PRUE-FTP-B7 \emph{augmax} & 14 & 0.58 & 0.38 \\
+\multicolumn{5}{l}{\textit{Ours --- FTP-PRUE \emph{augmax} (10-country dense held-out macro)}} \\
+FTP-PRUE & B3 & CC-BY & 58.1 & 37.4 \\
+FTP-PRUE & B3 & full & 68.8 & 45.2 \\
+FTP-PRUE & B7 & CC-BY & 58.3 & 38.3 \\
 \bottomrule
 \end{tabular}
