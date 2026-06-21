@@ -1,17 +1,22 @@
-"""Qualitative v7: post-processed (TTA + Watershed) instance segmentations.
+"""Qualitative v6: square-crop, same-window S2/Planet, viridis field overlay.
 
-Same dense-smallholder rows as v6, but the predicted-mask columns are run
-through the full inference stack used by our headline numbers:
+For each row:
+  1. Pick a (country, patch_id, window) where Planet beats S2 on smallholder
+     fields and the patch has high field-class coverage.
+  2. Load PlanetScope RGB for that window.
+  3. Reproject the FTW S2 chip for the SAME window onto the Planet UTM grid.
+     (Both seasons stay aligned: window_a = plant, window_b = harvest --
+      whichever we pick, both modalities show the same season.)
+  4. Center-crop everything to a square, resample to a common pixel size.
+  5. Overlay the field-interior class (class 1) as a plasma colormap blend
+     on the RGB.  No boundary line clutter -- the colored field interior
+     carries the visual message.
+  6. Predict with FTP-PRUE (Planet) and FTW-PRUE (B7) (S2 baseline).
 
-  D4 8-way test-time augmentation (TTA) -> argmax  ->  marker-controlled
-  watershed seeded by h-maxima of the field-class distance transform.
+Layout: 5 columns x N rows
+  Planet RGB | S2 RGB (aligned) | Ground truth | FTP-PRUE (ours) | FTW-PRUE (B7)
 
-The output is an *instance* label image, not a class mask.  We render each
-connected component as a distinct color (perturbed tab20).  Background is
-black.
-
-Layout (5 columns x N rows):
-  Planet RGB | S2 RGB | GT instances | FTP-PRUE (TTA+WS) | FTW-PRUE (B7) (TTA+WS)
+All overlays sit on the Planet RGB so the same scene anchors the comparison.
 """
 
 import argparse
@@ -25,12 +30,7 @@ import tg_style
 import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
-from matplotlib.colors import ListedColormap
 from rasterio.warp import Resampling, reproject
-from scipy.ndimage import distance_transform_edt
-from scipy.ndimage import label as cc_label
-from skimage.morphology import h_maxima
-from skimage.segmentation import watershed
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
@@ -47,8 +47,9 @@ mpl.rcParams.update(
 
 S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
 S2_UPSAMPLE = 512  # bilinear-upsample S2 256->512 (corrected resize_factor=2 protocol)
-SQUARE_SIZE = 256
-MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))
+FIELD_GREEN = np.array(mpl.colors.to_rgb(tg_style.GREEN))  # brand green for field
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))  # brand brown for bg + boundary
+SQUARE_SIZE = 256  # final pixel size for every cell
 
 
 def _stretch(rgb, p_lo=2, p_hi=98):
@@ -64,6 +65,7 @@ def _stretch(rgb, p_lo=2, p_hi=98):
 
 
 def _square_crop(arr):
+    """Center-crop along the longer axis so output is square."""
     h, w = arr.shape[:2]
     side = min(h, w)
     y0 = (h - side) // 2
@@ -72,35 +74,25 @@ def _square_crop(arr):
 
 
 def _resize_nn(arr, size):
+    """Resize to (size, size).  uint8 masks use NEAREST (preserve class id);
+    float arrays (RGB, probability heatmaps) use BILINEAR."""
     from PIL import Image
 
     if arr.dtype == np.uint8 and arr.ndim == 2:
         return np.array(Image.fromarray(arr).resize((size, size), Image.Resampling.NEAREST))
-    if arr.ndim == 2 and arr.dtype.kind in "iu":
-        return np.array(
-            Image.fromarray(arr.astype(np.int32)).resize((size, size), Image.Resampling.NEAREST)
-        )
     a = (np.clip(arr, 0, 1) * 255).astype(np.uint8)
     out = np.array(Image.fromarray(a).resize((size, size), Image.Resampling.BILINEAR)) / 255.0
     return out.astype(np.float32)
 
 
-def _instance_cmap(n):
-    """Build a categorical colormap with n+1 entries (idx 0 = black bg)."""
-    base = plt.get_cmap("tab20")(np.linspace(0, 1, 20))[:, :3]
-    rng = np.random.default_rng(7)
-    colors = np.empty((max(1, n), 3), dtype=np.float32)
-    for i in range(max(1, n)):
-        c = base[i % 20].copy()
-        c = c + rng.uniform(-0.08, 0.08, size=3)
-        colors[i] = np.clip(c, 0, 1)
-    return ListedColormap(np.vstack([MASK_BG, colors]))
-
-
-def _instance_render(inst):
-    n = int(inst.max())
-    cmap = _instance_cmap(n)
-    return cmap(inst)[..., :3]
+def _hard_mask_overlay(mask):
+    """Render a 3-class mask as a hard segmentation image: green for field
+    interior (class 1), black for background + boundary (classes 0 and 2).
+    Returns float RGB in [0, 1]."""
+    out = np.empty((*mask.shape, 3), dtype=np.float32)
+    out[:] = MASK_BG
+    out[mask == 1] = FIELD_GREEN
+    return out
 
 
 def _pad32(x, value=0.0, min_size=512):
@@ -112,68 +104,13 @@ def _pad32(x, value=0.0, min_size=512):
     return F.pad(x, (0, nw - w, 0, nh - h), value=value), h, w
 
 
-def _d4_transforms():
-    """Eight D4 (forward, inverse) pairs for TTA on (B, C, H, W) tensors."""
-
-    def _flip(x, dims):
-        return torch.flip(x, dims=dims) if dims else x
-
-    def _rot(k):
-        return (
-            lambda x: torch.rot90(x, k, dims=(-2, -1)),
-            lambda x: torch.rot90(x, -k, dims=(-2, -1)),
-        )
-
-    yield (lambda x: x, lambda x: x)
-    yield _rot(1)
-    yield _rot(2)
-    yield _rot(3)
-    yield (lambda x: _flip(x, [-1]), lambda x: _flip(x, [-1]))
-    yield (lambda x: _flip(x, [-2]), lambda x: _flip(x, [-2]))
-    yield (lambda x: _flip(x, [-2, -1]), lambda x: _flip(x, [-2, -1]))
-    yield (
-        lambda x: torch.rot90(_flip(x, [-1]), 1, dims=(-2, -1)),
-        lambda x: _flip(torch.rot90(x, -1, dims=(-2, -1)), [-1]),
-    )
-
-
 @torch.inference_mode()
-def _predict_probs_tta(model, x, device, scale, tta=True):
-    """Return averaged softmax probabilities (C, H, W) after D4 TTA."""
-    x = (x.float() / scale).unsqueeze(0).to(device)
-    xp, h, w = _pad32(x, min_size=512)
-    if not tta:
-        return torch.softmax(model(xp), dim=1).squeeze(0)[..., :h, :w].cpu().numpy()
-    probs_sum = None
-    n = 0
-    for fwd, inv in _d4_transforms():
-        out = model(fwd(xp))
-        p = torch.softmax(out, dim=1)
-        p = inv(p)
-        probs_sum = p if probs_sum is None else probs_sum + p
-        n += 1
-    assert probs_sum is not None  # loop always runs ≥1 iteration
-    probs = (probs_sum / n).squeeze(0)[..., :h, :w]
-    return probs.cpu().numpy()
-
-
-def _watershed_instances(seg_pred, h_min=2.0):
-    field_mask = seg_pred == 1
-    if not field_mask.any():
-        return np.zeros_like(seg_pred, dtype=np.int32)
-    distance = distance_transform_edt(field_mask).astype(np.float32)
-    seeds = h_maxima(distance * field_mask, h=h_min)
-    markers, _ = cc_label(seeds)
-    if markers.max() == 0:
-        markers, _ = cc_label(field_mask)
-    inst = watershed(-distance, markers=markers, mask=field_mask)
-    return inst.astype(np.int32)
-
-
-def _gt_instances(mask):
-    field = (mask == 1).astype(np.uint8)
-    inst, _ = cc_label(field)
-    return inst.astype(np.int32)
+def _predict(model, x, device, scale):
+    """Return per-pixel argmax class id (uint8) in {0,1,2}."""
+    x = x.float() / scale
+    xp, h, w = _pad32(x.unsqueeze(0).to(device), min_size=512)
+    logits = model(xp)[..., :h, :w]
+    return logits.argmax(dim=1).squeeze(0).cpu().numpy().astype(np.uint8)
 
 
 def _load_task(ckpt, device):
@@ -182,6 +119,9 @@ def _load_task(ckpt, device):
 
 
 def _load_planet(country, pid):
+    """Return (rgb_stretched_full, gt_mask_full, x_8ch_full).
+
+    x_8ch_full = [w_b(4), w_a(4)] tensor on the patch grid."""
     ds = FTWPlanet(root="data", countries=[country], split="test", load_boundaries=True)
     idx = next((i for i, r in enumerate(ds.records) if r["patch_id"] == str(pid)), None)
     if idx is None:
@@ -193,21 +133,26 @@ def _load_planet(country, pid):
     y = s["mask"]
     if isinstance(y, torch.Tensor):
         y = y.cpu().numpy()
-    return x.float(), np.asarray(y).astype(np.uint8)
+    y = np.asarray(y).astype(np.uint8)
+    return x.float(), y
 
 
 def _planet_rgb_for_window(country, pid, window):
+    """Load the requested Planet window directly from disk so we don't depend
+    on the dataset's stacking order. Returns float RGB on the patch grid."""
     p = Path("data/planet") / country / f"window_{window}" / f"{pid}.tif"
     with rasterio.open(p) as src:
-        rgb = src.read([3, 2, 1])
-    return np.transpose(rgb, (1, 2, 0)).astype(np.float32) / PLANET_SR_SCALE
+        bgr_nir = src.read([3, 2, 1])  # R, G, B
+        return np.transpose(bgr_nir, (1, 2, 0)).astype(np.float32) / PLANET_SR_SCALE
 
 
 def _s2_rgb_for_window(country, pid, window):
+    """Reproject the FTW S2 chip for `window_{window}` onto the Planet patch
+    grid. Returns float RGB normalized by 10000 (FTW S2 native DN scale)."""
     s2 = Path("data/ftw") / country / "s2_images" / f"window_{window}" / f"{pid}.tif"
     planet = Path("data/planet") / country / f"window_{window}" / f"{pid}.tif"
     with rasterio.open(planet) as dst:
-        dst_crs, dst_tr = dst.crs, dst.transform
+        dst_crs, dst_transform = dst.crs, dst.transform
         h, w = dst.height, dst.width
     with rasterio.open(s2) as src:
         bands = src.read([1, 2, 3])
@@ -218,17 +163,21 @@ def _s2_rgb_for_window(country, pid, window):
                 destination=out[i],
                 src_transform=src.transform,
                 src_crs=src.crs,
-                dst_transform=dst_tr,
+                dst_transform=dst_transform,
                 dst_crs=dst_crs,
                 resampling=Resampling.bilinear,
             )
     return np.transpose(out, (1, 2, 0)).astype(np.float32) / 10000.0
 
 
-def _predict_s2_inst_to_planet_grid(model_s2, country, pid, device):
-    """Corrected resize_factor=2 protocol: bilinear-upsample the stacked 256
-    S2 input to 512 before TTA inference + watershed, then map the 512 instance
-    map onto the Planet grid via a transform scaled by 256/512."""
+def _predict_s2_to_planet_grid(model_s2, country, pid, device):
+    """Run the S2 baseline (B+A stacked) and reproject the prediction back
+    to the Planet grid for visual alignment.
+
+    Uses the corrected resize_factor=2 protocol: bilinear-upsample the stacked
+    256 input to 512 before inference (matches the headline tables), then map
+    the 512 prediction onto the Planet grid via a transform scaled by 256/512.
+    """
     s2_a = Path("data/ftw") / country / "s2_images" / "window_a" / f"{pid}.tif"
     s2_b = Path("data/ftw") / country / "s2_images" / "window_b" / f"{pid}.tif"
     with rasterio.open(s2_b) as src_b:
@@ -238,16 +187,16 @@ def _predict_s2_inst_to_planet_grid(model_s2, country, pid, device):
         a_arr = src_a.read().astype(np.float32)
     x = torch.from_numpy(np.concatenate([b_arr, a_arr], axis=0)).unsqueeze(0).to(device)
     x = F.interpolate(x, size=(S2_UPSAMPLE, S2_UPSAMPLE), mode="bilinear", align_corners=False)
-    probs = _predict_probs_tta(model_s2, x.squeeze(0), device, scale=S2_NORM_DIVISOR, tta=True)
-    seg = probs.argmax(axis=0).astype(np.uint8)
-    inst = _watershed_instances(seg)
+    pred_s2 = _predict(model_s2, x.squeeze(0), device, scale=S2_NORM_DIVISOR)
+    # The 512 prediction maps onto the native 256 S2 grid via a transform
+    # scaled by 256/512; build it from the source 256 transform.
     up_tr = b_tr * rasterio.Affine.scale(bw / S2_UPSAMPLE, bh / S2_UPSAMPLE)
     planet = Path("data/planet") / country / "window_a" / f"{pid}.tif"
     with rasterio.open(planet) as dst:
         dst_crs, dst_tr, dst_h, dst_w = dst.crs, dst.transform, dst.height, dst.width
-    out = np.zeros((dst_h, dst_w), dtype=np.int32)
+    out = np.zeros((dst_h, dst_w), dtype=np.uint8)
     reproject(
-        source=inst,
+        source=pred_s2,
         destination=out,
         src_transform=up_tr,
         src_crs=b_crs,
@@ -268,24 +217,32 @@ def main():
         "--ckpt-s2",
         default="logs/best_checkpoints/s2_efnet7_best.ckpt",
     )
-    # 7 rows — distinct from v6, dense smallholder mix.
+    # Seven dense-smallholder rows, one per held-out country, picked from the
+    # per-patch metrics (logs/per_patch/{planet_b3,s2_b7}.csv): each has many
+    # GT fields (n_gt 30-57) and a large per-patch object-F1 margin for Planet
+    # over S2 (+25 to +51 pp). Disjoint from the main figure and v7. Window a.
     p.add_argument(
         "--rows",
         nargs="+",
         default=[
-            "croatia:g10-3_00019_18:a",
-            "croatia:g10-3_00017_14:a",
-            "slovenia:g13_00038_8:a",
-            "austria:g83_00030_3:a",
-            "austria:g94_00022_14:a",
-            "lithuania:g11_00030_15:a",
-            "finland:g14-1_00125_10:a",
+            "belgium:g2_00047_2:a",  # n_gt=46  Planet 84.8 vs S2 45.2  (+39.5)
+            "croatia:g14-2_00063_5:a",  # n_gt=39  Planet 74.4 vs S2 27.8  (+46.6)
+            "germany:g1_00003_15:a",  # n_gt=30  Planet 50.0 vs S2 39.3  (+10.7)
+            "latvia:g31_00023_10:a",  # n_gt=33  Planet 74.6 vs S2 47.2  (+27.4)
+            "lithuania:g11_00131_5:a",  # n_gt=42  Planet 72.0 vs S2 24.6  (+47.4)
+            "slovenia:g13_00045_16:a",  # n_gt=57  Planet 51.1 vs S2 25.3  (+25.8)
+            "sweden:g6-0_00009_18:a",  # n_gt=35  Planet 77.4 vs S2 26.7  (+50.8)
         ],
     )
-    p.add_argument("--out", default="paper/figs/qualitative_v7_appx.pdf")
+    p.add_argument("--out", default="paper/figs/qualitative_raw_appendix.pdf")
     p.add_argument("--cell-size", type=int, default=SQUARE_SIZE)
-    p.add_argument("--cell-h", type=float, default=1.38)
-    p.add_argument("--cell-w", type=float, default=1.35)
+    p.add_argument(
+        "--cell-h",
+        type=float,
+        default=1.38,
+        help="Inches per row.  Reduce for compact banner figures.",
+    )
+    p.add_argument("--cell-w", type=float, default=1.35, help="Inches per column.")
     args = p.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -298,25 +255,24 @@ def main():
         parts = spec.split(":")
         country, pid = parts[0], parts[1]
         window = parts[2] if len(parts) > 2 else "a"
-        print(f"  {country}:{pid} ({window})")
+        print(f"  {country}:{pid} window={window}")
+        # Planet input + GT mask (full grid).
         x8, gt_full = _load_planet(country, pid)
+        # Planet RGB for the chosen window (may differ from the dataset's
+        # window-B-first stacking convention; we read straight from disk).
         rgb_pl = _planet_rgb_for_window(country, pid, window)
         rgb_s2 = _s2_rgb_for_window(country, pid, window)
-        probs_pl = _predict_probs_tta(model_pl, x8, device, scale=PLANET_SR_SCALE, tta=True)
-        seg_pl = probs_pl.argmax(axis=0).astype(np.uint8)
-        inst_pl = _watershed_instances(seg_pl)
-        inst_s2 = _predict_s2_inst_to_planet_grid(model_s2, country, pid, device)
-        inst_gt = _gt_instances(gt_full)
-        sq = args.cell_size
-        rgb_pl_s = _resize_nn(_stretch(_square_crop(rgb_pl)), sq)
-        rgb_s2_s = _resize_nn(_stretch(_square_crop(rgb_s2)), sq)
-        inst_gt_s = _resize_nn(_square_crop(inst_gt), sq)
-        inst_pl_s = _resize_nn(_square_crop(inst_pl), sq)
-        inst_s2_s = _resize_nn(_square_crop(inst_s2), sq)
-        print(
-            f"    instances: gt={int(inst_gt.max())} planet={int(inst_pl.max())} s2={int(inst_s2.max())}"
-        )
-        rows.append((country, pid, window, rgb_pl_s, rgb_s2_s, inst_gt_s, inst_pl_s, inst_s2_s))
+        # Predict argmax class id (uint8).
+        pred_pl = _predict(model_pl, x8, device, scale=PLANET_SR_SCALE)
+        pred_s2 = _predict_s2_to_planet_grid(model_s2, country, pid, device)
+        # Square-crop everything to the same centered square, then resize.
+        sq_size = args.cell_size
+        rgb_pl_s = _resize_nn(_stretch(_square_crop(rgb_pl)), sq_size)
+        rgb_s2_s = _resize_nn(_stretch(_square_crop(rgb_s2)), sq_size)
+        gt_s = _resize_nn(_square_crop(gt_full).astype(np.uint8), sq_size)
+        pred_pl_s = _resize_nn(_square_crop(pred_pl), sq_size)
+        pred_s2_s = _resize_nn(_square_crop(pred_s2), sq_size)
+        rows.append((country, pid, window, rgb_pl_s, rgb_s2_s, gt_s, pred_pl_s, pred_s2_s))
 
     n = len(rows)
     cols = 5
@@ -331,16 +287,16 @@ def main():
     col_titles = [
         "Planet RGB (3 m)",
         "S2 RGB (10 m)",
-        "GT instances",
+        "Ground truth",
         "FTP-PRUE+",
         "FTW-PRUE+",
     ]
-    for i, (country, pid, window, rgb_pl, rgb_s2, igt, ipl, is2) in enumerate(rows):
+    for i, (country, pid, window, rgb_pl, rgb_s2, gt, pred_pl, pred_s2) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)
         axes[i, 1].imshow(rgb_s2)
-        axes[i, 2].imshow(_instance_render(igt))
-        axes[i, 3].imshow(_instance_render(ipl))
-        axes[i, 4].imshow(_instance_render(is2))
+        axes[i, 2].imshow(_hard_mask_overlay(gt))
+        axes[i, 3].imshow(_hard_mask_overlay(pred_pl))
+        axes[i, 4].imshow(_hard_mask_overlay(pred_s2))
         for ax in axes[i]:
             ax.set_xticks([])
             ax.set_yticks([])

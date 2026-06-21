@@ -52,12 +52,12 @@ FOCUS = {
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--src", default="paper/scripts/output/smallholder_scatter.csv")
-    p.add_argument("--out", default="paper/figs/smallholder_scatter_paper.pdf")
+    p.add_argument("--out", default="paper/figs/smallholder_scatter.pdf")
     args = p.parse_args()
 
     df = pd.read_csv(args.src).rename(columns={"median_field_size_ha": "ha"})
     # Recompute delta PQ from the released B3-full checkpoint (repro_eval),
-    # matching the Table 3 headline and make_per_country_bars_pq.py. Earlier
+    # matching the Table 3 headline and per_country_bars.py. Earlier
     # this read the stale pq columns baked into the CSV, which came from our
     # original (un-released) B3 checkpoint.
     pq_pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(

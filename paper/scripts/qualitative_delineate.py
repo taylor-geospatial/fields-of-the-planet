@@ -1,5 +1,5 @@
 """Qualitative appendix figure: FTP-PRUE vs DelineateAnything (zero-shot)
-on the same dense-smallholder rows used by ``make_qualitative_v8.py``.
+on the same dense-smallholder rows used by ``qualitative_main.py``.
 
 4 columns x N rows:
   Planet RGB | GT instances | FTP-PRUE (TTA+WS) instances | DelineateAnything
@@ -21,7 +21,7 @@ import tg_style
 import torch
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 from huggingface_hub import hf_hub_download
-from make_qualitative_v8 import (
+from qualitative_main import (
     _instance_render,
     _predict_raw_and_tta,
     _resize_nn,

@@ -14,4 +14,4 @@
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 
-uv run --no-sync python paper/scripts/make_qualitative_delineate.py
+uv run --no-sync python paper/scripts/qualitative_delineate.py

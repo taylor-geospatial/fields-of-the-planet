@@ -9,7 +9,7 @@ footnote because the 10 m rasterization merges ~7k small fields.
 Sources: ``logs/area_bins/<stem>.csv.bins.csv`` (from polygon_metrics_eval.py
 --area-bins). Run::
 
-    uv run python paper/scripts/make_area_bins_table.py
+    uv run python paper/scripts/area_bins_table.py
 """
 
 from pathlib import Path

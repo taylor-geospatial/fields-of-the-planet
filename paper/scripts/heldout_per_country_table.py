@@ -13,7 +13,7 @@ the macro row averages the 10 dense-label countries only.
 
 Run::
 
-    uv run python paper/scripts/make_heldout_per_country.py
+    uv run python paper/scripts/heldout_per_country_table.py
 """
 
 from pathlib import Path

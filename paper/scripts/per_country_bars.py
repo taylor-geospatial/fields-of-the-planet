@@ -1,6 +1,6 @@
 """Per-region bars: Delta PQ on the FTW full_data 23-region test split.
 
-Same visual style as make_per_country_bars_paper.py, but uses panoptic
+Same tg_style palette/fonts as the other paper figures, but uses panoptic
 quality (PQ) as the comparison metric instead of Obj F1 at IoU=0.5.
 
 Rationale: the paper argues in section 5.4 that PQ is the primary
@@ -65,7 +65,7 @@ def _load_deltas() -> pd.DataFrame:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--out", default="paper/figs/per_country_bars_pq.pdf")
+    p.add_argument("--out", default="paper/figs/per_country_bars.pdf")
     args = p.parse_args()
 
     df = _load_deltas()

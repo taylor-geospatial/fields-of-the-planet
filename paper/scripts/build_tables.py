@@ -19,11 +19,11 @@ HERE = Path(__file__).parent
 # (generator script, output .tex it writes). Order is independent -- each reads
 # its own source CSV(s).
 GENERATORS = [
-    ("make_polygon_metrics.py", "polygon_metrics.tex"),
-    ("make_area_bins_table.py", "area_bins.tex"),
-    ("make_heldout_results.py", "heldout_results.tex"),
-    ("make_heldout_per_country.py", "heldout_per_country.tex"),
-    ("make_full_data_compare.py", "full_data_compare.tex"),
+    ("polygon_metrics_table.py", "polygon_metrics.tex"),
+    ("area_bins_table.py", "area_bins.tex"),
+    ("heldout_results_table.py", "heldout_results.tex"),
+    ("heldout_per_country_table.py", "heldout_per_country.tex"),
+    ("full_data_table.py", "full_data_compare.tex"),
 ]
 
 

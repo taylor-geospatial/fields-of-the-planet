@@ -122,7 +122,7 @@ Per-country usable-patch rates vary widely (Portugal 41\%, Netherlands 77\%, vs 
 
 \begin{figure*}[t!]
     \centering
-    \includegraphics[width=0.95\linewidth]{figs/qualitative_v8_main.pdf}
+    \includegraphics[width=0.95\linewidth]{figs/qualitative_main.pdf}
     \caption{\textbf{On dense smallholder fields, PlanetScope recovers parcels that Sentinel-2 misses.} Four held-out test-split rows (Croatia, Slovenia, Austria, Lithuania), selected to illustrate the dense-smallholder regime (not a random sample; quantitative results are in \Cref{tab:polygon_metrics,tab:area_bins}). Left to right: Planet RGB (3m), matched S2 RGB (10m), 3-class ground truth, raw argmax predictions (FTP-PRUE+ vs.\ FTW-PRUE+ (B7)~\cite{muhawenayo2026prue}), and post-processed instances (D4 TTA + watershed; each color a distinct field). FTP-PRUE+ recovers near-complete coverage and keeps adjacent parcels separated, while the S2 baseline leaves large gaps and merges neighbours. More samples in \Cref{fig:qualitative_appx,fig:qualitative_post_appx}.}
     \label{fig:qualitative}
 \end{figure*}
@@ -259,7 +259,7 @@ comparison for orientation only, not as a head-to-head (full table in
 
 \begin{figure}[t!]
     \centering
-    \includegraphics[width=0.7\linewidth]{figs/aug_ablation_paper.pdf}
+    \includegraphics[width=0.7\linewidth]{figs/aug_ablation.pdf}
 \caption{\textbf{Cumulative augmentation lift on Obj F1} (FTP-PRUE+ B3, ten dense held-out countries, Kenya excluded, WS+TTA). The first four bars are CC-BY-subset models evaluated on countries \emph{absent} from their training set, so each augmentation's lift is out-of-sample; the final bar (\emph{B3 full}) is the in-distribution full-data model, so the $37.4\!\rightarrow\!45.2$ step adds training countries, not an augmentation. Horizontal lines mark the same-recipe full-data FTW-PRUE+ S2 baselines (solid: B3, architecture-matched; dashed: B7, strongest S2 model), comparable to the final bar. The full-data FTP-PRUE+ model exceeds every S2 reference, so the dataset change drives the gain even at matched architecture.}
     \label{fig:aug_ablation}
 \end{figure}
@@ -562,7 +562,7 @@ tied to field size (\Cref{fig:smallholder_scatter}).
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.8\linewidth]{figs/per_country_bars_pq.pdf}
+    \includegraphics[width=0.8\linewidth]{figs/per_country_bars.pdf}
 \caption{\textbf{Per-region $\Delta$ PQ across the 23 test regions} (FTP-PRUE+ $-$ FTW-PRUE+ (B7)). Wins (olive) and losses (sienna). Planet wins PQ on $18$ of $23$ regions; the five losses are Cambodia, Germany, Portugal, Vietnam, and Slovenia (the last three within $1.6$\,pp of a tie). $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
     \label{fig:per_country_bars}
 \end{figure}
@@ -894,14 +894,14 @@ the 10-country dense held-out set referenced from the main text.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.7\linewidth]{figs/per_country_both.pdf}
+    \includegraphics[width=0.7\linewidth]{figs/per_country_pq_objf1.pdf}
     \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
     \label{fig:per_country_objf1_appx}
 \end{figure}
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.6\linewidth]{figs/smallholder_scatter_paper.pdf}
+    \includegraphics[width=0.6\linewidth]{figs/smallholder_scatter.pdf}
     \caption{\textbf{PQ gain vs.\ field size.}
     Per-region median FTW polygon area (hectares, log scale; EPSG:6933
     equal-area) vs $\Delta$\,PQ (FTP-PRUE+ WS+TTA $-$
@@ -978,14 +978,14 @@ protocol used for every other row.)
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.84\linewidth]{figs/qualitative_v6_appx.pdf}
+    \includegraphics[width=0.84\linewidth]{figs/qualitative_raw_appendix.pdf}
     \caption{\textbf{Additional raw-prediction samples} (companion to \Cref{fig:qualitative}). Seven dense-smallholder patches, one per dense held-out country, selected by per-patch object F1 as cases where Planet beats S2 (per-patch margins $+25$ to $+51$ pp). Green = predicted field interior; black = background and boundary. FTP-PRUE+ (col 4) recovers the parcel grid; FTW-PRUE+ (B7, col 5) leaves large black gaps.}
     \label{fig:qualitative_appx}
 \end{figure*}
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.84\linewidth]{figs/qualitative_v7_appx.pdf}
+    \includegraphics[width=0.84\linewidth]{figs/qualitative_instances_appendix.pdf}
     \caption{\textbf{Additional post-processed instance samples} (D4 TTA + watershed; companion to \Cref{fig:qualitative}). Seven more dense-smallholder patches. Each color = a distinct field instance.}
     \label{fig:qualitative_post_appx}
 \end{figure*}

@@ -19,5 +19,5 @@ set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 export PYTHONPATH="paper/scripts:${PYTHONPATH:-}"
 
-uv run --no-sync python paper/scripts/make_qualitative_v6.py
+uv run --no-sync python paper/scripts/qualitative_raw_appendix.py
 echo "done."

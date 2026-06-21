@@ -1,12 +1,17 @@
-"""Qualitative v8: combined raw-mask + TTA+watershed instance comparison.
+"""Qualitative v7: post-processed (TTA + Watershed) instance segmentations.
 
-7 columns x N rows:
-  Planet RGB | S2 RGB | GT mask | FTP-PRUE raw | FTW-PRUE (B7) raw |
-  FTP-PRUE (TTA+WS) instances | FTW-PRUE (B7) (TTA+WS) instances
+Same dense-smallholder rows as v6, but the predicted-mask columns are run
+through the full inference stack used by our headline numbers:
 
-Same square-cropped, season-matched layout as v6/v7.  Raw mask cells render
-green = field, black = bg + boundary.  Instance cells use a perturbed
-\\texttt{tab20} colormap; black = background.
+  D4 8-way test-time augmentation (TTA) -> argmax  ->  marker-controlled
+  watershed seeded by h-maxima of the field-class distance transform.
+
+The output is an *instance* label image, not a class mask.  We render each
+connected component as a distinct color (perturbed tab20).  Background is
+black.
+
+Layout (5 columns x N rows):
+  Planet RGB | S2 RGB | GT instances | FTP-PRUE (TTA+WS) | FTW-PRUE (B7) (TTA+WS)
 """
 
 import argparse
@@ -43,7 +48,6 @@ mpl.rcParams.update(
 S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
 S2_UPSAMPLE = 512  # bilinear-upsample S2 256->512 (corrected resize_factor=2 protocol)
 SQUARE_SIZE = 256
-FIELD_GREEN = np.array(mpl.colors.to_rgb(tg_style.GREEN))
 MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))
 
 
@@ -81,20 +85,14 @@ def _resize_nn(arr, size):
     return out.astype(np.float32)
 
 
-def _hard_mask_render(mask):
-    """Brand green for field (class 1), brand brown for everything else."""
-    out = np.empty((*mask.shape, 3), dtype=np.float32)
-    out[:] = MASK_BG
-    out[mask == 1] = FIELD_GREEN
-    return out
-
-
 def _instance_cmap(n):
+    """Build a categorical colormap with n+1 entries (idx 0 = black bg)."""
     base = plt.get_cmap("tab20")(np.linspace(0, 1, 20))[:, :3]
     rng = np.random.default_rng(7)
     colors = np.empty((max(1, n), 3), dtype=np.float32)
     for i in range(max(1, n)):
-        c = base[i % 20].copy() + rng.uniform(-0.08, 0.08, size=3)
+        c = base[i % 20].copy()
+        c = c + rng.uniform(-0.08, 0.08, size=3)
         colors[i] = np.clip(c, 0, 1)
     return ListedColormap(np.vstack([MASK_BG, colors]))
 
@@ -115,6 +113,8 @@ def _pad32(x, value=0.0, min_size=512):
 
 
 def _d4_transforms():
+    """Eight D4 (forward, inverse) pairs for TTA on (B, C, H, W) tensors."""
+
     def _flip(x, dims):
         return torch.flip(x, dims=dims) if dims else x
 
@@ -138,14 +138,12 @@ def _d4_transforms():
 
 
 @torch.inference_mode()
-def _predict_raw_and_tta(model, x, device, scale):
-    """Return (raw_argmax_mask, tta_argmax_mask) as uint8 HxW arrays."""
+def _predict_probs_tta(model, x, device, scale, tta=True):
+    """Return averaged softmax probabilities (C, H, W) after D4 TTA."""
     x = (x.float() / scale).unsqueeze(0).to(device)
     xp, h, w = _pad32(x, min_size=512)
-    # raw
-    raw_logits = model(xp)
-    raw = raw_logits.argmax(dim=1).squeeze(0)[..., :h, :w].cpu().numpy().astype(np.uint8)
-    # TTA
+    if not tta:
+        return torch.softmax(model(xp), dim=1).squeeze(0)[..., :h, :w].cpu().numpy()
     probs_sum = None
     n = 0
     for fwd, inv in _d4_transforms():
@@ -155,9 +153,8 @@ def _predict_raw_and_tta(model, x, device, scale):
         probs_sum = p if probs_sum is None else probs_sum + p
         n += 1
     assert probs_sum is not None  # loop always runs ≥1 iteration
-    tta_probs = (probs_sum / n).squeeze(0)[..., :h, :w]
-    tta = tta_probs.argmax(dim=0).cpu().numpy().astype(np.uint8)
-    return raw, tta
+    probs = (probs_sum / n).squeeze(0)[..., :h, :w]
+    return probs.cpu().numpy()
 
 
 def _watershed_instances(seg_pred, h_min=2.0):
@@ -170,6 +167,12 @@ def _watershed_instances(seg_pred, h_min=2.0):
     if markers.max() == 0:
         markers, _ = cc_label(field_mask)
     inst = watershed(-distance, markers=markers, mask=field_mask)
+    return inst.astype(np.int32)
+
+
+def _gt_instances(mask):
+    field = (mask == 1).astype(np.uint8)
+    inst, _ = cc_label(field)
     return inst.astype(np.int32)
 
 
@@ -222,11 +225,10 @@ def _s2_rgb_for_window(country, pid, window):
     return np.transpose(out, (1, 2, 0)).astype(np.float32) / 10000.0
 
 
-def _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device):
+def _predict_s2_inst_to_planet_grid(model_s2, country, pid, device):
     """Corrected resize_factor=2 protocol: bilinear-upsample the stacked 256
-    S2 input to 512 before raw/TTA inference + watershed, then map the 512 raw
-    mask and instance map onto the Planet grid via a transform scaled by
-    256/512."""
+    S2 input to 512 before TTA inference + watershed, then map the 512 instance
+    map onto the Planet grid via a transform scaled by 256/512."""
     s2_a = Path("data/ftw") / country / "s2_images" / "window_a" / f"{pid}.tif"
     s2_b = Path("data/ftw") / country / "s2_images" / "window_b" / f"{pid}.tif"
     with rasterio.open(s2_b) as src_b:
@@ -236,40 +238,24 @@ def _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device):
         a_arr = src_a.read().astype(np.float32)
     x = torch.from_numpy(np.concatenate([b_arr, a_arr], axis=0)).unsqueeze(0).to(device)
     x = F.interpolate(x, size=(S2_UPSAMPLE, S2_UPSAMPLE), mode="bilinear", align_corners=False)
-    raw_s2, tta_s2 = _predict_raw_and_tta(model_s2, x.squeeze(0), device, scale=S2_NORM_DIVISOR)
-    inst_s2 = _watershed_instances(tta_s2)
+    probs = _predict_probs_tta(model_s2, x.squeeze(0), device, scale=S2_NORM_DIVISOR, tta=True)
+    seg = probs.argmax(axis=0).astype(np.uint8)
+    inst = _watershed_instances(seg)
     up_tr = b_tr * rasterio.Affine.scale(bw / S2_UPSAMPLE, bh / S2_UPSAMPLE)
     planet = Path("data/planet") / country / "window_a" / f"{pid}.tif"
     with rasterio.open(planet) as dst:
         dst_crs, dst_tr, dst_h, dst_w = dst.crs, dst.transform, dst.height, dst.width
-    # Reproject the raw mask (uint8) and the instance map (int32) to Planet grid.
-    raw_out = np.zeros((dst_h, dst_w), dtype=np.uint8)
+    out = np.zeros((dst_h, dst_w), dtype=np.int32)
     reproject(
-        source=raw_s2,
-        destination=raw_out,
+        source=inst,
+        destination=out,
         src_transform=up_tr,
         src_crs=b_crs,
         dst_transform=dst_tr,
         dst_crs=dst_crs,
         resampling=Resampling.nearest,
     )
-    inst_out = np.zeros((dst_h, dst_w), dtype=np.int32)
-    reproject(
-        source=inst_s2,
-        destination=inst_out,
-        src_transform=up_tr,
-        src_crs=b_crs,
-        dst_transform=dst_tr,
-        dst_crs=dst_crs,
-        resampling=Resampling.nearest,
-    )
-    return raw_out, inst_out
-
-
-def _gt_instances(mask):
-    field = (mask == 1).astype(np.uint8)
-    inst, _ = cc_label(field)
-    return inst.astype(np.int32)
+    return out
 
 
 def main():
@@ -282,20 +268,24 @@ def main():
         "--ckpt-s2",
         default="logs/best_checkpoints/s2_efnet7_best.ckpt",
     )
+    # 7 rows — distinct from v6, dense smallholder mix.
     p.add_argument(
         "--rows",
         nargs="+",
         default=[
-            "croatia:g10-3_00071_11:a",
-            "slovenia:g13_00033_1:a",
-            "austria:g83_00031_18:a",
-            "lithuania:g11_00088_0:a",
+            "croatia:g10-3_00019_18:a",
+            "croatia:g10-3_00017_14:a",
+            "slovenia:g13_00038_8:a",
+            "austria:g83_00030_3:a",
+            "austria:g94_00022_14:a",
+            "lithuania:g11_00030_15:a",
+            "finland:g14-1_00125_10:a",
         ],
     )
-    p.add_argument("--out", default="paper/figs/qualitative_v8_main.pdf")
+    p.add_argument("--out", default="paper/figs/qualitative_instances_appendix.pdf")
     p.add_argument("--cell-size", type=int, default=SQUARE_SIZE)
-    p.add_argument("--cell-h", type=float, default=1.05)
-    p.add_argument("--cell-w", type=float, default=1.05)
+    p.add_argument("--cell-h", type=float, default=1.38)
+    p.add_argument("--cell-w", type=float, default=1.35)
     args = p.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -312,40 +302,24 @@ def main():
         x8, gt_full = _load_planet(country, pid)
         rgb_pl = _planet_rgb_for_window(country, pid, window)
         rgb_s2 = _s2_rgb_for_window(country, pid, window)
-        # Planet: raw argmax + TTA argmax -> watershed instances.
-        raw_pl, tta_pl = _predict_raw_and_tta(model_pl, x8, device, scale=PLANET_SR_SCALE)
-        inst_pl = _watershed_instances(tta_pl)
-        # S2: raw + instances, both reprojected to Planet grid.
-        raw_s2, inst_s2 = _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device)
+        probs_pl = _predict_probs_tta(model_pl, x8, device, scale=PLANET_SR_SCALE, tta=True)
+        seg_pl = probs_pl.argmax(axis=0).astype(np.uint8)
+        inst_pl = _watershed_instances(seg_pl)
+        inst_s2 = _predict_s2_inst_to_planet_grid(model_s2, country, pid, device)
         inst_gt = _gt_instances(gt_full)
         sq = args.cell_size
         rgb_pl_s = _resize_nn(_stretch(_square_crop(rgb_pl)), sq)
         rgb_s2_s = _resize_nn(_stretch(_square_crop(rgb_s2)), sq)
-        gt_s = _resize_nn(_square_crop(gt_full).astype(np.uint8), sq)
-        raw_pl_s = _resize_nn(_square_crop(raw_pl), sq)
-        raw_s2_s = _resize_nn(_square_crop(raw_s2), sq)
+        inst_gt_s = _resize_nn(_square_crop(inst_gt), sq)
         inst_pl_s = _resize_nn(_square_crop(inst_pl), sq)
         inst_s2_s = _resize_nn(_square_crop(inst_s2), sq)
         print(
             f"    instances: gt={int(inst_gt.max())} planet={int(inst_pl.max())} s2={int(inst_s2.max())}"
         )
-        rows.append(
-            (
-                country,
-                pid,
-                window,
-                rgb_pl_s,
-                rgb_s2_s,
-                gt_s,
-                raw_pl_s,
-                raw_s2_s,
-                inst_pl_s,
-                inst_s2_s,
-            )
-        )
+        rows.append((country, pid, window, rgb_pl_s, rgb_s2_s, inst_gt_s, inst_pl_s, inst_s2_s))
 
     n = len(rows)
-    cols = 7
+    cols = 5
     _fig, axes = plt.subplots(
         n,
         cols,
@@ -355,33 +329,18 @@ def main():
     if n == 1:
         axes = axes[None, :]
     col_titles = [
-        "Input\nPlanet RGB",
-        "Input\nS2 RGB",
-        "Reference\nGround truth",
-        "Raw mask\nFTP-PRUE+",
-        "Raw mask\nFTW-PRUE+ (B7)",
-        "Post-proc\nFTP-PRUE+",
-        "Post-proc\nFTW-PRUE+ (B7)",
+        "Planet RGB (3 m)",
+        "S2 RGB (10 m)",
+        "GT instances",
+        "FTP-PRUE+",
+        "FTW-PRUE+",
     ]
-    for i, (
-        country,
-        pid,
-        window,
-        rgb_pl,
-        rgb_s2,
-        gt,
-        raw_pl,
-        raw_s2,
-        inst_pl,
-        inst_s2,
-    ) in enumerate(rows):
+    for i, (country, pid, window, rgb_pl, rgb_s2, igt, ipl, is2) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)
         axes[i, 1].imshow(rgb_s2)
-        axes[i, 2].imshow(_hard_mask_render(gt))
-        axes[i, 3].imshow(_hard_mask_render(raw_pl))
-        axes[i, 4].imshow(_hard_mask_render(raw_s2))
-        axes[i, 5].imshow(_instance_render(inst_pl))
-        axes[i, 6].imshow(_instance_render(inst_s2))
+        axes[i, 2].imshow(_instance_render(igt))
+        axes[i, 3].imshow(_instance_render(ipl))
+        axes[i, 4].imshow(_instance_render(is2))
         for ax in axes[i]:
             ax.set_xticks([])
             ax.set_yticks([])
@@ -391,7 +350,7 @@ def main():
         axes[i, 0].set_ylabel(country.replace("_", " "), fontsize=7.5, fontweight="bold")
         if i == 0:
             for j, t in enumerate(col_titles):
-                axes[i, j].set_title(t, fontsize=7.5, fontweight="bold", pad=3, linespacing=1.05)
+                axes[i, j].set_title(t, fontsize=8.5, fontweight="bold", pad=3)
 
     Path(args.out).parent.mkdir(exist_ok=True, parents=True)
     plt.savefig(args.out, dpi=220, bbox_inches="tight")

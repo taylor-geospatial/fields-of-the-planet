@@ -12,7 +12,7 @@ entries for kenya are NaN in the source CSVs regardless.
 
 Run::
 
-    uv run python paper/scripts/make_polygon_metrics.py
+    uv run python paper/scripts/polygon_metrics_table.py
 """
 
 from pathlib import Path

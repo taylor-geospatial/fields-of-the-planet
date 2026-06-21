@@ -14,7 +14,7 @@ Right panel -- Delta Obj F1 (FTP-PRUE - FTW-PRUE), FTW-official pixel-instance:
     logs/fulldata_eval/planet_b3_augmax_full_ws_tta.csv (object_ws_f1)
     vs logs/ftw_official/b7_*.csv (object_level_f1)
 
-Styling copied from make_per_country_bars_pq.py (tg_style palette/fonts).
+Styling copied from per_country_bars.py (tg_style palette/fonts).
 """
 
 import argparse
@@ -111,7 +111,7 @@ def _bars(ax: plt.Axes, y: np.ndarray, vals: np.ndarray, xlabel: str) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--out", default="paper/figs/per_country_both.pdf")
+    p.add_argument("--out", default="paper/figs/per_country_pq_objf1.pdf")
     args = p.parse_args()
 
     pq = _load_pq()

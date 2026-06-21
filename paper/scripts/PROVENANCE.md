@@ -17,11 +17,11 @@ each model's native grid.
 
 | Float | Generator | Source CSV(s) |
 |---|---|---|
-| `tab:polygon_metrics` | `make_polygon_metrics.py` | `logs/polygon_metrics/{delineate_anything_conf0005,s2_b3_augmax_full_upsampled_22,s2_upsampled_b7_augmax_full_22}.csv` (+ `*_native256.csv` for boundary); `logs/repro_eval/polygon_metrics.csv` (FTP B3) |
-| `tab:area_bins` | `make_area_bins_table.py` | `logs/area_bins/{planet_b3,s2_b7,s2_b3}.csv.bins.csv` |
-| `tab:heldout` | `make_heldout_results.py` | `logs/postproc_ablation/s2_{b3,b7}_augmax_full_upsampled_{nows_notta,nows_tta,ws_notta,ws_tta}.csv`; `logs/repro_eval/pp_*.csv` (FTP) |
-| `tab:heldout_pc` | `make_heldout_per_country.py` | `logs/postproc_ablation/s2_b3_augmax_full_upsampled_ws_tta.csv`; `logs/repro_eval/pp_ws_tta.csv` |
-| `tab:full_data` | `make_full_data_compare.py` | `logs/repro_eval/pp_ws_tta.csv` (FTP); released PRUE values from \cite{muhawenayo2026prue} |
+| `tab:polygon_metrics` | `polygon_metrics_table.py` | `logs/polygon_metrics/{delineate_anything_conf0005,s2_b3_augmax_full_upsampled_22,s2_upsampled_b7_augmax_full_22}.csv` (+ `*_native256.csv` for boundary); `logs/repro_eval/polygon_metrics.csv` (FTP B3) |
+| `tab:area_bins` | `area_bins_table.py` | `logs/area_bins/{planet_b3,s2_b7,s2_b3}.csv.bins.csv` |
+| `tab:heldout` | `heldout_results_table.py` | `logs/postproc_ablation/s2_{b3,b7}_augmax_full_upsampled_{nows_notta,nows_tta,ws_notta,ws_tta}.csv`; `logs/repro_eval/pp_*.csv` (FTP) |
+| `tab:heldout_pc` | `heldout_per_country_table.py` | `logs/postproc_ablation/s2_b3_augmax_full_upsampled_ws_tta.csv`; `logs/repro_eval/pp_ws_tta.csv` |
+| `tab:full_data` | `full_data_table.py` | `logs/repro_eval/pp_ws_tta.csv` (FTP); released PRUE values from \cite{muhawenayo2026prue} |
 
 ### Planet B3 eval-run note
 
@@ -40,14 +40,14 @@ reader-visible number depends on the difference; the 10-country (`36.0`) and
 
 | Float | Generator | Source |
 |---|---|---|
-| `fig:aug_ablation` | `make_aug_ablation_paper.py` | `paper/scripts/output/aug_ablation_heldout10.csv` (Kenya-excluded, matching the paper's supervised-macro protocol; from `logs/heldout/*.csv`, `logs/repro_eval/pp_ws_tta.csv`). Bars 1--4 are CC-BY-subset models on the 10 held-out (OOD) countries; the final bar is the in-distribution full-data model. |
-| `fig:per_country_bars` | `make_per_country_bars_pq.py` | per-country PQ from the `tab:polygon_metrics` CSVs |
-| `fig:per_country_objf1_appx` | `make_per_country_both.py` | polygon PQ CSVs + released PRUE per-region Obj-F1 |
-| `fig:smallholder_scatter` | `make_smallholder_scatter_paper.py` | `paper/scripts/output/smallholder_scatter.csv`; `logs/repro_eval/polygon_metrics_22.csv`; `logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv` |
-| `fig:improvement` | `make_improvement_figure.py` | `logs/per_patch/{planet_b3,s2_b7}.csv` |
-| `fig:metric_example` | `make_metric_example.py` | per-patch vectorized predictions (FTP-PRUE+) |
-| `fig:qualitative`, `*_appx` | `make_qualitative_v8.py`, `make_qualitative_v6/v7.py` | held-out patch predictions (both sensors). `v6` rows are seven dense per-held-out-country patches picked from `logs/per_patch/{planet_b3,s2_b7}.csv` where Planet's per-patch object F1 beats S2 (+25 to +51 pp); disjoint from the `v8` main figure and `v7`. |
-| `fig:qualitative_delineate` | `make_qualitative_delineate.py` | DelineateAnything YOLO11x-seg off-the-shelf predictions |
+| `fig:aug_ablation` | `aug_ablation.py` | `paper/scripts/output/aug_ablation_heldout10.csv` (Kenya-excluded, matching the paper's supervised-macro protocol; from `logs/heldout/*.csv`, `logs/repro_eval/pp_ws_tta.csv`). Bars 1--4 are CC-BY-subset models on the 10 held-out (OOD) countries; the final bar is the in-distribution full-data model. |
+| `fig:per_country_bars` | `per_country_bars.py` | per-country PQ from the `tab:polygon_metrics` CSVs |
+| `fig:per_country_objf1_appx` | `per_country_pq_objf1.py` | polygon PQ CSVs + released PRUE per-region Obj-F1 |
+| `fig:smallholder_scatter` | `smallholder_scatter.py` | `paper/scripts/output/smallholder_scatter.csv`; `logs/repro_eval/polygon_metrics_22.csv`; `logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv` |
+| `fig:improvement` | `improvement_figure.py` | `logs/per_patch/{planet_b3,s2_b7}.csv` |
+| `fig:metric_example` | `metric_example.py` | per-patch vectorized predictions (FTP-PRUE+) |
+| `fig:qualitative`, `*_appx` | `qualitative_main.py`, `qualitative_raw_appendix.py`, `qualitative_instances_appendix.py` | held-out patch predictions (both sensors). `qualitative_raw_appendix` rows are seven dense per-held-out-country patches picked from `logs/per_patch/{planet_b3,s2_b7}.csv` where Planet's per-patch object F1 beats S2 (+25 to +51 pp); disjoint from the main figure (`qualitative_main`) and `qualitative_instances_appendix`. |
+| `fig:qualitative_delineate` | `qualitative_delineate.py` | DelineateAnything YOLO11x-seg off-the-shelf predictions |
 
 ## Hand-entered tables (no generator)
 

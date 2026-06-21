@@ -10,7 +10,7 @@ from the WS+TTA file).
 
 Run::
 
-    uv run python paper/scripts/make_heldout_results.py
+    uv run python paper/scripts/heldout_results_table.py
 """
 
 from pathlib import Path

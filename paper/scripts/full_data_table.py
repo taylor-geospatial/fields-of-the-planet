@@ -11,7 +11,7 @@ has no kenya rows.
 
 Run::
 
-    uv run python paper/scripts/make_full_data_compare.py
+    uv run python paper/scripts/full_data_table.py
 """
 
 from pathlib import Path
