@@ -34,7 +34,7 @@ mpl.rcParams.update(
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--src", default="paper/scripts/output/aug_ablation_heldout11.csv")
+    p.add_argument("--src", default="paper/scripts/output/aug_ablation_heldout10.csv")
     p.add_argument("--out", default="paper/figs/aug_ablation_paper.pdf")
     args = p.parse_args()
 

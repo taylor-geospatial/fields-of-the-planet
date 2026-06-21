@@ -260,14 +260,20 @@ comparison for orientation only, not as a head-to-head (full table in
 \begin{figure}[t!]
     \centering
     \includegraphics[width=0.7\linewidth]{figs/aug_ablation_paper.pdf}
-\caption{\textbf{Cumulative augmentation lift on Obj F1} (FTP-PRUE+ B3, dense held-out, WS+TTA). Each step adds one augmentation group to the PRUE recipe. Horizontal lines mark the same-recipe FTW-PRUE+ baselines (solid: B3, architecture-matched; dashed: B7, strongest S2 model). The final FTP-PRUE+ model exceeds every S2 reference, so the dataset change drives the gain even at matched architecture.}
+\caption{\textbf{Cumulative augmentation lift on Obj F1} (FTP-PRUE+ B3, ten dense held-out countries, Kenya excluded, WS+TTA). The first four bars are CC-BY-subset models evaluated on countries \emph{absent} from their training set, so each augmentation's lift is out-of-sample; the final bar (\emph{B3 full}) is the in-distribution full-data model, so the $37.4\!\rightarrow\!45.2$ step adds training countries, not an augmentation. Horizontal lines mark the same-recipe full-data FTW-PRUE+ S2 baselines (solid: B3, architecture-matched; dashed: B7, strongest S2 model), comparable to the final bar. The full-data FTP-PRUE+ model exceeds every S2 reference, so the dataset change drives the gain even at matched architecture.}
     \label{fig:aug_ablation}
 \end{figure}
 
 Data augmentations were the largest lever for PlanetScope performance
 (\Cref{fig:aug_ablation}). We group the sweep into three stages so the
 comparison is easy to audit: PRUE normalization/crop augmentations,
-temporal/radiometric augmentations, and a final geometry/noise bundle.
+temporal/radiometric augmentations, and a final geometry/noise bundle. Each
+rung of this sweep is a model trained on the CC-BY-licensed training countries
+and evaluated on the ten dense held-out countries, \emph{none} of which appear
+in its training set, so the lift reported below is out-of-sample generalization
+rather than a within-country fit. The in-distribution full-data FTP-PRUE+ model
+(the \Cref{tab:polygon_metrics} headline, Obj F1 $45.2$) adds the remaining
+training countries on top of this same recipe.
 
 \paragraph{PRUE normalization and crop augmentations.} The released PRUE configs enable
 \texttt{preprocess\_aug} (random per-batch divisor in

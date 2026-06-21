@@ -40,7 +40,7 @@ reader-visible number depends on the difference; the 10-country (`36.0`) and
 
 | Float | Generator | Source |
 |---|---|---|
-| `fig:aug_ablation` | `make_aug_ablation_paper.py` | `paper/scripts/output/aug_ablation_heldout11.csv` (from `logs/heldout/*.csv`, `logs/repro_eval/pp_ws_tta.csv`) |
+| `fig:aug_ablation` | `make_aug_ablation_paper.py` | `paper/scripts/output/aug_ablation_heldout10.csv` (Kenya-excluded, matching the paper's supervised-macro protocol; from `logs/heldout/*.csv`, `logs/repro_eval/pp_ws_tta.csv`). Bars 1--4 are CC-BY-subset models on the 10 held-out (OOD) countries; the final bar is the in-distribution full-data model. |
 | `fig:per_country_bars` | `make_per_country_bars_pq.py` | per-country PQ from the `tab:polygon_metrics` CSVs |
 | `fig:per_country_objf1_appx` | `make_per_country_both.py` | polygon PQ CSVs + released PRUE per-region Obj-F1 |
 | `fig:smallholder_scatter` | `make_smallholder_scatter_paper.py` | `paper/scripts/output/smallholder_scatter.csv`; `logs/repro_eval/polygon_metrics_22.csv`; `logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv` |
