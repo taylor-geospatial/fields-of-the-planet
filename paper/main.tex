@@ -53,7 +53,7 @@ Paper ID \wacvPaperID}
 %\vspace{12pt}
 }]
 \begin{abstract}
-Fields of The World (FTW) makes global agricultural field delineation practical at scale, pairing field-boundary labels across 24 countries with public 10m Sentinel-2 imagery. But at 10m the smallest fields are not merely hard to delineate --- many cannot be resolved as distinct parcels at all: rasterizing the same labels at 10m already merges thousands of adjacent smallholder fields into single blobs, so a model cannot recover what the grid has already destroyed. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to FTW built from the same field polygons, splits, and training recipe (rasterized to each sensor's native grid), and show that the finer imagery recovers parcels Sentinel-2 loses. With task, geography, labels, architecture, and recipe all fixed, training on PlanetScope instead of Sentinel-2 lifts panoptic quality from 27.4 to 36.0 (0--100 scale) and more than halves mean boundary error (18.6m to 7.4m). Breaking results down by field size, the gain is largest exactly where it should be: on sub-$0.5$\,ha smallholder fields PlanetScope nearly \emph{triples} polygon quality (PQ 18.4 vs 6.6) and object F1 (26\% vs 10\% detected). We score field-level polygon metrics --- panoptic quality, object F1, and meter-scale boundary error --- not pixel overlap. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
+Fields of The World (FTW) makes global agricultural field delineation practical at scale, pairing field-boundary labels across 24 countries with public 10m Sentinel-2 imagery. But at 10m the smallest fields are not merely hard to delineate --- many cannot be resolved as distinct parcels at all: rasterizing the same labels at 10m already merges thousands of adjacent smallholder fields into single blobs, so a model cannot recover what the grid has already destroyed. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to FTW built from the same field polygons, splits, and training recipe (rasterized to each sensor's native grid), and show that the finer imagery recovers parcels Sentinel-2 loses. With task, geography, labels, architecture, and recipe all fixed, training on PlanetScope instead of Sentinel-2 lifts panoptic quality from 27.4 to 36.0 (0--100 scale) and more than halves mean boundary error (18.6m to 7.4m). Breaking results down by field size, the gain is largest on the hardest, smallest parcels: on sub-$0.5$\,ha smallholder fields PlanetScope nearly \emph{triples} polygon quality (PQ 18.4 vs 6.6) and object F1 (26\% vs 10\% detected on each sensor's native targets). We score field-level polygon metrics --- panoptic quality, object F1, and meter-scale boundary error --- not pixel overlap. \footnote{Code, configs, result CSVs, and dataset-access instructions for review are available at \url{https://github.com/anon/anon} (anonymized); the full dataset is released on acceptance.}
 \end{abstract}
 
 \section{Introduction}
@@ -200,6 +200,20 @@ at $10^{-3}$, 100 epochs, batch size 32 for B3 / 8 for B7, random
 $512\!\times\!512$ crops, and bf16-mixed precision~\cite{micikevicius2018mixedprec}.
 This gives a controlled S2-vs-Planet comparison before we add Planet-specific
 regularization.
+
+\paragraph{Model selection.} Per-model checkpoints are selected by minimum
+\emph{validation} loss (FTW's validation chips; \texttt{ModelCheckpoint} on
+\texttt{val/loss}), never the test chips. The PRUE+ augmentation recipe and the
+post-processing (watershed, D4 TTA) are fixed once and applied \emph{identically}
+to both sensors and all backbones; the augmentation and post-processing sweeps
+(\Cref{fig:aug_ablation}, \Cref{tab:heldout}) report each component's effect on
+the held-out test set to characterize the recipe, not to tune it per sensor.
+Because the same recipe and selection rule are applied to Sentinel-2 and
+PlanetScope, the sensor comparison --- the paper's central claim --- does not
+depend on these choices: any recipe effect applies to both sensors equally and
+cannot create the Planet-vs-S2 delta. We therefore read those sweeps as
+component characterizations and the Sentinel-2-vs-PlanetScope deltas as the
+controlled result.
 
 \begin{table*}[t]
     \centering
