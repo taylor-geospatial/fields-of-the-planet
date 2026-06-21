@@ -172,9 +172,12 @@ with the released PRUE protocol and make the full case in
 \Cref{sec:polygon-first}.
 
 \paragraph{Evaluation protocol.} We use the same country splits as the PRUE
-paper~\cite{muhawenayo2026prue}, which holds out a set of test regions that are
-evaluated but never seen during training. Our architecture-matched dataset
-comparison uses these identical splits on both sensors. Kenya is the
+paper~\cite{muhawenayo2026prue}: we train and evaluate on the official Fields
+of the World per-region train/validation/test chip splits. Within each region,
+FTW partitions chips into disjoint train/validation/test sets; training sees
+only \emph{train} chips and evaluation only the held-out \emph{test} chips, the
+same protocol as PRUE. Our architecture-matched dataset comparison uses these
+identical splits on both sensors. Kenya is the
 \emph{only} presence-only region in FTW v2: it annotates a subset of fields
 and leaves surrounding land unlabeled, so its background class is untrusted
 and supervised pixel/object metrics computed against it are not comparable
@@ -298,9 +301,10 @@ models trained with PRUE+.
 Scaling B3 to B7 gives no improvement on the dense held-out polygon metrics
 (PQ $36.0$ vs $36.0$, RQ $45.2$ vs $45.2$) and slightly worse polygon-count
 error; across all $23$ regions B7 is marginally behind ($-0.6$ PQ) and
-degrades the dense-smallholder regions most (Cambodia $-9.9$, Rwanda $-7.0$,
-Vietnam $-4.8$\,pp). We therefore use the smaller B3 as the main PlanetScope
-baseline.
+degrades the dense-smallholder regions most (Planet B3$\to$B7 per-region
+$\Delta$PQ: Cambodia $-9.9$, Rwanda $-7.0$, Vietnam $-4.8$\,pp --- distinct
+from the Planet$-$S2 deltas of \Cref{sec:polygon-first}). We therefore use the
+smaller B3 as the main PlanetScope baseline.
 
 
 % tab:heldout (full 4-postproc x 4-config sweep) lives in the supplementary
@@ -361,44 +365,45 @@ table and use polygon metrics for the main claims.
 
 \paragraph{Grid resolution vs.\ true resolution.}
 An input-side control isolates how much of the Sentinel-2-to-PlanetScope
-gap is genuine resolution rather than output grid. We retrain the Sentinel-2
-model on imagery bilinearly upsampled to PlanetScope's $512\times512$ ($3$m)
-grid --- same recipe, same field of view, no new image information --- and
-score it through the full polygon pipeline (\Cref{tab:upsampled_s2_main}). The
-finer grid recovers $\sim$45\% of the object-F1 / PQ gap to native PlanetScope
-and lifts segmentation quality to near-parity ($77.5$ vs $77.9$): for the
-parcels it matches, the overlap is as good as $3$m imagery. The boundary
-chamfer, however, does \emph{not} improve --- it \emph{worsens} from $17.5$m to
-$28.0$m, against $7.4$m for native PlanetScope --- even though the upsampled
-predictions are scored on a finer grid that could in principle localize edges
-more precisely. Output-grid resolution can inflate the object-detection scores,
-but only genuine higher-resolution imagery delivers meter-scale boundary
-precision. This is exactly why we report the boundary chamfer, in meters,
-alongside the object metrics. Per-country numbers and the full experimental
-setup are in \Cref{app:upsampled_s2}.
+gap is genuine resolution rather than output grid. We give the Sentinel-2
+model PlanetScope's $3$m grid with no new information --- first by upsampling
+its input at evaluation ($\text{resize\_factor}{=}2$, our headline S2-B3 setup),
+then by retraining on bilinearly upsampled imagery --- and score each through
+the full polygon pipeline (\Cref{tab:upsampled_s2_main}). The object-level
+scores climb steadily toward PlanetScope (PQ $23.8\!\to\!27.4\!\to\!31.5$ vs
+$36.0$; SQ reaches near-parity, $77.5$ vs $77.9$): for the parcels it matches,
+the overlap is as good as $3$m imagery. The boundary chamfer, however, never
+tracks it --- it stays $28$--$31$m against $7.4$m for native PlanetScope, even
+though the upsampled predictions are scored on a finer grid that could in
+principle localize edges more precisely. Output-grid resolution inflates the
+object-detection scores, but only genuine higher-resolution imagery delivers
+meter-scale boundary precision. This is exactly why we report the boundary
+chamfer, in meters, alongside the object metrics. Per-country numbers and the
+full experimental setup are in \Cref{app:upsampled_s2}.
 
 \begin{table}[t]
     \centering
     \small
     \setlength{\tabcolsep}{5pt}
-    \caption{\textbf{Grid resolution vs.\ true resolution} (B3 PRUE+,
-    dense held-out, WS\,+\,TTA). Upsampling Sentinel-2 to PlanetScope's $3$m grid
-    recovers much of the object-level gap but not the boundary error. Full table in
-    \Cref{tab:upsampled_s2}. PQ/SQ/RQ are shown $\times 100$; boundary error is in meters.}
+    \caption{\textbf{Grid resolution vs.\ true resolution} (B3, dense held-out,
+    WS\,+\,TTA). Giving the Sentinel-2 model PlanetScope's $3$m grid with no new
+    information --- first by upsampling at evaluation ($\text{resize\_factor}{=}2$,
+    the headline S2-B3 row), then by training on upsampled imagery --- recovers
+    most of the object-level (PQ/RQ) gap to native PlanetScope, yet the boundary
+    chamfer never tracks it: the recovered object scores come from the finer
+    output grid, while only genuine $3$m imagery delivers meter-scale boundary
+    precision. Full per-country table in \Cref{tab:upsampled_s2}. PQ/SQ/RQ are
+    shown $\times 100$; boundary error is in meters.}
     \label{tab:upsampled_s2_main}
-    % TODO(#13, job 112143): resize_factor=2 (upsample-512) is now the canonical
-    % S2 eval, so the "256 native" row (27.1) is the old zero-pad number and must
-    % be replaced by the train-256 B3 model evaluated at resize_factor=2 (the
-    % corrected main-table S2 B3). Reframe the two S2 rows as "trained 256" vs
-    % "trained 512-upsampled" (both eval'd at resize_factor=2) to isolate the
-    % training-resolution effect; the upsampled row (31.5) already uses rf2.
     \begin{tabular}{lcccc}
     \toprule
-    Imagery (grid) & PQ & SQ & RQ & Bd.\ err (m) \\
+    Sentinel-2 grid & PQ & SQ & RQ & Bd.\ err (m) \\
     \midrule
-    S2 ($256$, native)     & $27.1$ & $68.4$ & $34.9$ & $17.5$ \\
-    S2 ($512$, upsampled)  & $31.5$ & $77.5$ & $39.5$ & $28.0$ \\
-    Planet ($512$, native) & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{7.4}$ \\
+    Native ($256$, $10$m)         & $23.8$ & $67.8$ & $30.8$ & $18.6$ \\
+    Upsampled at eval ($512$)     & $27.4$ & $75.8$ & $34.9$ & $31.3$ \\
+    Trained upsampled ($512$)     & $31.5$ & $77.5$ & $39.5$ & $28.0$ \\
+    \midrule
+    Planet ($512$, native $3$m)   & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{7.4}$ \\
     \bottomrule
     \end{tabular}
 \end{table}
@@ -415,19 +420,19 @@ metrics on a worked example.
 \paragraph{Per-region head-to-head.}
 Across the 23 test regions
 with complete polygon-metric outputs (all FTW regions except presence-only
-Kenya and label-sparse India) is $38.3$ (Planet) vs $32.3$
+Kenya and label-sparse India), macro-average PQ is $38.3$ (Planet) vs $32.3$
 (FTW-PRUE+ (B7), same recipe), a $+6.0$\,pp Planet win. Figure~\ref{fig:per_country_bars}
 unpacks PQ into per-region deltas. Planet wins on $18/23$ regions
 (two-sided sign test over the 23 decided regions:
-$p \approx 1.1\times10^{-2}$).
+$p \approx 1.1\times10^{-2}$). All configurations are trained with a single
+seed; in place of seed replicates we assess significance across the 23
+independent test regions, a stronger test of geographic generalization than
+optimization-noise variance.
 The largest gains include Netherlands $+22.3$, Brazil $+18.8$,
 Lithuania $+17.0$, Denmark $+11.5$, and Slovakia $+11.1$.
 The five losses are Cambodia ($-6.7$\,pp), Germany ($-6.6$), Portugal
 ($-0.7$), Vietnam ($-0.5$), and Slovenia ($-0.1$) --- the last three within
 $1$\,pp of a tie.
-% FLAG(rebuild 2026-06-21): corrected (stronger) S2-B7 baseline -> per-region
-% story shifted: Cambodia/Vietnam (smallest-field regions) now LOSSES; see the
-% field-size paragraph -- the smallholder framing needs thesis-level review.
 Germany is the one consistent Sentinel-2 win. At matched EfficientNet-B3 the
 two sensors are within $\sim$2.6\,pp on Germany (Planet $32.5$ vs S2 $35.1$);
 most of the larger headline gap is backbone capacity (scaling to B7 helps the
@@ -447,12 +452,6 @@ Lithuania $+17.0$ at $1.4$\,ha, Rwanda $+11.2$ at $1.4$\,ha), while the
 smallest-field tropical regions are losses or ties (Cambodia $-6.7$ at
 $0.15$\,ha, Vietnam $-0.5$ at $0.25$\,ha) and large-regular Germany is also a
 loss.
-% FLAG(rebuild 2026-06-21): REVERSES the earlier near-zero correlation (was
-% r=+0.11). With the properly-evaluated S2-B7 baseline the smallholder regions
-% no longer favor Planet -- in tension with the paper's central
-% resolution-helps-smallholder framing. THESIS-LEVEL: needs user decision;
-% kept factual here, do not over-claim either direction.
-
 \paragraph{At the field level, the smallholder gain is real.}
 The per-region correlation is a confound: regions mix field sizes, and the
 $10$m S2 labels merge small adjacent parcels (below). Binning \emph{individual}
@@ -469,8 +468,10 @@ that the per-region average obscures.
 \begin{table*}[t]
     \centering
     \caption{\textbf{Polygon metrics by field-area bin and IoU threshold --- the
-    $3$m advantage is largest on small fields.} Pooled over the 10 dense
-    held-out countries; fields binned by GT polygon area (Small $<0.5$, Medium
+    $3$m advantage is largest on small fields.} Micro-pooled over fields across
+    the 10 dense held-out countries (so the ``All'' column differs from the
+    macro-averaged headline of \Cref{tab:polygon_metrics}); fields binned by GT
+    polygon area (Small $<0.5$, Medium
     $0.5$--$2$, Large $>2$\,ha). RQ$_{.5}$ is object F1 at IoU\,$=0.5$
     (detection); PQ\,$=$\,SQ$\times$RQ; AP is averaged over IoU\,$[.5{:}.95]$
     (localization). Each model is scored against its own-sensor GT (definitions
@@ -661,6 +662,25 @@ given configuration (e.g.\ Portugal under the weaker S2 models), its boundary er
 undefined and that configuration's two boundary columns average the remaining
 nine countries; every other column averages all ten.
 
+\paragraph{Field-area breakdown (\Cref{tab:area_bins}).}
+To localize \emph{where} resolution helps, we also report the polygon metrics
+per field-size bin. Each ground-truth polygon is assigned by its area to
+\emph{small} ($<0.5$\,ha), \emph{medium} ($0.5$--$2$\,ha), or \emph{large}
+($>2$\,ha); the $2$\,ha cut is the standard smallholder ceiling~\cite{lowder2016farms}
+and $0.5$\,ha splits the dominant sub-hectare mass (median field $=0.41$\,ha;
+\Cref{fig:smallholder_scatter}). A matched / missed ground-truth polygon is
+credited to the bin of \emph{its} area; a false positive to the bin of the
+predicted polygon's area. The per-bin columns are the same quantities defined
+above evaluated within a bin: $\mathrm{RQ}_{.5}=\mathrm{F1}_{0.5}$ (detection),
+$\mathrm{F1}_{0.75}$, $\mathrm{AP}=\mathrm{F1}_{[.5:.95]}$ (localization), and
+$\mathrm{PQ}=\mathrm{SQ}\times\mathrm{RQ}_{.5}$. Unlike the per-country
+aggregation, per-bin $\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ and matched IoUs are
+pooled (micro) across \emph{all} dense-label patches before forming each bin's
+metrics, so sparsely-populated bins stay stable; the ``All'' row pools every
+field. Because area in hectares is grid-invariant, the bins are comparable
+across sensors even though the $10$m and $3$m label rasterizations resolve
+different numbers of small fields (\Cref{tab:area_bins}$^{\dagger}$).
+
 \section{Access pipeline and operational lessons}
 \label{app:pipeline}
 
@@ -833,7 +853,7 @@ the 10-country dense held-out set referenced from the main text.
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\linewidth]{figs/per_country_both.pdf}
-    \caption{\textbf{Per-region $\Delta$ (FTP-PRUE+ $-$ FTW-PRUE+ (B7)) under two metrics, same region order.} Left: polygon panoptic quality (PQ; released B3 checkpoint vs.\ S2 B7, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 used by the released PRUE models~\cite{muhawenayo2026prue}. Polygon PQ shows a broad PlanetScope advantage ($18/23$ regions), whereas the pixel-instance object F1 is far noisier and barely favors Planet ($11/22$). The two metrics disagree because pixel-instance object F1 is recall-sensitive and grid-dependent, so it \emph{understates} the resolution benefit that the polygon metrics surface --- which is why we lead with polygon-level metrics.}
+    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon panoptic quality (PQ; our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE, not the PRUE+ recipe). Polygon PQ shows a broad PlanetScope advantage ($18/23$ regions), whereas the pixel-instance object F1 is far noisier and barely favors Planet ($11/22$). The two metrics disagree because pixel-instance object F1 is recall-sensitive and grid-dependent, so it \emph{understates} the resolution benefit that the polygon metrics surface --- which is why we lead with polygon-level metrics.}
     \label{fig:per_country_objf1_appx}
 \end{figure}
 
@@ -870,7 +890,7 @@ near-parity ($77.5$ vs $77.9$): for the parcels it matches, the overlap is
 as good as $3$m imagery.
 
 Boundary precision tells the opposite story. The mean symmetric chamfer does
-not improve --- it \emph{worsens} from $17.5$m to $28.0$m, against $7.4$m for
+not improve --- it \emph{worsens} from $18.6$m to $28.0$m, against $7.4$m for
 native PlanetScope --- even though the upsampled predictions are scored on a
 finer $3$m grid that could in principle localize edges more precisely.
 Upsampling lets the model detect and loosely overlap more small fields, but
@@ -900,11 +920,13 @@ protocol used for every other row.)
     \toprule
     & & & & & \multicolumn{2}{c}{Bd.\ err (m)} \\
     \cmidrule(lr){6-7}
-    Imagery (grid) & PQ & SQ & RQ & F1$_{[.5:.95]}$ & mean & p95 \\
+    Sentinel-2 grid & PQ & SQ & RQ & F1$_{[.5:.95]}$ & mean & p95 \\
     \midrule
-    S2 ($256$, native)        & $27.1$ & $68.4$ & $34.9$ & $21.0$ & $17.5$ & $53.5$ \\
-    S2 ($512$, upsampled)     & $31.5$ & $77.5$ & $39.5$ & $25.5$ & $28.0$ & $90.0$ \\
-    Planet ($512$, native)    & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{29.1}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
+    Native ($256$, $10$m)        & $23.8$ & $67.8$ & $30.8$ & $18.4$ & $18.6$ & $54.7$ \\
+    Upsampled at eval ($512$)    & $27.4$ & $75.8$ & $34.9$ & $21.6$ & $31.3$ & $96.9$ \\
+    Trained upsampled ($512$)    & $31.5$ & $77.5$ & $39.5$ & $25.5$ & $28.0$ & $90.0$ \\
+    \midrule
+    Planet ($512$, native $3$m)  & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{29.1}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
     \bottomrule
     \end{tabular}
 \end{table}
