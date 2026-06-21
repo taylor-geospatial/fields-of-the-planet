@@ -10,7 +10,7 @@ the visual story under imagery degradation (Cambodia: -8.6 pp ObjF1
 but +6.6 pp PQ). Leading with PQ makes the marquee per-country figure
 consistent with the metric the paper champions.
 
-Reads logs/repro_eval/polygon_metrics_22.csv (released B3-full checkpoint)
+Reads logs/polygon_metrics/planet_b3_augmax_full_22.csv (all-23-region B3-full augmax run)
 and logs/polygon_metrics/s2_b7_augmax_full_22.csv; both are the 23-region
 full_data test split with WS+TTA inference.
 """
@@ -50,8 +50,11 @@ mpl.rcParams.update(
 
 
 def _load_deltas() -> pd.DataFrame:
-    # Planet B3-full is the released checkpoint (retrained Jun 2026): repro eval.
-    pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(
+    # Canonical all-23-region B3-full augmax run (37.9 macro quoted in the
+    # per-region prose; the only Planet run covering all 23 regions).
+    pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[
+        ["country", "pq"]
+    ].rename(
         columns={"pq": "pq_pl"}
     )
     s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[

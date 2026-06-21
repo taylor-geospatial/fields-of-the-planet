@@ -8,8 +8,8 @@ metric understates the resolution benefit, which is why we lead with
 polygon-level metrics.
 
 Left panel  -- Delta PQ (FTP-PRUE - FTW-PRUE), polygon recognition quality:
-    logs/repro_eval/polygon_metrics_22.csv (released B3-full checkpoint)
-    vs logs/polygon_metrics/s2_b7_augmax_full_22.csv
+    logs/polygon_metrics/planet_b3_augmax_full_22.csv (all-23-region B3-full augmax run)
+    vs logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv
 Right panel -- Delta Obj F1 (FTP-PRUE - FTW-PRUE), FTW-official pixel-instance:
     logs/fulldata_eval/planet_b3_augmax_full_ws_tta.csv (object_ws_f1)
     vs logs/ftw_official/b7_*.csv (object_level_f1)
@@ -53,9 +53,9 @@ mpl.rcParams.update(
 
 
 def _load_pq() -> pd.DataFrame:
-    pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(
-        columns={"pq": "pq_pl"}
-    )
+    pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[
+        ["country", "pq"]
+    ].rename(columns={"pq": "pq_pl"})
     s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[
         ["country", "pq"]
     ].rename(columns={"pq": "pq_s2"})

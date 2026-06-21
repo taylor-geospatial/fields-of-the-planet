@@ -56,11 +56,14 @@ def main():
     args = p.parse_args()
 
     df = pd.read_csv(args.src).rename(columns={"median_field_size_ha": "ha"})
-    # Recompute delta PQ from the released B3-full checkpoint (repro_eval),
-    # matching the Table 3 headline and per_country_bars.py. Earlier
-    # this read the stale pq columns baked into the CSV, which came from our
-    # original (un-released) B3 checkpoint.
-    pq_pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(
+    # Recompute delta PQ from the canonical all-23-region B3-full augmax run
+    # (planet_b3_augmax_full_22.csv -- the only run covering all 23 regions,
+    # giving the 37.9 macro quoted in the per-region prose and matching
+    # per_country_bars.py). Earlier this read the stale pq columns baked into
+    # the CSV, which came from our original (un-released) B3 checkpoint.
+    pq_pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[
+        ["country", "pq"]
+    ].rename(
         columns={"pq": "pq_pl"}
     )
     pq_s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[
