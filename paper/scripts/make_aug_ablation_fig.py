@@ -2,8 +2,8 @@
 
 Bars per recipe stage on the held-out set (Obj F1 + WS+TTA where applicable):
 
-  PRUE recipe (no extra augs) -> + preproc/resize -> + swap+gamma (augplus)
-    -> + bespoke bundle (augmax)
+  PRUE recipe (no extra augs) -> + preproc/resize -> + swap+gamma
+    -> + geometry/noise (this completes the PRUE+ recipe)
 
 One bar group per imagery source (Planet, S2). Reference horizontal lines for
 the FTW v3.1 released S2 PRUE checkpoints (CC-BY B3/B7 and full B7).
@@ -56,19 +56,17 @@ REPO = HERE.parent.parent
 PLANET_ROWS: list[tuple[str, Path]] = [
     ("PRUE\n(no augs)", REPO / "logs/heldout/b3base_best.csv"),
     ("+ preproc / resize", REPO / "logs/heldout/b3base_aug_best.csv"),
-    ("+ swap + gamma\n(augplus)", REPO / "logs/heldout/v3_augplus.csv"),
-    ("+ bespoke bundle\n(augmax, B3 CC-BY)", REPO / "logs/heldout/v3_augmax_ws_tta.csv"),
+    ("+ swap + gamma", REPO / "logs/heldout/v3_augplus.csv"),
+    # + geometry/noise completes the PRUE+ recipe (CC-BY-subset model, OOD eval).
+    ("+ geometry / noise", REPO / "logs/heldout/v3_augmax_ws_tta.csv"),
     # B3-full is the released checkpoint (retrained Jun 2026): reproduction eval.
-    ("+ augmax, B3 full", REPO / "logs/repro_eval/pp_ws_tta.csv"),
+    ("B3 full", REPO / "logs/repro_eval/pp_ws_tta.csv"),
 ]
 S2_ROWS: list[tuple[str, Path]] = [
-    (
-        "+ bespoke bundle\n(augmax, B3 CC-BY)",
-        REPO / "logs/fulldata_eval/s2_b3_augmax_ccby_ws_tta.csv",
-    ),
-    ("+ augmax, B3 full", REPO / "logs/fulldata_eval/s2_b3_augmax_full_ws_tta.csv"),
-    ("+ augmax, B7 CC-BY", REPO / "logs/fulldata_eval/s2_b7_augmax_ccby_ws_tta.csv"),
-    ("+ augmax, B7 full", REPO / "logs/fulldata_eval/s2_b7_augmax_full_ws_tta.csv"),
+    ("+ geometry / noise", REPO / "logs/fulldata_eval/s2_b3_augmax_ccby_ws_tta.csv"),
+    ("B3 full", REPO / "logs/fulldata_eval/s2_b3_augmax_full_ws_tta.csv"),
+    ("B7 CC-BY", REPO / "logs/fulldata_eval/s2_b7_augmax_ccby_ws_tta.csv"),
+    ("B7 full", REPO / "logs/fulldata_eval/s2_b7_augmax_full_ws_tta.csv"),
 ]
 
 # FTW v3.1 released reference (S2 PRUE), unchanged hand-copied values.

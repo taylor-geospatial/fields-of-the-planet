@@ -2,7 +2,7 @@
 
 Dense-label held-out macro-average (HELDOUT_10_DENSE) comparing the released
 FTW S2 PRUE checkpoints (numbers as published in~\\cite{muhawenayo2026prue})
-to our augmax recipe on Planet.
+to our PRUE+ recipe on Planet.
 
 Kenya is excluded by construction twice over: its labels are presence-only
 (see ``_aggregate.HELDOUT_10_DENSE``) and the FTW ``full_data`` protocol's

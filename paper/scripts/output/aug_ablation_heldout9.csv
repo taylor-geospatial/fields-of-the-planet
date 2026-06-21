@@ -2,13 +2,10 @@ panel,label,object_ws_f1,n_countries,n_expected,csv
 planet,"PRUE
 (no augs)",0.3230173333333333,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/b3base_best.csv
 planet,+ preproc / resize,0.35458900000000004,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/b3base_aug_best.csv
-planet,"+ swap + gamma
-(augplus)",0.36596855555555563,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augplus.csv
-planet,"+ bespoke bundle
-(augmax, B3 CC-BY)",0.41545733333333335,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augmax_ws_tta.csv
-planet,"+ augmax, B3 full",0.4996167777777778,9,9,/u/isaaccorley/github/ftw-planet/logs/repro_eval/pp_ws_tta.csv
-s2,"+ bespoke bundle
-(augmax, B3 CC-BY)",0.3695938888888889,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_ccby_ws_tta.csv
-s2,"+ augmax, B3 full",0.38749577777777783,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_full_ws_tta.csv
-s2,"+ augmax, B7 CC-BY",0.38616677777777775,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b7_augmax_ccby_ws_tta.csv
-s2,"+ augmax, B7 full",0.43494177777777776,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b7_augmax_full_ws_tta.csv
+planet,+ swap + gamma,0.36596855555555563,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augplus.csv
+planet,+ geometry / noise,0.41545733333333335,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augmax_ws_tta.csv
+planet,B3 full,0.4996167777777778,9,9,/u/isaaccorley/github/ftw-planet/logs/repro_eval/pp_ws_tta.csv
+s2,+ geometry / noise,0.3695938888888889,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_ccby_ws_tta.csv
+s2,B3 full,0.38749577777777783,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b3_augmax_full_ws_tta.csv
+s2,B7 CC-BY,0.38616677777777775,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b7_augmax_ccby_ws_tta.csv
+s2,B7 full,0.43494177777777776,9,9,/u/isaaccorley/github/ftw-planet/logs/fulldata_eval/s2_b7_augmax_full_ws_tta.csv
