@@ -228,7 +228,7 @@ each reported number is reproducible from a config.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE+ / FTP-PRUE+: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is a YOLO11 field-instance segmenter evaluated off-the-shelf (no FTW fine-tuning); its ``delineate anything'' design targets zero-shot use, so we score it under the same polygon pipeline (\Cref{app:qualitative_delineate}). For Sentinel-2, object metrics (PQ/SQ/RQ/F1) use the canonical upsampled ($\text{resize\_factor}{=}2$) PRUE eval; the boundary chamfer is reported at each model's \emph{native} grid because the chamfer is grid-sensitive and upsampling inflates it --- \Cref{app:upsampled_s2} reports the upsampled-grid S2 boundary ($31.3$m) for completeness. PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
+    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE+ / FTP-PRUE+: the PRUE recipe~\cite{muhawenayo2026prue} on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column says otherwise. Metrics are on vectorized field polygons (\Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better, best per column in \textbf{bold}; presence-only Kenya excluded. $^{*}$DelineateAnything~\cite{lavreniuk2025delineate}: off-the-shelf YOLO11, no FTW fine-tuning (\Cref{app:qualitative_delineate}). Sentinel-2 object metrics use the upsampled ($\text{resize\_factor}{=}2$) PRUE eval; boundary chamfer is at each model's native grid (\Cref{app:upsampled_s2}). PQ/SQ/RQ/F1 $\times 100$; boundary error in meters.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -592,7 +592,7 @@ The main ablation result is that FTP needs stronger regularization than the S2 r
 
 \textbf{Spectral coverage.} The current release targets the 4-band Dove product (\texttt{ortho\_analytic\_4b\_sr}). 8-band SuperDove imagery would add red-edge and yellow bands that help vegetation discrimination, but FTW v2's labeled windows are historical and most predate SuperDove's full operational coverage, so the 4-band Dove archive is the only product with end-to-end coverage of the FTW season range. A SuperDove companion release is feasible only for the more recent country windows.
 
-\textbf{Presence-only and hard transfer regions.} Kenya is presence-only in FTW: the tile annotates a subset of fields and leaves surrounding land unlabeled, so its background class is untrusted and supervised pixel/object metrics computed against it are not comparable across models. We therefore exclude Kenya from every supervised macro-average in this paper and report it only as a clearly marked presence-only row (\Cref{tab:heldout_pc}). Our evaluation tooling supports masking presence-only backgrounds to the ignore index at evaluation time, but the training labels still rasterize unlabeled Kenya land as background; a cleaner comparison should retrain with presence-only pixels masked out. Portugal remains a hard transfer case because its terraced micro-fields are near or below the PlanetScope GSD. These regions need either targeted data acquisition or a transfer-specific strategy.
+\textbf{Presence-only and hard transfer regions.} As established in the evaluation protocol (\Cref{sec:benchmark}), Kenya is the only presence-only FTW region, so it is excluded from every supervised macro-average and reported only as a marked presence-only row (\Cref{tab:heldout_pc}). One caveat for future work: our eval tooling can mask presence-only backgrounds to the ignore index, but training still rasterizes unlabeled Kenya land as background, so a cleaner comparison would retrain with those pixels masked out. Portugal remains a hard transfer case --- its terraced micro-fields are near or below the PlanetScope GSD --- and these regions need targeted acquisition or a transfer-specific strategy.
 
 \textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia loss, which against the corrected (upsampled) S2-B7 baseline is now a loss on PQ as well ($-6.7$\,pp; \Cref{sec:polygon-first}).
 
@@ -897,7 +897,7 @@ the 10-country dense held-out set referenced from the main text.
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\linewidth]{figs/per_country_both.pdf}
-    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon panoptic quality (PQ; our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE, not the PRUE+ recipe). Polygon PQ shows a broad PlanetScope advantage ($18/23$ regions), whereas the pixel-instance object F1 is far noisier and barely favors Planet ($11/22$). The two metrics disagree because pixel-instance object F1 is recall-sensitive and grid-dependent, so it \emph{understates} the resolution benefit that the polygon metrics surface --- which is why we lead with polygon-level metrics.}
+    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
     \label{fig:per_country_objf1_appx}
 \end{figure}
 
@@ -953,11 +953,9 @@ protocol used for every other row.)
     \small
     \caption{\textbf{Upsampled-Sentinel-2 control.} Full polygon metrics on the
     10-country dense held-out set (presence-only Kenya excluded), WS\,+\,TTA, B3
-    PRUE+ full recipe. Upsampling S2 to PlanetScope's $3$m grid recovers
-    much of the object-level gap (PQ, RQ, and especially SQ) but does not recover
-    --- indeed worsens --- the meter-scale boundary error, which only native
-    PlanetScope brings down. Native-S2 and native-Planet rows are reproduced from
-    \Cref{tab:polygon_metrics}. PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
+    PRUE+. Native-S2 and native-Planet rows are reproduced from
+    \Cref{tab:polygon_metrics}; object-vs-boundary interpretation in text.
+    PQ/SQ/RQ/F1 $\times 100$; boundary error in meters.}
     \label{tab:upsampled_s2}
     \setlength{\tabcolsep}{4pt}
     \begin{tabular}{lcccccc}
