@@ -1,9 +1,10 @@
 """Generate ``paper/figs/heldout_per_country.tex`` (``tab:heldout_pc``).
 
 Per-country pixel IoU + Planet Obj F1 (WS+TTA) on the 11 held-out
-countries. S2 column is our FTW-PRUE (B3) \\emph{augmax} full model
-(``logs/postproc_ablation/s2_b3_augmax_full_ws_tta.csv``); Planet
-column is our best B3 \\emph{augmax} full + WS + D4 TTA
+countries. S2 column is our FTW-PRUE+ (B3) full model at the upsampled-512
+(resize_factor=2) eval
+(``logs/postproc_ablation/s2_b3_augmax_full_upsampled_ws_tta.csv``); Planet
+column is our best B3 PRUE+ full + WS + D4 TTA
 (``logs/repro_eval/pp_ws_tta.csv``).
 
 Kenya's labels are presence-only (background untrusted): its supervised
@@ -24,7 +25,7 @@ HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "heldout_per_country.tex"
 
-S2_CSV = REPO / "logs" / "postproc_ablation" / "s2_b3_augmax_full_ws_tta.csv"
+S2_CSV = REPO / "logs" / "postproc_ablation" / "s2_b3_augmax_full_upsampled_ws_tta.csv"
 # Released B3-full checkpoint (retrained Jun 2026, epoch 92): reproduction eval.
 PL_CSV = REPO / "logs" / "repro_eval" / "pp_ws_tta.csv"
 

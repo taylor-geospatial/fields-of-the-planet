@@ -30,9 +30,11 @@ REPRO_STEM = "planet_b3_augmax_full"
 CONFIGS_OURS_PLANET = [
     ("FTP-PRUE+", "B3", "planet_b3_augmax_full"),
 ]
+# S2 stems use the upsampled-512 (resize_factor=2) postproc sweep, matching the
+# canonical PRUE eval used everywhere else for Sentinel-2 (job 112416).
 CONFIGS_OURS_S2 = [
-    ("FTW-PRUE+", "B3", "s2_b3_augmax_full"),
-    ("FTW-PRUE+", "B7", "s2_b7_augmax_full"),
+    ("FTW-PRUE+", "B3", "s2_b3_augmax_full_upsampled"),
+    ("FTW-PRUE+", "B7", "s2_b7_augmax_full_upsampled"),
 ]
 
 COMBOS = (

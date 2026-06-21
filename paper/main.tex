@@ -53,7 +53,7 @@ Paper ID \wacvPaperID}
 %\vspace{12pt}
 }]
 \begin{abstract}
-Fields of The World (FTW) makes global agricultural field delineation practical at scale, pairing field-boundary labels across 24 countries with public 10m Sentinel-2 imagery. But at 10m the smallest fields are not merely hard to delineate --- many cannot be resolved as distinct parcels at all: rasterizing the same labels at 10m already merges thousands of adjacent smallholder fields into single blobs, so a model cannot recover what the grid has already destroyed. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to FTW with identical labels, splits, and training recipe, and show that the finer imagery recovers exactly the parcels Sentinel-2 loses. With task, geography, labels, architecture, and recipe all fixed, training on PlanetScope instead of Sentinel-2 lifts panoptic quality from 27.4 to 36.0 (0--100 scale) and more than halves mean boundary error (18.6m to 7.4m). Breaking results down by field size, the gain is largest exactly where it should be: on sub-$0.5$\,ha smallholder fields PlanetScope nearly \emph{triples} polygon quality (PQ 18.4 vs 6.6) and object F1 (26\% vs 10\% detected). We score field-level polygon metrics --- panoptic quality, object F1, and meter-scale boundary error --- not pixel overlap. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
+Fields of The World (FTW) makes global agricultural field delineation practical at scale, pairing field-boundary labels across 24 countries with public 10m Sentinel-2 imagery. But at 10m the smallest fields are not merely hard to delineate --- many cannot be resolved as distinct parcels at all: rasterizing the same labels at 10m already merges thousands of adjacent smallholder fields into single blobs, so a model cannot recover what the grid has already destroyed. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to FTW built from the same field polygons, splits, and training recipe (rasterized to each sensor's native grid), and show that the finer imagery recovers parcels Sentinel-2 loses. With task, geography, labels, architecture, and recipe all fixed, training on PlanetScope instead of Sentinel-2 lifts panoptic quality from 27.4 to 36.0 (0--100 scale) and more than halves mean boundary error (18.6m to 7.4m). Breaking results down by field size, the gain is largest exactly where it should be: on sub-$0.5$\,ha smallholder fields PlanetScope nearly \emph{triples} polygon quality (PQ 18.4 vs 6.6) and object F1 (26\% vs 10\% detected). We score field-level polygon metrics --- panoptic quality, object F1, and meter-scale boundary error --- not pixel overlap. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
 \end{abstract}
 
 \section{Introduction}
@@ -144,7 +144,7 @@ occurred:
 \itemsep0em
   \item \textbf{Object F1 at IoU\,$=\,0.5$} --- \emph{did we find the right
   fields?} A predicted parcel counts as a true positive when it overlaps a
-  ground-truth parcel with IoU\,$\ge\,0.5$; F1 is the harmonic mean of the
+  ground-truth parcel with IoU\,$>\,0.5$; F1 is the harmonic mean of the
   resulting precision (of the parcels we predict, how many are real) and
   recall (of the real parcels, how many we find).
   \item \textbf{Panoptic quality}~\cite{kirillov2019panoptic}
@@ -213,9 +213,6 @@ regularization.
 
 \Cref{tab:polygon_metrics} isolates the dataset effect under the same
 architecture and training recipe. With an EfficientNet-B3 backbone, replacing
-% Rebuild 2026-06-21: S2 PQ/F1 from resize_factor=2 (upsample-512, canonical
-% PRUE eval); boundary error from the native grid (the chamfer is grid-
-% sensitive; upsampling inflates it -- see app:upsampled_s2).
 Sentinel-2 with FTP improves PQ from 27.4 to 36.0, F1$_{[.5:.95]}$
 from 21.6 to 29.1, and mean boundary error from 18.6m to 7.4m. FTP
 B3 also outperforms the larger S2 EfficientNet-B7 baseline trained with the
@@ -422,12 +419,13 @@ Across the 23 test regions
 with complete polygon-metric outputs (all FTW regions except presence-only
 Kenya and label-sparse India), macro-average PQ is $38.3$ (Planet) vs $32.3$
 (FTW-PRUE+ (B7), same recipe), a $+6.0$\,pp Planet win. Figure~\ref{fig:per_country_bars}
-unpacks PQ into per-region deltas. Planet wins on $18/23$ regions
-(two-sided sign test over the 23 decided regions:
-$p \approx 1.1\times10^{-2}$). All configurations are trained with a single
-seed; in place of seed replicates we assess significance across the 23
-independent test regions, a stronger test of geographic generalization than
-optimization-noise variance.
+unpacks PQ into per-region deltas. Planet wins on $18/23$ regions --- a
+directional consistency check across regions (two-sided sign test vs.\ a
+$50\%$ win rate, $p \approx 1.1\times10^{-2}$), not a test of out-of-distribution
+generalization, since under the PRUE protocol every region contributes both
+train and test chips. All configurations are trained with a single seed
+(\texttt{seed\_everything}\,$=7$); we report point estimates and do not claim
+seed-level significance.
 The largest gains include Netherlands $+22.3$, Brazil $+18.8$,
 Lithuania $+17.0$, Denmark $+11.5$, and Slovakia $+11.1$.
 The five losses are Cambodia ($-6.7$\,pp), Germany ($-6.6$), Portugal
@@ -797,7 +795,7 @@ the 10-country dense held-out set referenced from the main text.
     \centering
     \footnotesize
     \setlength{\tabcolsep}{3pt}
-    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 10-country dense-label held-out set unless noted (Obj F1 with WS+TTA where applicable; presence-only kenya excluded). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
+    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 10-country dense-label held-out set unless noted (Obj F1 with WS+TTA where applicable; presence-only Kenya excluded). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
     \label{tab:ablation_summary}
     \begin{tabular}{@{}p{0.62\linewidth} @{\hspace{2pt}}c@{\hspace{2pt}} r@{}}
     \toprule
@@ -870,9 +868,9 @@ the 10-country dense held-out set referenced from the main text.
     smallholder; remainder olive. Pearson $r=+0.46$, Spearman
     $\rho=+0.47$: against the corrected S2-B7 baseline the gain now correlates
     \emph{positively} with field size. Biggest gains are mid-size fields
-    (netherlands $+22.3$, lithuania $+17.0$); the smallest-field tropical
-    regions are losses (cambodia $-6.7$, vietnam $-0.5$) as is large-regular
-    germany ($-6.6$).}
+    (Netherlands $+22.3$, Lithuania $+17.0$); the smallest-field tropical
+    regions are losses (Cambodia $-6.7$, Vietnam $-0.5$) as is large-regular
+    Germany ($-6.6$).}
     \label{fig:smallholder_scatter}
 \end{figure}
 
