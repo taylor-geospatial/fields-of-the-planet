@@ -110,7 +110,7 @@ Patch-to-scene reuse is high ($\sim$23 patches per scene), so the release materi
 \section{Per-patch quality analysis}
 \label{sec:quality}
 
-We compute per-patch UDM2 statistics across the full 133\,k UDM2 release by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{86.6\%} of patches are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%); the per-band percentile breakdown is in \Cref{tab:udm2} (appendix).
+We compute per-patch UDM2 statistics across the full 133\,k UDM2 release by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{86.6\%} of patches are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%); the per-band percentile breakdown is in \Cref{tab:udm2} (appendix). This is a per-image quality flag computed after pairing, a different denominator from the $94.5\%$ acquisition yield (fraction of targets with an extracted PlanetScope image, \Cref{sec:limitations}).
 
 \paragraph{Patch-level resampling.}
 The search filter rejects scenes whose \emph{scene-level} cloud cover exceeds 10\%; this is a coarse proxy because clouds can concentrate over a single patch even in a low-cloud scene. The released index uses a patch-level resampling pass: for each patch failing any UDM2 threshold, we search alternative scenes within the same season ($\pm$60\,d), probe UDM2 over the patch AOI, and replace the SR + UDM2 pair when a candidate strictly improves quality. We ship the tool and the final QA table so users can reproduce the decisions or apply stricter thresholds.
@@ -950,14 +950,14 @@ protocol used for every other row.)
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.9\linewidth]{figs/qualitative_v6_appx.pdf}
+    \includegraphics[width=0.84\linewidth]{figs/qualitative_v6_appx.pdf}
     \caption{\textbf{Additional raw-prediction samples} (companion to \Cref{fig:qualitative}). Eight more dense-smallholder patches. Green = predicted field interior; black = background and boundary. FTP-PRUE+ (col 4) recovers the parcel grid; FTW-PRUE+ (B7, col 5) leaves large black gaps.}
     \label{fig:qualitative_appx}
 \end{figure*}
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.9\linewidth]{figs/qualitative_v7_appx.pdf}
+    \includegraphics[width=0.84\linewidth]{figs/qualitative_v7_appx.pdf}
     \caption{\textbf{Additional post-processed instance samples} (D4 TTA + watershed; companion to \Cref{fig:qualitative}). Eight more dense-smallholder patches. Each color = a distinct field instance.}
     \label{fig:qualitative_post_appx}
 \end{figure*}
