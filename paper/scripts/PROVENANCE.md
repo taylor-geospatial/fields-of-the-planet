@@ -49,7 +49,7 @@ reader-visible number depends on the difference; the 10-country (`36.0`) and
 | `fig:qualitative`, `*_appx` | `make_qualitative_v8.py`, `make_qualitative_v6/v7.py` | held-out patch predictions (both sensors). `v6` rows are seven dense per-held-out-country patches picked from `logs/per_patch/{planet_b3,s2_b7}.csv` where Planet's per-patch object F1 beats S2 (+25 to +51 pp); disjoint from the `v8` main figure and `v7`. |
 | `fig:qualitative_delineate` | `make_qualitative_delineate.py` | DelineateAnything YOLO11x-seg off-the-shelf predictions |
 
-## Hand-entered tables (no generator -- values from dataset-build statistics)
+## Hand-entered tables (no generator)
 
 These are typed directly in `main.tex`; a comment above each points to its
 source. Verify against the source before camera-ready.
@@ -58,4 +58,5 @@ source. Verify against the source before camera-ready.
 |---|---|
 | `tab:scope` | dataset build manifest (`data/_global/` index: per-region patch/window counts, success rates) |
 | `tab:udm2` | per-band UDM2 percentile statistics over the 133k UDM2 release |
-| `tab:upsampled_s2_main`, `tab:upsampled_s2` | the upsampled-S2 control eval: native-256, upsample-512-at-eval, and trained-upsampled-512 rows from `logs/polygon_metrics/` + `logs/repro_eval/`; mirror each other |
+| `tab:upsampled_s2_main`, `tab:upsampled_s2` | the upsampled-S2 control eval: native-256 (`s2_b3_augmax_full_native256.csv`), upsample-512-at-eval (`s2_b3_augmax_full_upsampled_22.csv`), and trained-upsampled-512 (`s2_upsampled_b3_augmax_full.csv`) dense-10 macros; Planet row from `logs/repro_eval/`. PQ/SQ/RQ/F1 = `pq`/`pq_sq`/`pq_rq`/`ap_5_95`; boundary is nan-mean over countries (Portugal native-256 chamfer is NaN, so n=9). The PQ/SQ/RQ/F1 of the "upsample-at-eval" row equal the `tab:polygon_metrics` FTW-PRUE+ B3 row; the two tables mirror each other. |
+| `tab:ablation_summary` | effect sizes from the recipe ablations. The augmentation rows ($+2.8$, $+1.0$, $+4.5$ Obj F1) are the cumulative steps of the `fig:aug_ablation` ladder (`aug_ablation_heldout10.csv`: $29.1\to31.9\to32.9\to37.4$); the post-processing rows ($+0.5$ WS, $+0.9$ TTA) come from `tab:heldout`; the rejected-lever rows (SDF, frame-field, clDice, CutMix, curriculum, padding, val-split) are from their individual ablation runs. Qualitative summary table -- verify each row against its run before camera-ready. |
