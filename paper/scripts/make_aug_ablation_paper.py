@@ -83,16 +83,6 @@ def main():
         if row.label in ref_styles:
             color, ls, label = ref_styles[row.label]
             ax.axhline(row.pp, color=color, linestyle=ls, linewidth=1.0, zorder=2, label=label)
-            ax.text(
-                n - 0.5,
-                row.pp + 0.5,
-                f"{row.pp:.1f}",
-                ha="right",
-                va="bottom",
-                fontsize=6.0,
-                color=color,
-                zorder=4,
-            )
 
     leg = ax.legend(
         loc="lower right",
