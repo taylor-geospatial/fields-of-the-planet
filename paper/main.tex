@@ -291,7 +291,9 @@ Together on the 10-country dense held-out:
 $32.9 \rightarrow 37.4$ Obj F1 (WS+TTA),
 $56.4 \rightarrow 58.1$ pixel IoU.
 The Obj F1 gain splits roughly evenly across precision and recall
-($+3.4$\,pts each at the watershed F1). We call this final recipe \textbf{PRUE+}.
+($+3.4$\,pts each at the watershed F1). We call this recipe --- the PRUE recipe
+extended with these additional augmentations --- \textbf{PRUE+}; it is the only
+change from PRUE, and it is applied identically to both sensors.
 
 \subsection{Sharper boundaries}
 
@@ -359,6 +361,19 @@ class whose physical width differs by $3\times$ -- into a single
 scalar. PQ, averaged F1, and meter-scale chamfer are defined on polygons and
 are directly comparable: a $3$m boundary slip is $3$m whether
 scored at $3$m or $10$m.
+
+\paragraph{Score the full pipeline, not the raw mask.} Because the deliverable
+is vectorized parcels, the unit of comparison is not a raw segmentation map but
+the full \mbox{prediction\,$\rightarrow$\,post-processing\,$\rightarrow$\,vectorization}
+pipeline that downstream users actually run. Post-processing that removes raster
+artifacts --- marker-controlled watershed that splits touching parcels, D4
+test-time augmentation that stabilizes boundaries --- can move the polygon
+metrics while barely changing pixel IoU, precisely because pixel IoU is blind to
+the instance fragmentation these steps repair (\Cref{fig:metric_example}). We
+therefore never score a segmentation model in a vacuum: we fix one
+post-processing pipeline, apply it identically to every model and sensor, and
+report the full post-processing sweep (\Cref{tab:heldout}) so that ``which model
+is better'' is decided on the pipeline that is deployed, not on the raw mask.
 
 We retain pixel IoU as a secondary signal for continuity with the
 PRUE protocol~\cite{muhawenayo2026prue}. We do not use it as a headline
