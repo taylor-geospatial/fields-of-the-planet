@@ -37,11 +37,11 @@ REPRO = REPO / "logs" / "repro_eval"
 # means use the row's own CSV for boundary too.
 ROWS = [
     ("DelineateAnything$^{*}$", "--", SRC / "delineate_anything_conf0005.csv", False, False, None),
-    ("FTW-PRUE", "B3", SRC / "s2_b3_augmax_full_upsampled_22.csv", True, False,
+    ("FTW-PRUE+", "B3", SRC / "s2_b3_augmax_full_upsampled_22.csv", True, False,
      SRC / "s2_b3_augmax_full_native256.csv"),
-    ("FTW-PRUE", "B7", SRC / "s2_upsampled_b7_augmax_full_22.csv", False, False,
+    ("FTW-PRUE+", "B7", SRC / "s2_upsampled_b7_augmax_full_22.csv", False, False,
      SRC / "s2_b7_augmax_full_native256.csv"),
-    ("FTP-PRUE", "B3", REPRO / "polygon_metrics.csv", False, True, None),
+    ("FTP-PRUE+", "B3", REPRO / "polygon_metrics.csv", False, True, None),
 ]
 
 COLS = (

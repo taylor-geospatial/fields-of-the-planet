@@ -22,9 +22,9 @@ SRC = REPO / "logs" / "area_bins"
 
 # (display name, backbone, bins-csv stem, bold-row)
 ROWS = [
-    ("FTP-PRUE", "B3", "planet_b3", True),
-    ("FTW-PRUE", "B7", "s2_b7", False),
-    ("FTW-PRUE", "B3", "s2_b3", False),
+    ("FTP-PRUE+", "B3", "planet_b3", True),
+    ("FTW-PRUE+", "B7", "s2_b7", False),
+    ("FTW-PRUE+", "B3", "s2_b3", False),
 ]
 BINS = ["all", "small", "medium", "large"]
 BIN_HDR = {"all": "All", "small": r"Small$^{\dagger}$", "medium": "Medium", "large": "Large"}

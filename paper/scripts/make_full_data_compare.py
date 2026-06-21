@@ -36,7 +36,7 @@ RELEASED_FULL = [
 
 # (model, backbone, csv path); the B3 row is the released checkpoint (repro eval).
 OURS = [
-    ("FTP-PRUE", "B3", REPRO / "pp_ws_tta.csv"),
+    ("FTP-PRUE+", "B3", REPRO / "pp_ws_tta.csv"),
 ]
 
 
@@ -57,7 +57,7 @@ def main() -> None:
         rows.append(f"{model} & {backbone} & {iou * 100:.1f} & {f1s} \\\\")
     rows.append(r"\midrule")
     rows.append(
-        r"\multicolumn{4}{l}{\textit{Ours --- FTP-PRUE \emph{augmax} (10-country dense held-out macro)}} \\"
+        r"\multicolumn{4}{l}{\textit{Ours --- FTP-PRUE+ (10-country dense held-out macro)}} \\"
     )
     for model, backbone, csv_path in OURS:
         agg = macro_avg(csv_path, HELDOUT_10_DENSE)

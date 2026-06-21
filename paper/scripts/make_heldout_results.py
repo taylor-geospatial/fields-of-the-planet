@@ -28,11 +28,11 @@ REPRO_STEM = "planet_b3_augmax_full"
 
 # (model, backbone, csv stem). Full-data split only.
 CONFIGS_OURS_PLANET = [
-    ("FTP-PRUE", "B3", "planet_b3_augmax_full"),
+    ("FTP-PRUE+", "B3", "planet_b3_augmax_full"),
 ]
 CONFIGS_OURS_S2 = [
-    ("FTW-PRUE", "B3", "s2_b3_augmax_full"),
-    ("FTW-PRUE", "B7", "s2_b7_augmax_full"),
+    ("FTW-PRUE+", "B3", "s2_b3_augmax_full"),
+    ("FTW-PRUE+", "B7", "s2_b7_augmax_full"),
 ]
 
 COMBOS = (
@@ -96,7 +96,7 @@ def main() -> None:
         r"& 47.0$^\ddag$ & 76.0$^\ddag$ \\"
     )
     rows.append(r"\midrule")
-    rows.append(r"\multicolumn{7}{@{}l}{\textit{Ours --- FTP-PRUE \textbf{augmax}}} \\")
+    rows.append(r"\multicolumn{7}{@{}l}{\textit{Ours --- FTP-PRUE+}} \\")
 
     planet_vals = [_row(stem) for *_, stem in CONFIGS_OURS_PLANET]
     planet_best_iou = max(v[1] for v in planet_vals)
@@ -116,7 +116,7 @@ def main() -> None:
         )
     rows.append(r"\midrule")
     rows.append(
-        r"\multicolumn{7}{@{}l}{\textit{FTW-PRUE baselines re-trained with our \textbf{augmax} recipe}} \\"
+        r"\multicolumn{7}{@{}l}{\textit{FTW-PRUE baselines re-trained with our \textbf{PRUE+} recipe}} \\"
     )
     s2_vals = [_row(stem) for *_, stem in CONFIGS_OURS_S2]
     for (model, backbone, _), (vals, pix_iou, nc, ne) in zip(CONFIGS_OURS_S2, s2_vals):

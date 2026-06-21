@@ -48,9 +48,9 @@ def main() -> None:
     rows.append(r"\begin{tabular}{@{}l c c c c@{}}")
     rows.append(r"\toprule")
     rows.append(
-        r"Country & \makecell{FTW-PRUE\\(B3)\\IoU} & "
-        r"\makecell{FTP-PRUE\\(B3)\\IoU} & \makecell{$\Delta$\\IoU} & "
-        r"\makecell{FTP-PRUE\\Obj F1\\(WS+TTA)} \\"
+        r"Country & \makecell{FTW-PRUE+\\(B3)\\IoU} & "
+        r"\makecell{FTP-PRUE+\\(B3)\\IoU} & \makecell{$\Delta$\\IoU} & "
+        r"\makecell{FTP-PRUE+\\Obj F1\\(WS+TTA)} \\"
     )
     rows.append(r"\midrule")
 
