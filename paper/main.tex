@@ -245,14 +245,15 @@ and boundary error (7.4m vs 14.4m); the S2 B7 model has a clear edge
 on polygon-count error ($|\Delta N|$ 37.2 vs 55.5). These comparisons use
 object and polygon metrics because both sensors are scored after
 vectorization from the same FTW polygon source. Our
-FTP-PRUE+ reaches $45.2$ on the FTW-official pixel-instance object F1 (the
-released models' metric, distinct from the polygon RQ of
-\Cref{tab:polygon_metrics}) on the 10-country dense held-out macro,
-close to the best released S2 model's $47.0$ (FTW-PRUE (B7))~\cite{muhawenayo2026prue}
-despite a far smaller backbone. These two numbers are scored on different
-evaluation sets --- our held-out macro vs.\ the released models' test split ---
-so we report the comparison for orientation only, not as a head-to-head
-(full table in \Cref{tab:full_data}, appendix).
+FTP-PRUE+ reaches $45.2$ object F1 at IoU\,$=\,0.5$ --- identically the polygon
+RQ of \Cref{tab:polygon_metrics} (watershed instances scored at IoU\,$=\,0.5$)
+--- on the 10-country dense held-out macro, close to the best released S2
+model's $47.0$ object F1 (FTW-PRUE (B7))~\cite{muhawenayo2026prue} despite a far
+smaller backbone. The two numbers are scored on different evaluation sets ---
+our held-out macro vs.\ the released models' test split, and with different
+instance extraction (watershed vs.\ connected components) --- so we report the
+comparison for orientation only, not as a head-to-head (full table in
+\Cref{tab:full_data}, appendix).
 
 \subsection{Better augmentations}
 
@@ -325,9 +326,9 @@ models trained with PRUE+.
 \paragraph{Augmentations matter more than backbone scaling here.}
 Scaling B3 to B7 gives no improvement on the dense held-out polygon metrics
 (PQ $36.0$ vs $36.0$, RQ $45.2$ vs $45.2$) and slightly worse polygon-count
-error; across all $23$ regions B7 is marginally behind ($-0.6$ PQ) and
+error; across all $23$ regions B7 is marginally behind ($-0.2$ PQ) and
 degrades the dense-smallholder regions most (Planet B3$\to$B7 per-region
-$\Delta$PQ: Cambodia $-9.9$, Rwanda $-7.0$, Vietnam $-4.8$\,pp --- distinct
+$\Delta$PQ: Cambodia $-9.3$, Rwanda $-6.5$, Vietnam $-5.1$\,pp --- distinct
 from the Planet$-$S2 deltas of \Cref{sec:polygon-first}). We therefore use the
 smaller B3 as the main PlanetScope baseline.
 
@@ -458,8 +459,8 @@ metrics on a worked example.
 \paragraph{Per-region head-to-head.}
 Across the 23 test regions
 with complete polygon-metric outputs (all FTW regions except presence-only
-Kenya and label-sparse India), macro-average PQ is $38.3$ (Planet) vs $32.3$
-(FTW-PRUE+ (B7), same recipe), a $+6.0$\,pp Planet win. Figure~\ref{fig:per_country_bars}
+Kenya and label-sparse India), macro-average PQ is $37.9$ (Planet) vs $32.3$
+(FTW-PRUE+ (B7), same recipe), a $+5.6$\,pp Planet win. Figure~\ref{fig:per_country_bars}
 unpacks PQ into per-region deltas. Planet wins on $18/23$ regions --- a
 directional consistency check across regions (two-sided sign test vs.\ a
 $50\%$ win rate, $p \approx 1.1\times10^{-2}$), not a test of out-of-distribution
@@ -467,16 +468,16 @@ generalization, since under the PRUE protocol every region contributes both
 train and test chips. All configurations are trained with a single seed
 (\texttt{seed\_everything}\,$=7$); we report point estimates and do not claim
 seed-level significance.
-The largest gains include Netherlands $+22.3$, Brazil $+18.8$,
-Lithuania $+17.0$, Denmark $+11.5$, and Slovakia $+11.1$.
-The five losses are Cambodia ($-6.7$\,pp), Germany ($-6.6$), Portugal
-($-0.7$), Vietnam ($-0.5$), and Slovenia ($-0.1$) --- the last three within
-$1$\,pp of a tie.
+The largest gains include Netherlands $+22.0$, Brazil $+18.3$,
+Lithuania $+16.3$, Denmark $+11.6$, and Slovakia $+11.4$.
+The five losses are Cambodia ($-7.3$\,pp), Germany ($-6.8$), Portugal
+($-1.6$), Slovenia ($-0.3$), and Vietnam ($-0.3$) --- the last three within
+$1.6$\,pp of a tie.
 Germany is the one consistent Sentinel-2 win. At matched EfficientNet-B3 the
-two sensors are within $\sim$2.6\,pp on Germany (Planet $32.5$ vs S2 $35.1$);
+two sensors are within $\sim$2.9\,pp on Germany (Planet $32.2$ vs S2 $35.1$);
 most of the larger headline gap is backbone capacity (scaling to B7 helps the
 S2 model on Germany but not Planet). The Planet model recognizes and localizes
-Germany's large parcels less well than S2-B7 (RQ $41$ vs $46$, SQ $80$ vs
+Germany's large parcels less well than S2-B7 (RQ $40$ vs $46$, SQ $80$ vs
 $86$) and tends to \emph{merge} adjacent parcels rather than fragment them ---
 it predicts about half as many polygons as there are parcels --- while its
 field-area accuracy (pixel IoU) is comparable; the boundaries there are often
@@ -484,12 +485,12 @@ low-contrast cadastral lines rather than physical features.
 
 \paragraph{Does the 3m GSD advantage track field size?}
 Across regions, $\Delta$\,PQ correlates positively with per-region median FTW
-field area (Pearson $r$ $=$ $+0.46$ on log-hectares, Spearman $\rho$ $=$
+field area (Pearson $r$ $=$ $+0.45$ on log-hectares, Spearman $\rho$ $=$
 $+0.47$, $n$ $=$ 22; \Cref{fig:smallholder_scatter}, appendix): the largest
-gains are mid-size European fields (Netherlands $+22.3$\,pp at $1.9$\,ha,
-Lithuania $+17.0$ at $1.4$\,ha, Rwanda $+11.2$ at $1.4$\,ha), while the
-smallest-field tropical regions are losses or ties (Cambodia $-6.7$ at
-$0.15$\,ha, Vietnam $-0.5$ at $0.25$\,ha) and large-regular Germany is also a
+gains are mid-size European fields (Netherlands $+22.0$\,pp at $1.9$\,ha,
+Lithuania $+16.3$ at $1.4$\,ha, Rwanda $+10.6$ at $1.4$\,ha), while the
+smallest-field tropical regions are losses or ties (Cambodia $-7.3$ at
+$0.15$\,ha, Vietnam $-0.3$ at $0.25$\,ha) and large-regular Germany is also a
 loss.
 \paragraph{At the field level, the smallholder gain is real.}
 The per-region correlation is a confound: regions mix field sizes, and the
@@ -565,7 +566,7 @@ tied to field size (\Cref{fig:smallholder_scatter}).
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.8\linewidth]{figs/per_country_bars_pq.pdf}
-\caption{\textbf{Per-region $\Delta$ PQ across the 23 test regions} (FTP-PRUE+ $-$ FTW-PRUE+ (B7)). Wins (olive) and losses (sienna). Planet wins PQ on $18$ of $23$ regions; the five losses are Cambodia, Germany, Portugal, Vietnam, and Slovenia (the last three within $1$\,pp of a tie). $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
+\caption{\textbf{Per-region $\Delta$ PQ across the 23 test regions} (FTP-PRUE+ $-$ FTW-PRUE+ (B7)). Wins (olive) and losses (sienna). Planet wins PQ on $18$ of $23$ regions; the five losses are Cambodia, Germany, Portugal, Vietnam, and Slovenia (the last three within $1.6$\,pp of a tie). $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
     \label{fig:per_country_bars}
 \end{figure}
 
@@ -594,7 +595,7 @@ The main ablation result is that FTP needs stronger regularization than the S2 r
 
 \textbf{Presence-only and hard transfer regions.} As established in the evaluation protocol (\Cref{sec:benchmark}), Kenya is the only presence-only FTW region, so it is excluded from every supervised macro-average and reported only as a marked presence-only row (\Cref{tab:heldout_pc}). One caveat for future work: our eval tooling can mask presence-only backgrounds to the ignore index, but training still rasterizes unlabeled Kenya land as background, so a cleaner comparison would retrain with those pixels masked out. Portugal remains a hard transfer case --- its terraced micro-fields are near or below the PlanetScope GSD --- and these regions need targeted acquisition or a transfer-specific strategy.
 
-\textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia loss, which against the corrected (upsampled) S2-B7 baseline is now a loss on PQ as well ($-6.7$\,pp; \Cref{sec:polygon-first}).
+\textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia loss, which against the corrected (upsampled) S2-B7 baseline is now a loss on PQ as well ($-7.3$\,pp; \Cref{sec:polygon-first}).
 
 \textbf{Societal impact.} Parcel-level field maps can be misused --- for example, by firms for farm-level surveillance or for insurance and credit profiling of individual growers, which would fall hardest on smallholders. We judge the benefits to global agricultural and food-security monitoring to outweigh these risks, and intend the labels and predictions for aggregate analysis rather than targeting individual farms.
 
@@ -892,7 +893,7 @@ the 10-country dense held-out set referenced from the main text.
 \section{Per-region $\Delta$PQ vs.\ $\Delta$Obj F1 (23 test regions)}
 \label{app:per_country_objf1}
 
-\Cref{fig:per_country_objf1_appx} places per-region $\Delta$ PQ (polygon) next to $\Delta$ Obj F1 (the FTW-official pixel-instance metric reported by the released PRUE models~\cite{muhawenayo2026prue}, \emph{not} the polygon recognition quality of \Cref{tab:polygon_metrics}) under the same region order. The two metrics rank regions differently: on the pixel-instance object F1 Planet wins $11$ of $22$ regions (Brazil lacks a PlanetScope Obj F1 eval; it is present in the polygon-PQ comparison) --- Germany ($-7.1$), France ($-3.5$), and Cambodia ($-8.6$) are the largest losses --- whereas on polygon PQ it wins $18$ of $23$ (\Cref{fig:per_country_bars}). The pixel-instance metric is recall-sensitive and grid-dependent, so it understates the resolution benefit the polygon metrics surface. The Cambodia loss reflects the monsoon-season imagery degradation described in \Cref{sec:limitations}; against the corrected S2-B7 baseline Cambodia is now a loss on PQ as well ($-6.7$\,pp).
+\Cref{fig:per_country_objf1_appx} places per-region $\Delta$ PQ (polygon) next to $\Delta$ Obj F1 (the FTW-official pixel-instance metric reported by the released PRUE models~\cite{muhawenayo2026prue}, \emph{not} the polygon recognition quality of \Cref{tab:polygon_metrics}) under the same region order. The two metrics rank regions differently: on the pixel-instance object F1 Planet wins $11$ of $22$ regions (Brazil lacks a PlanetScope Obj F1 eval; it is present in the polygon-PQ comparison) --- Germany ($-7.1$), France ($-3.5$), and Cambodia ($-8.6$) are the largest losses --- whereas on polygon PQ it wins $18$ of $23$ (\Cref{fig:per_country_bars}). The pixel-instance metric is recall-sensitive and grid-dependent, so it understates the resolution benefit the polygon metrics surface. The Cambodia loss reflects the monsoon-season imagery degradation described in \Cref{sec:limitations}; against the corrected S2-B7 baseline Cambodia is now a loss on PQ as well ($-7.3$\,pp).
 
 \begin{figure}[h]
     \centering
@@ -911,12 +912,12 @@ the 10-country dense held-out set referenced from the main text.
     ($n=22$: the 23 PQ head-to-head regions minus Brazil, which has no
     per-region field-size estimate). Positive $y$ = Planet wins.
     Countries $<\!2$\,ha median (sienna, \cite{lowder2016farms}) are
-    smallholder; remainder olive. Pearson $r=+0.46$, Spearman
+    smallholder; remainder olive. Pearson $r=+0.45$, Spearman
     $\rho=+0.47$: against the corrected S2-B7 baseline the gain now correlates
     \emph{positively} with field size. Biggest gains are mid-size fields
-    (Netherlands $+22.3$, Lithuania $+17.0$); the smallest-field tropical
-    regions are losses (Cambodia $-6.7$, Vietnam $-0.5$) as is large-regular
-    Germany ($-6.6$).}
+    (Netherlands $+22.0$, Lithuania $+16.3$); the smallest-field tropical
+    regions are losses (Cambodia $-7.3$, Vietnam $-0.3$) as is large-regular
+    Germany ($-6.8$).}
     \label{fig:smallholder_scatter}
 \end{figure}
 
