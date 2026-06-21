@@ -280,8 +280,8 @@ def main() -> int:
         "Sentinel-2 (10 m)",
         "PlanetScope (3 m)",
         "Ground truth",
-        "S2 prediction\nFTW-PRUE (B7)",
-        "Planet prediction\nFTP-PRUE",
+        "S2 prediction\nFTW-PRUE+ (B7)",
+        "Planet prediction\nFTP-PRUE+",
     ]
     fig, axes = plt.subplots(
         n, cols, figsize=(cols * 1.5, n * 1.62), gridspec_kw={"wspace": 0.02, "hspace": 0.05}

@@ -358,10 +358,10 @@ def main():
         "Input\nPlanet RGB",
         "Input\nS2 RGB",
         "Reference\nGround truth",
-        "Raw mask\nFTP-PRUE",
-        "Raw mask\nFTW-PRUE (B7)",
-        "Post-proc\nFTP-PRUE",
-        "Post-proc\nFTW-PRUE (B7)",
+        "Raw mask\nFTP-PRUE+",
+        "Raw mask\nFTW-PRUE+ (B7)",
+        "Post-proc\nFTP-PRUE+",
+        "Post-proc\nFTW-PRUE+ (B7)",
     ]
     for i, (
         country,

@@ -332,8 +332,8 @@ def main():
         "Planet RGB (3 m)",
         "S2 RGB (10 m)",
         "GT instances",
-        "FTP-PRUE",
-        "FTW-PRUE",
+        "FTP-PRUE+",
+        "FTW-PRUE+",
     ]
     for i, (country, pid, window, rgb_pl, rgb_s2, igt, ipl, is2) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)

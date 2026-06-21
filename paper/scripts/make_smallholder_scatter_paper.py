@@ -121,7 +121,7 @@ def main():
     ax.set_xticklabels([f"{v:g}" for v in tick_vals])
     ax.set_xlim(np.log10(0.08), np.log10(60))
     ax.set_xlabel("Median field area (ha, log scale)")
-    ax.set_ylabel(r"$\Delta$ PQ (pp, FTP-PRUE $-$ FTW-PRUE)")
+    ax.set_ylabel(r"$\Delta$ PQ (pp, FTP-PRUE+ $-$ FTW-PRUE+)")
     ax.text(
         0.97,
         0.03,
