@@ -504,8 +504,7 @@ both sensors --- even Planet recognizes only $26\%$ of them at
 IoU\,$=0.5$ --- but $3$m resolution roughly triples their polygon quality.
 Because each sensor is scored against its own native-rasterized targets, this
 is an \emph{end-to-end} comparison: it folds together the $10$m label-grid
-representation loss (S2 resolves $\sim$7k fewer small fields,
-\Cref{tab:area_bins}$^{\dagger}$) and the model's detection difficulty --- the
+representation loss and the model's detection difficulty --- the
 quantity a deployed pipeline actually delivers, not a matched-object score.
 This is the per-field evidence for the resolution-for-smallholder motivation
 that the per-region average obscures.
@@ -523,14 +522,6 @@ that the per-region average obscures.
     in \Cref{app:metrics}). Best per column in \textbf{bold}; shown $\times100$.}
     \label{tab:area_bins}
     \input{figs/area_bins.tex}
-    \vspace{3pt}\\
-    {\footnotesize $^{\dagger}$The $3$m Planet labels resolve
-    $37.9$k\,/\,$19.0$k\,/\,$11.5$k small\,/\,medium\,/\,large fields; the
-    $10$m S2 labels only $30.8$k\,/\,$22.1$k\,/\,$34.1$k, because the coarser
-    rasterization merges $\sim$$7$k small adjacent parcels into larger blobs ---
-    S2 cannot even \emph{represent} many smallholder fields as separate
-    instances. Planet detects $26\%$ of its small fields (vs S2's $10\%$), so
-    the finer labels reflect genuinely detectable structure, not annotation noise.}
 \end{table*}
 
 \paragraph{Where higher resolution helps most.}
@@ -724,7 +715,7 @@ pooled (micro) across \emph{all} dense-label patches before forming each bin's
 metrics, so sparsely-populated bins stay stable; the ``All'' row pools every
 field. Because area in hectares is grid-invariant, the bins are comparable
 across sensors even though the $10$m and $3$m label rasterizations resolve
-different numbers of small fields (\Cref{tab:area_bins}$^{\dagger}$).
+different numbers of small fields.
 
 \section{Access pipeline and operational lessons}
 \label{app:pipeline}

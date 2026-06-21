@@ -23,6 +23,19 @@ each model's native grid.
 | `tab:heldout_pc` | `make_heldout_per_country.py` | `logs/postproc_ablation/s2_b3_augmax_full_upsampled_ws_tta.csv`; `logs/repro_eval/pp_ws_tta.csv` |
 | `tab:full_data` | `make_full_data_compare.py` | `logs/repro_eval/pp_ws_tta.csv` (FTP); released PRUE values from \cite{muhawenayo2026prue} |
 
+### Planet B3 eval-run note
+
+The dense-10 headline (`tab:polygon_metrics`, `tab:area_bins`, etc.) reads the
+**most recent** Planet B3 eval, `logs/repro_eval/` (2026-06-13), giving PQ
+`36.0`. The 23-region per-region breakdown (`fig:per_country_bars`,
+`fig:smallholder_scatter`, per-region head-to-head prose) reads
+`logs/polygon_metrics/planet_b3_augmax_full_22.csv` (2026-05-21), the only run
+with all 23 regions; its dense-10 subset is PQ `35.6`. The two runs use the same
+`planet_efnet3_augmax_full_best.ckpt` and differ by `<=0.4` PQ on shared
+countries (eval-time settings). `35.6` is never quoted in the paper, so no
+reader-visible number depends on the difference; the 10-country (`36.0`) and
+23-region (`37.9`) macros are different country sets by construction.
+
 ## Script-generated figures
 
 | Float | Generator | Source |

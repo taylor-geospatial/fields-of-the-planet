@@ -27,7 +27,7 @@ ROWS = [
     ("FTW-PRUE+", "B3", "s2_b3", False),
 ]
 BINS = ["all", "small", "medium", "large"]
-BIN_HDR = {"all": "All", "small": r"Small$^{\dagger}$", "medium": "Medium", "large": "Large"}
+BIN_HDR = {"all": "All", "small": "Small", "medium": "Medium", "large": "Large"}
 METRICS = [("rq_50", r"RQ$_{.5}$"), ("pq", "PQ"), ("ap_5_95", r"AP")]
 
 
