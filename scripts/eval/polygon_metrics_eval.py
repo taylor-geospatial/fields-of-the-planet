@@ -397,15 +397,20 @@ def main() -> int:
 
         task = FrameFieldSegTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
         print("loaded as FrameFieldSegTask")
-    except Exception:
-        pass
+    # A checkpoint saved for a different task class fails to reconstruct: its
+    # hparams don't match the constructor (TypeError/KeyError) or the state_dict
+    # keys don't align (RuntimeError). Narrow to those so a genuine bug in the
+    # matching class still raises instead of being silently swallowed.
+    except (RuntimeError, KeyError, TypeError) as e:
+        print(f"not FrameFieldSegTask ({type(e).__name__}); trying next task class")
     if task is None:
         try:
             from ftw_planet.trainers import SDFSegTask
 
             task = SDFSegTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
             print("loaded as SDFSegTask")
-        except Exception:
+        except (RuntimeError, KeyError, TypeError) as e:
+            print(f"not SDFSegTask ({type(e).__name__}); falling back to semantic seg")
             task = CustomSemanticSegmentationTask.load_from_checkpoint(
                 str(args.ckpt), map_location="cpu"
             )

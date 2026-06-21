@@ -932,8 +932,8 @@ their boundaries are interpolated from $10$m content and wobble; only genuine
 $3$m imagery recovers meter-scale boundary accuracy. The absolute chamfer is
 inflated by large-field countries (e.g.\ South Africa $44$m, Germany $39$m),
 but the direction --- worse than native S2 despite a finer scoring grid --- is
-unambiguous. This is direct evidence that object F1 / PQ are partly sensitive
-to output-grid resolution while the boundary chamfer is not, and motivates
+consistent across configurations. This indicates that object F1 / PQ are partly
+sensitive to output-grid resolution while the boundary chamfer is not, and motivates
 reporting both. (Training was stopped at $77/100$ epochs on a converged
 val-loss plateau; we evaluate its best-val/loss checkpoint, matching the
 protocol used for every other row.)
