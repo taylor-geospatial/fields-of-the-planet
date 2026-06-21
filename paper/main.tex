@@ -490,7 +490,7 @@ tied to field size (\Cref{fig:smallholder_scatter}).
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.8\linewidth]{figs/per_country_bars_pq.pdf}
-\caption{\textbf{Per-region $\Delta$ PQ across the 23 test regions} (FTP-PRUE \emph{augmax} $-$ FTW-PRUE (B7)). Wins (olive) and losses (sienna). Planet wins PQ on $21$ of $23$ regions; Germany and Portugal are the two losses. $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
+\caption{\textbf{Per-region $\Delta$ PQ across the 23 test regions} (FTP-PRUE \emph{augmax} $-$ FTW-PRUE (B7)). Wins (olive) and losses (sienna). Planet wins PQ on $18$ of $23$ regions; the five losses are Cambodia, Germany, Portugal, Vietnam, and Slovenia (the last three within $1$\,pp of a tie). $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
     \label{fig:per_country_bars}
 \end{figure}
 
@@ -527,7 +527,7 @@ The main ablation result is that FTP needs stronger regularization than the S2 r
 
 \section{Conclusion}
 
-Fields of the Planet (FTP) is a 3m PlanetScope companion to Fields of The World. It releases co-registered PlanetScope imagery, UDM2 quality masks, rasterized FTW labels, and the range-read pipeline used to build them. Under a matched PRUE recipe, FTP improves polygon-level field delineation over Sentinel-2 on PQ, F1$_{[.5:.95]}$, polygon-count error, and meter-scale boundary error. The result is a high-resolution FTW benchmark that keeps the original label protocol and splits while reducing the operational cost of working with PlanetScope imagery.
+Fields of the Planet (FTP) is a 3m PlanetScope companion to Fields of The World. It releases co-registered PlanetScope imagery, UDM2 quality masks, rasterized FTW labels, and the range-read pipeline used to build them. Under a matched PRUE recipe, FTP improves polygon-level field delineation over Sentinel-2 on PQ, F1$_{[.5:.95]}$, and meter-scale boundary error. The result is a high-resolution FTW benchmark that keeps the original label protocol and splits while reducing the operational cost of working with PlanetScope imagery.
 
 {\small
 \bibliographystyle{ieeenat_fullname}
