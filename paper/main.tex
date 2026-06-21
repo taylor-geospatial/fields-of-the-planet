@@ -53,7 +53,7 @@ Paper ID \wacvPaperID}
 %\vspace{12pt}
 }]
 \begin{abstract}
-Fields of The World (FTW) pairs global field-boundary labels with publicly available 10m Sentinel-2 imagery, making global agricultural field delineation practical at scale. But in many regions smallholder fields are too small to resolve accurately at Sentinel-2's 10m resolution. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope variant of FTW that keeps the same polygon labels and data splits but pairs them with higher-resolution imagery. With the task, geography, labels, architecture, and training recipe all fixed, training on PlanetScope instead of Sentinel-2 improves panoptic quality from 27.4 to 36.0 (on a 0--100 scale) and cuts mean boundary error from 31.3m to 7.4m. We additionally evaluate with polygon-level metrics that score whether predicted fields are recognized and localized as usable geometric parcels, rather than measuring overlap at the pixel level. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
+Fields of The World (FTW) pairs global field-boundary labels with publicly available 10m Sentinel-2 imagery, making global agricultural field delineation practical at scale. But in many regions smallholder fields are too small to resolve accurately at Sentinel-2's 10m resolution. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope variant of FTW that keeps the same polygon labels and data splits but pairs them with higher-resolution imagery. With the task, geography, labels, architecture, and training recipe all fixed, training on PlanetScope instead of Sentinel-2 improves panoptic quality from 27.4 to 36.0 (on a 0--100 scale) and more than halves the mean boundary error, from 18.6m to 7.4m. We additionally evaluate with polygon-level metrics that score whether predicted fields are recognized and localized as usable geometric parcels, rather than measuring overlap at the pixel level. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
 \end{abstract}
 
 \section{Introduction}
@@ -201,7 +201,7 @@ regularization.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE / FTP-PRUE: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is an off-the-shelf baseline with no FTW fine-tuning (\Cref{app:qualitative_delineate}). PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
+    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE / FTP-PRUE: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is an off-the-shelf baseline with no FTW fine-tuning (\Cref{app:qualitative_delineate}). S2 PQ/SQ/RQ/F1 use the upsampled ($\text{resize\_factor}{=}2$) eval the PRUE checkpoints are run at; the boundary chamfer is reported at each model's native grid, as it is grid-sensitive (\Cref{app:upsampled_s2}). PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -210,15 +210,14 @@ regularization.
 
 \Cref{tab:polygon_metrics} isolates the dataset effect under the same
 architecture and training recipe. With an EfficientNet-B3 backbone, replacing
-% FLAG(rebuild 2026-06-21): S2 numbers now use resize_factor=2 (upsample-512),
-% the canonical PRUE eval. PQ/F1 barely changed; boundary error rose (S2 B3
-% 17.5->31.3m, B7 15.2->27.2m) because chamfer is measured on the finer grid.
-% Boundary protocol (upsample vs native) is the top open review item.
+% Rebuild 2026-06-21: S2 PQ/F1 from resize_factor=2 (upsample-512, canonical
+% PRUE eval); boundary error from the native grid (the chamfer is grid-
+% sensitive; upsampling inflates it -- see app:upsampled_s2).
 Sentinel-2 with FTP improves PQ from 27.4 to 36.0, F1$_{[.5:.95]}$
-from 21.6 to 29.1, and mean boundary error from 31.3m to 7.4m. FTP
+from 21.6 to 29.1, and mean boundary error from 18.6m to 7.4m. FTP
 B3 also outperforms the larger S2 EfficientNet-B7 baseline trained with the
 same augmax recipe on PQ (36.0 vs 32.4), F1$_{[.5:.95]}$ (29.1 vs 26.2),
-and boundary error (7.4m vs 27.2m); the S2 B7 model has a clear edge
+and boundary error (7.4m vs 14.4m); the S2 B7 model has a clear edge
 on polygon-count error ($|\Delta N|$ 37.2 vs 55.5). These comparisons use
 object and polygon metrics because both sensors are scored after
 vectorization from the same FTW polygon source. Our

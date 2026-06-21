@@ -28,14 +28,20 @@ SRC = REPO / "logs" / "polygon_metrics"
 # its metrics come from the reproduction eval rather than the original run.
 REPRO = REPO / "logs" / "repro_eval"
 
-# (model, backbone, csv path, midrule-before, bold-row). Full-data split only.
-# S2 rows use the upsample-512 eval (resize_factor=2), matching how the PRUE
-# checkpoints are run; see hpc/eval_s2_*_upsample.sbatch.
+# (model, backbone, csv path, midrule-before, bold-row, boundary-csv).
+# Full-data split only. S2 rows: PQ/SQ/RQ/F1/|dN| come from the upsample-512
+# eval (resize_factor=2, how the PRUE checkpoints are run), but boundary error
+# is taken from the NATIVE-grid eval -- the meter chamfer is grid-sensitive and
+# the finer upsample grid inflates it (see app:upsampled_s2), so reporting it at
+# each model's native grid is the like-for-like comparison. boundary-csv=None
+# means use the row's own CSV for boundary too.
 ROWS = [
-    ("DelineateAnything$^{*}$", "--", SRC / "delineate_anything_conf0005.csv", False, False),
-    ("FTW-PRUE", "B3", SRC / "s2_b3_augmax_full_upsampled_22.csv", True, False),
-    ("FTW-PRUE", "B7", SRC / "s2_upsampled_b7_augmax_full_22.csv", False, False),
-    ("FTP-PRUE", "B3", REPRO / "polygon_metrics.csv", False, True),
+    ("DelineateAnything$^{*}$", "--", SRC / "delineate_anything_conf0005.csv", False, False, None),
+    ("FTW-PRUE", "B3", SRC / "s2_b3_augmax_full_upsampled_22.csv", True, False,
+     SRC / "s2_b3_augmax_full_native256.csv"),
+    ("FTW-PRUE", "B7", SRC / "s2_upsampled_b7_augmax_full_22.csv", False, False,
+     SRC / "s2_b7_augmax_full_native256.csv"),
+    ("FTP-PRUE", "B3", REPRO / "polygon_metrics.csv", False, True, None),
 ]
 
 COLS = (
@@ -50,15 +56,23 @@ COLS = (
 
 
 def main() -> None:
+    bnd_cols = ("boundary_error_m_mean", "boundary_error_m_p95")
     aggregates: list[dict[str, float]] = []
-    for _, _, csv_path, _, _ in ROWS:
+    for _, _, csv_path, _, _, bnd_csv in ROWS:
         sub = load_and_filter(csv_path, HELDOUT_10_DENSE)
         if len(sub) != len(HELDOUT_10_DENSE):
             raise RuntimeError(
                 f"{csv_path}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries"
             )
         agg = {c: float(sub[c].mean(skipna=True)) for c in COLS}
-        agg["_bnd_n"] = int(sub["boundary_error_m_mean"].notna().sum())
+        bsub = sub
+        if bnd_csv is not None:
+            bsub = load_and_filter(bnd_csv, HELDOUT_10_DENSE)
+            if len(bsub) != len(HELDOUT_10_DENSE):
+                raise RuntimeError(f"{bnd_csv}: boundary macro over {len(bsub)} countries")
+            for c in bnd_cols:
+                agg[c] = float(bsub[c].mean(skipna=True))
+        agg["_bnd_n"] = int(bsub["boundary_error_m_mean"].notna().sum())
         aggregates.append(agg)
 
     # Best per column (higher-is-better for PQ/SQ/RQ/F1; lower-is-better
@@ -105,7 +119,7 @@ def main() -> None:
         r"F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|$} & mean & p95 \\"
     )
     lines.append(r"\midrule")
-    for (model, backbone, _, sep, bold), agg in zip(ROWS, aggregates):
+    for (model, backbone, _, sep, bold, _), agg in zip(ROWS, aggregates):
         if sep:
             lines.append(r"\midrule")
         lines.append(row_line(model, backbone, bold, agg))
@@ -114,7 +128,7 @@ def main() -> None:
 
     OUT.write_text("\n".join(lines) + "\n")
     print(f"wrote {OUT}")
-    for (model, backbone, _, _, _), agg in zip(ROWS, aggregates):
+    for (model, backbone, _, _, _, _), agg in zip(ROWS, aggregates):
         print(
             f"  {model} {backbone}: PQ={agg['pq']:.3f} "
             f"bnd_mean(n={agg['_bnd_n']}/{len(HELDOUT_10_DENSE)})="
