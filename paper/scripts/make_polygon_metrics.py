@@ -33,8 +33,8 @@ REPRO = REPO / "logs" / "repro_eval"
 # checkpoints are run; see hpc/eval_s2_*_upsample.sbatch.
 ROWS = [
     ("DelineateAnything$^{*}$", "--", SRC / "delineate_anything_conf0005.csv", False, False),
-    ("FTW-PRUE", "B3", SRC / "s2_b3_augmax_full.csv", True, False),
-    ("FTW-PRUE", "B7", SRC / "s2_b7_augmax_full.csv", False, False),
+    ("FTW-PRUE", "B3", SRC / "s2_b3_augmax_full_upsampled_22.csv", True, False),
+    ("FTW-PRUE", "B7", SRC / "s2_upsampled_b7_augmax_full_22.csv", False, False),
     ("FTP-PRUE", "B3", REPRO / "polygon_metrics.csv", False, True),
 ]
 

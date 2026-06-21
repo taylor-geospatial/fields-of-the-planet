@@ -54,9 +54,9 @@ def _load_deltas() -> pd.DataFrame:
     pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(
         columns={"pq": "pq_pl"}
     )
-    s2 = pd.read_csv("logs/polygon_metrics/s2_b7_augmax_full_22.csv")[["country", "pq"]].rename(
-        columns={"pq": "pq_s2"}
-    )
+    s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[
+        ["country", "pq"]
+    ].rename(columns={"pq": "pq_s2"})
     m = pl.merge(s2, on="country", how="inner").copy()
     m["d_pq"] = (m.pq_pl - m.pq_s2) * 100.0
     m["country_lbl"] = m.country.str.replace("_", " ").str.title()

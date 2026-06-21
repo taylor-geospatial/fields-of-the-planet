@@ -53,7 +53,7 @@ Paper ID \wacvPaperID}
 %\vspace{12pt}
 }]
 \begin{abstract}
-Fields of The World (FTW) pairs global field-boundary labels with publicly available 10m Sentinel-2 imagery, making global agricultural field delineation practical at scale. But in many regions smallholder fields are too small to resolve accurately at Sentinel-2's 10m resolution. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope variant of FTW that keeps the same polygon labels and data splits but pairs them with higher-resolution imagery. With the task, geography, labels, architecture, and training recipe all fixed, training on PlanetScope instead of Sentinel-2 improves panoptic quality from 27.1 to 36.0 (on a 0--100 scale) and more than halves mean boundary error, from 17.5m to 7.4m. We additionally evaluate with polygon-level metrics that score whether predicted fields are recognized and localized as usable geometric parcels, rather than measuring overlap at the pixel level. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
+Fields of The World (FTW) pairs global field-boundary labels with publicly available 10m Sentinel-2 imagery, making global agricultural field delineation practical at scale. But in many regions smallholder fields are too small to resolve accurately at Sentinel-2's 10m resolution. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope variant of FTW that keeps the same polygon labels and data splits but pairs them with higher-resolution imagery. With the task, geography, labels, architecture, and training recipe all fixed, training on PlanetScope instead of Sentinel-2 improves panoptic quality from 27.4 to 36.0 (on a 0--100 scale) and cuts mean boundary error from 31.3m to 7.4m. We additionally evaluate with polygon-level metrics that score whether predicted fields are recognized and localized as usable geometric parcels, rather than measuring overlap at the pixel level. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
 \end{abstract}
 
 \section{Introduction}
@@ -210,12 +210,16 @@ regularization.
 
 \Cref{tab:polygon_metrics} isolates the dataset effect under the same
 architecture and training recipe. With an EfficientNet-B3 backbone, replacing
-Sentinel-2 with FTP improves PQ from 27.1 to 36.0, F1$_{[.5:.95]}$
-from 21.0 to 29.1, and mean boundary error from 17.5m to 7.4m. FTP
+% FLAG(rebuild 2026-06-21): S2 numbers now use resize_factor=2 (upsample-512),
+% the canonical PRUE eval. PQ/F1 barely changed; boundary error rose (S2 B3
+% 17.5->31.3m, B7 15.2->27.2m) because chamfer is measured on the finer grid.
+% Boundary protocol (upsample vs native) is the top open review item.
+Sentinel-2 with FTP improves PQ from 27.4 to 36.0, F1$_{[.5:.95]}$
+from 21.6 to 29.1, and mean boundary error from 31.3m to 7.4m. FTP
 B3 also outperforms the larger S2 EfficientNet-B7 baseline trained with the
-same augmax recipe on PQ (36.0 vs 31.1), F1$_{[.5:.95]}$ (29.1 vs 24.7),
-and boundary error (7.4m vs 15.2m); the S2 B7 model retains a slight edge
-on polygon-count error ($|\Delta N|$ 54.9 vs 55.5). These comparisons use
+same augmax recipe on PQ (36.0 vs 32.4), F1$_{[.5:.95]}$ (29.1 vs 26.2),
+and boundary error (7.4m vs 27.2m); the S2 B7 model has a clear edge
+on polygon-count error ($|\Delta N|$ 37.2 vs 55.5). These comparisons use
 object and polygon metrics because both sensors are scored after
 vectorization from the same FTW polygon source. Our
 FTP-PRUE reaches $45.2$ object F1 on the 10-country dense held-out macro,
@@ -295,8 +299,12 @@ models trained with \emph{augmax}.
 \subsection{Stronger recipe}
 
 \paragraph{Augmentations matter more than backbone scaling here.}
-Scaling B3 to B7 hurts ($-1.6$ Obj F1; \Cref{tab:ablation_summary}). We
-therefore use B3 as the main PlanetScope baseline.
+Scaling B3 to B7 gives no improvement on the dense held-out polygon metrics
+(PQ $36.0$ vs $36.0$, RQ $45.2$ vs $45.2$) and slightly worse polygon-count
+error; across all $23$ regions B7 is marginally behind ($-0.6$ PQ) and
+degrades the dense-smallholder regions most (Cambodia $-9.9$, Rwanda $-7.0$,
+Vietnam $-4.8$\,pp). We therefore use the smaller B3 as the main PlanetScope
+baseline.
 
 
 % tab:heldout (full 4-postproc x 4-config sweep) lives in the supplementary
@@ -411,41 +419,43 @@ metrics on a worked example.
 \paragraph{Per-region head-to-head.}
 Across the 23 test regions
 with complete polygon-metric outputs (all FTW regions except presence-only
-Kenya and label-sparse India) is $38.3$ (Planet) vs $31.1$
-(FTW-PRUE (B7), same recipe), a $+7.2$\,pp Planet win. Figure~\ref{fig:per_country_bars}
-unpacks PQ into per-region deltas. Planet wins on $21/23$ regions and
-loses two (two-sided sign test over the 23 decided regions:
-$p \approx 6.6\times10^{-5}$).
-The largest gains include Netherlands $+20.1$, Brazil $+15.5$,
-Luxembourg $+15.3$, Lithuania $+13.7$, and Corsica $+10.6$.
-The losses are Germany ($-7.0$\,pp) and Portugal ($-0.2$\,pp).
-Germany is the clearest S2 win, and it is expected:
-its fields are large and regular (median $3.5$\,ha, near the largest in the
-release) and are already well resolved at $10$\,m, so PlanetScope's finer GSD
-adds little detection signal. There, the Planet model's sharper, thinner
-boundary predictions fragment the large parcels and lower its recognition and
-segmentation quality (RQ $41$ vs $46$, SQ $80$ vs $86$) even though
-its mean boundary error is actually \emph{lower} than S2's ($16.2$\,m vs
-$19.0$\,m). Germany is precisely the regime --- large, sparse, geometrically
-simple fields --- where higher resolution is least needed, which is the
-mirror image of the smallholder regions where FTP gains most.
+Kenya and label-sparse India) is $38.3$ (Planet) vs $32.3$
+(FTW-PRUE (B7), same recipe), a $+6.0$\,pp Planet win. Figure~\ref{fig:per_country_bars}
+unpacks PQ into per-region deltas. Planet wins on $18/23$ regions
+(two-sided sign test over the 23 decided regions:
+$p \approx 1.1\times10^{-2}$).
+The largest gains include Netherlands $+22.3$, Brazil $+18.8$,
+Lithuania $+17.0$, Denmark $+11.5$, and Slovakia $+11.1$.
+The five losses are Cambodia ($-6.7$\,pp), Germany ($-6.6$), Portugal
+($-0.7$), Vietnam ($-0.5$), and Slovenia ($-0.1$) --- the last three within
+$1$\,pp of a tie.
+% FLAG(rebuild 2026-06-21): corrected (stronger) S2-B7 baseline -> per-region
+% story shifted: Cambodia/Vietnam (smallest-field regions) now LOSSES; see the
+% field-size paragraph -- the smallholder framing needs thesis-level review.
+Germany is the one consistent Sentinel-2 win. At matched EfficientNet-B3 the
+two sensors are within $\sim$2.6\,pp on Germany (Planet $32.5$ vs S2 $35.1$);
+most of the larger headline gap is backbone capacity (scaling to B7 helps the
+S2 model on Germany but not Planet). The Planet model recognizes and localizes
+Germany's large parcels less well than S2-B7 (RQ $41$ vs $46$, SQ $80$ vs
+$86$) and tends to \emph{merge} adjacent parcels rather than fragment them ---
+it predicts about half as many polygons as there are parcels --- while its
+field-area accuracy (pixel IoU) is comparable; the boundaries there are often
+low-contrast cadastral lines rather than physical features.
 
 \paragraph{Does the 3m GSD advantage track field size?}
-Across regions, $\Delta$\,PQ is only weakly correlated with per-region
-median FTW field area (Pearson $r$ $=$ $+0.11$ on log-hectares, Spearman
-$\rho$ $=$ $+0.15$, $n$ $=$ 22; scatter in \Cref{fig:smallholder_scatter},
-appendix): the PQ gain is spread across regions and not tied to parcel size alone.
-Small-field regions do anchor several top wins (Luxembourg $+15.3$\,pp at
-$0.3$\,ha; Rwanda $+10.2$\,pp at $1.4$\,ha; Lithuania $+13.7$\,pp at
-$1.4$\,ha), but so does large-field Netherlands
-($+20.1$\,pp), whose PQ gain comes from sharper instance separation
-rather than resolving sub-pixel parcels.
-Germany is the one country that consistently favors S2 ($-7.0$\,pp): its
-large, regular fields are already well resolved at $10$\,m, so resolution
-adds little and the sharper Planet mask fragments large parcels
-(detailed above). Cambodia is a modest Planet win on PQ ($+3.1$\,pp)
-despite its monsoon-season imagery degradation
-(\Cref{sec:limitations}).
+Across regions, $\Delta$\,PQ correlates positively with per-region median FTW
+field area (Pearson $r$ $=$ $+0.46$ on log-hectares, Spearman $\rho$ $=$
+$+0.47$, $n$ $=$ 22; \Cref{fig:smallholder_scatter}, appendix): the largest
+gains are mid-size European fields (Netherlands $+22.3$\,pp at $1.9$\,ha,
+Lithuania $+17.0$ at $1.4$\,ha, Rwanda $+11.2$ at $1.4$\,ha), while the
+smallest-field tropical regions are losses or ties (Cambodia $-6.7$ at
+$0.15$\,ha, Vietnam $-0.5$ at $0.25$\,ha) and large-regular Germany is also a
+loss.
+% FLAG(rebuild 2026-06-21): REVERSES the earlier near-zero correlation (was
+% r=+0.11). With the properly-evaluated S2-B7 baseline the smallholder regions
+% no longer favor Planet -- in tension with the paper's central
+% resolution-helps-smallholder framing. THESIS-LEVEL: needs user decision;
+% kept factual here, do not over-claim either direction.
 
 \paragraph{Where higher resolution helps most.}
 \Cref{fig:improvement} shows the held-out patches with the largest per-patch
@@ -509,7 +519,7 @@ The main ablation result is that FTP needs stronger regularization than the S2 r
 
 \textbf{Presence-only and hard transfer regions.} Kenya is presence-only in FTW: the tile annotates a subset of fields and leaves surrounding land unlabeled, so its background class is untrusted and supervised pixel/object metrics computed against it are not comparable across models. We therefore exclude Kenya from every supervised macro-average in this paper and report it only as a clearly marked presence-only row (\Cref{tab:heldout_pc}). Our evaluation tooling supports masking presence-only backgrounds to the ignore index at evaluation time, but the training labels still rasterize unlabeled Kenya land as background; a cleaner comparison should retrain with presence-only pixels masked out. Portugal remains a hard transfer case because its terraced micro-fields are near or below the PlanetScope GSD. These regions need either targeted data acquisition or a transfer-specific strategy.
 
-\textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia Obj F1 loss; on PQ and boundary chamfer Cambodia is still a Planet win (see \Cref{sec:polygon-first}).
+\textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia loss, which against the corrected (upsampled) S2-B7 baseline is now a loss on PQ as well ($-6.7$\,pp; \Cref{sec:polygon-first}).
 
 \textbf{Societal impact.} Parcel-level field maps can be misused --- for example, by firms for farm-level surveillance or for insurance and credit profiling of individual growers, which would fall hardest on smallholders. We judge the benefits to global agricultural and food-security monitoring to outweigh these risks, and intend the labels and predictions for aggregate analysis rather than targeting individual farms.
 
@@ -747,7 +757,7 @@ the 10-country dense held-out set referenced from the main text.
     PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.8} \\
     \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +1.0} \\
     Geometry/noise bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
-    Backbone B3 $\to$ B7 & $\times$ & {\color{earthSienna}\bfseries -1.6} \\
+    Backbone B3 $\to$ B7 (no gain, larger) & $\times$ & {\color{black!50}\bfseries $\sim$0} \\
     Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries failed} \\
     SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
     Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries -1.7} \\
@@ -788,12 +798,12 @@ the 10-country dense held-out set referenced from the main text.
 \section{Per-region $\Delta$PQ vs.\ $\Delta$Obj F1 (23 test regions)}
 \label{app:per_country_objf1}
 
-\Cref{fig:per_country_objf1_appx} places per-region $\Delta$ PQ (polygon) next to $\Delta$ Obj F1 (the FTW-official pixel-instance metric reported by the released PRUE models~\cite{muhawenayo2026prue}, \emph{not} the polygon recognition quality of \Cref{tab:polygon_metrics}) under the same region order. The two metrics rank regions differently: on the pixel-instance object F1 Planet wins $11$ of $22$ regions (Brazil lacks a PlanetScope Obj F1 eval; it is present in the polygon-PQ comparison) --- Germany ($-7.1$), France ($-3.5$), and Cambodia ($-8.6$) are the largest losses --- whereas on polygon PQ it wins $21$ of $23$ (\Cref{fig:per_country_bars}). The pixel-instance metric is recall-sensitive and grid-dependent, so it understates the resolution benefit the polygon metrics surface. The Cambodia loss reflects the monsoon-season imagery degradation described in \Cref{sec:limitations}; on PQ Cambodia is a Planet win ($+3.1$\,pp).
+\Cref{fig:per_country_objf1_appx} places per-region $\Delta$ PQ (polygon) next to $\Delta$ Obj F1 (the FTW-official pixel-instance metric reported by the released PRUE models~\cite{muhawenayo2026prue}, \emph{not} the polygon recognition quality of \Cref{tab:polygon_metrics}) under the same region order. The two metrics rank regions differently: on the pixel-instance object F1 Planet wins $11$ of $22$ regions (Brazil lacks a PlanetScope Obj F1 eval; it is present in the polygon-PQ comparison) --- Germany ($-7.1$), France ($-3.5$), and Cambodia ($-8.6$) are the largest losses --- whereas on polygon PQ it wins $18$ of $23$ (\Cref{fig:per_country_bars}). The pixel-instance metric is recall-sensitive and grid-dependent, so it understates the resolution benefit the polygon metrics surface. The Cambodia loss reflects the monsoon-season imagery degradation described in \Cref{sec:limitations}; against the corrected S2-B7 baseline Cambodia is now a loss on PQ as well ($-6.7$\,pp).
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.7\linewidth]{figs/per_country_both.pdf}
-    \caption{\textbf{Per-region $\Delta$ (FTP-PRUE $-$ FTW-PRUE (B7)) under two metrics, same region order.} Left: polygon panoptic quality (PQ; released B3 checkpoint vs.\ S2 B7, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 used by the released PRUE models~\cite{muhawenayo2026prue}. Polygon PQ shows a broad, consistent PlanetScope advantage ($21/23$ regions), whereas the pixel-instance object F1 is far noisier and barely favors Planet ($11/22$). The two metrics disagree because pixel-instance object F1 is recall-sensitive and grid-dependent, so it \emph{understates} the resolution benefit that the polygon metrics surface --- which is why we lead with polygon-level metrics.}
+    \caption{\textbf{Per-region $\Delta$ (FTP-PRUE $-$ FTW-PRUE (B7)) under two metrics, same region order.} Left: polygon panoptic quality (PQ; released B3 checkpoint vs.\ S2 B7, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 used by the released PRUE models~\cite{muhawenayo2026prue}. Polygon PQ shows a broad PlanetScope advantage ($18/23$ regions), whereas the pixel-instance object F1 is far noisier and barely favors Planet ($11/22$). The two metrics disagree because pixel-instance object F1 is recall-sensitive and grid-dependent, so it \emph{understates} the resolution benefit that the polygon metrics surface --- which is why we lead with polygon-level metrics.}
     \label{fig:per_country_objf1_appx}
 \end{figure}
 
@@ -807,11 +817,12 @@ the 10-country dense held-out set referenced from the main text.
     ($n=22$: the 23 PQ head-to-head regions minus Brazil, which has no
     per-region field-size estimate). Positive $y$ = Planet wins.
     Countries $<\!2$\,ha median (sienna, \cite{lowder2016farms}) are
-    smallholder; remainder olive. Pearson $r=+0.11$, Spearman
-    $\rho=+0.15$: the gain holds across field sizes, not just small ones.
-    Small-field anchors: luxembourg $+15.3$, rwanda $+10.2$, lithuania
-    $+13.7$; large-field netherlands $+20.1$ shows the gain extends to
-    large parcel sizes. Germany ($-7.0$) is the largest loss.}
+    smallholder; remainder olive. Pearson $r=+0.46$, Spearman
+    $\rho=+0.47$: against the corrected S2-B7 baseline the gain now correlates
+    \emph{positively} with field size. Biggest gains are mid-size fields
+    (netherlands $+22.3$, lithuania $+17.0$); the smallest-field tropical
+    regions are losses (cambodia $-6.7$, vietnam $-0.5$) as is large-regular
+    germany ($-6.6$).}
     \label{fig:smallholder_scatter}
 \end{figure}
 

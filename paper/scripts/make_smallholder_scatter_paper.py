@@ -63,9 +63,9 @@ def main():
     pq_pl = pd.read_csv("logs/repro_eval/polygon_metrics_22.csv")[["country", "pq"]].rename(
         columns={"pq": "pq_pl"}
     )
-    pq_s2 = pd.read_csv("logs/polygon_metrics/s2_b7_augmax_full_22.csv")[["country", "pq"]].rename(
-        columns={"pq": "pq_s2"}
-    )
+    pq_s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[
+        ["country", "pq"]
+    ].rename(columns={"pq": "pq_s2"})
     df = df.drop(columns=["pq_pl", "pq_s2", "delta_pq"], errors="ignore")
     df = df.merge(pq_pl, on="country", how="inner").merge(pq_s2, on="country", how="inner")
     df["delta_pq"] = df["pq_pl"] - df["pq_s2"]

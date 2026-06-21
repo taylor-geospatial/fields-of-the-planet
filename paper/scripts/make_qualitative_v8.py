@@ -41,6 +41,7 @@ mpl.rcParams.update(
 )
 
 S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
+S2_UPSAMPLE = 512  # bilinear-upsample S2 256->512 (corrected resize_factor=2 protocol)
 SQUARE_SIZE = 256
 FIELD_GREEN = np.array(mpl.colors.to_rgb(tg_style.GREEN))
 MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))
@@ -222,16 +223,22 @@ def _s2_rgb_for_window(country, pid, window):
 
 
 def _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device):
+    """Corrected resize_factor=2 protocol: bilinear-upsample the stacked 256
+    S2 input to 512 before raw/TTA inference + watershed, then map the 512 raw
+    mask and instance map onto the Planet grid via a transform scaled by
+    256/512."""
     s2_a = Path("data/ftw") / country / "s2_images" / "window_a" / f"{pid}.tif"
     s2_b = Path("data/ftw") / country / "s2_images" / "window_b" / f"{pid}.tif"
     with rasterio.open(s2_b) as src_b:
         b_arr = src_b.read().astype(np.float32)
-        b_crs, b_tr = src_b.crs, src_b.transform
+        b_crs, b_tr, bh, bw = src_b.crs, src_b.transform, src_b.height, src_b.width
     with rasterio.open(s2_a) as src_a:
         a_arr = src_a.read().astype(np.float32)
-    x = torch.from_numpy(np.concatenate([b_arr, a_arr], axis=0))
-    raw_s2, tta_s2 = _predict_raw_and_tta(model_s2, x, device, scale=S2_NORM_DIVISOR)
+    x = torch.from_numpy(np.concatenate([b_arr, a_arr], axis=0)).unsqueeze(0).to(device)
+    x = F.interpolate(x, size=(S2_UPSAMPLE, S2_UPSAMPLE), mode="bilinear", align_corners=False)
+    raw_s2, tta_s2 = _predict_raw_and_tta(model_s2, x.squeeze(0), device, scale=S2_NORM_DIVISOR)
     inst_s2 = _watershed_instances(tta_s2)
+    up_tr = b_tr * rasterio.Affine.scale(bw / S2_UPSAMPLE, bh / S2_UPSAMPLE)
     planet = Path("data/planet") / country / "window_a" / f"{pid}.tif"
     with rasterio.open(planet) as dst:
         dst_crs, dst_tr, dst_h, dst_w = dst.crs, dst.transform, dst.height, dst.width
@@ -240,7 +247,7 @@ def _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device):
     reproject(
         source=raw_s2,
         destination=raw_out,
-        src_transform=b_tr,
+        src_transform=up_tr,
         src_crs=b_crs,
         dst_transform=dst_tr,
         dst_crs=dst_crs,
@@ -250,7 +257,7 @@ def _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device):
     reproject(
         source=inst_s2,
         destination=inst_out,
-        src_transform=b_tr,
+        src_transform=up_tr,
         src_crs=b_crs,
         dst_transform=dst_tr,
         dst_crs=dst_crs,
