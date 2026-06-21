@@ -8,13 +8,15 @@ Bars per recipe stage on the held-out set (Obj F1 + WS+TTA where applicable):
 One bar group per imagery source (Planet, S2). Reference horizontal lines for
 the FTW v3.1 released S2 PRUE checkpoints (CC-BY B3/B7 and full B7).
 
-Country sets are parameterized via ``--countries`` (``heldout11`` or
-``heldout9``). The script emits CSVs for *both* the 11-country (headline) and
-9-country (diagnostic) macro-averages regardless of ``--countries``; the
-``--countries`` flag only selects which numbers drive the figure bars.
+Country sets are parameterized via ``--countries`` (``heldout10``, ``heldout11``,
+or ``heldout9``). The script always emits CSVs for all three macro-averages
+regardless of ``--countries``; the flag only selects which numbers drive the
+figure bars. The paper headline is ``heldout10`` (10 dense-label countries,
+Kenya excluded).
 
 Writes:
-  paper/scripts/figs/aug_ablation.pdf
+  paper/scripts/figs/aug_ablation.pdf  (draft; the paper figure is built by aug_ablation.py)
+  paper/scripts/output/aug_ablation_heldout10.csv  (paper headline; feeds aug_ablation.py)
   paper/scripts/output/aug_ablation_heldout11.csv
   paper/scripts/output/aug_ablation_heldout9.csv
 """
