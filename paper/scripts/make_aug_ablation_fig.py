@@ -54,7 +54,7 @@ REPO = HERE.parent.parent
 
 # Bar -> source CSV (object Obj F1 with WS+TTA where the CSV has it).
 PLANET_ROWS: list[tuple[str, Path]] = [
-    ("PRUE\n(no augs)", REPO / "logs/heldout/b3base_best.csv"),
+    ("PRUE\n(default)", REPO / "logs/heldout/b3base_best.csv"),
     ("+ preproc / resize", REPO / "logs/heldout/b3base_aug_best.csv"),
     ("+ swap + gamma", REPO / "logs/heldout/v3_augplus.csv"),
     # + geometry/noise completes the PRUE+ recipe (CC-BY-subset model, OOD eval).

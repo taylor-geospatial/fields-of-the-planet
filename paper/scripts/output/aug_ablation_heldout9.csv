@@ -1,6 +1,6 @@
 panel,label,object_ws_f1,n_countries,n_expected,csv
 planet,"PRUE
-(no augs)",0.3230173333333333,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/b3base_best.csv
+(default)",0.3230173333333333,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/b3base_best.csv
 planet,+ preproc / resize,0.35458900000000004,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/b3base_aug_best.csv
 planet,+ swap + gamma,0.36596855555555563,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augplus.csv
 planet,+ geometry / noise,0.41545733333333335,9,9,/u/isaaccorley/github/ftw-planet/logs/heldout/v3_augmax_ws_tta.csv
