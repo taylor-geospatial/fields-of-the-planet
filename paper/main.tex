@@ -215,6 +215,16 @@ cannot create the Planet-vs-S2 delta. We therefore read those sweeps as
 component characterizations and the Sentinel-2-vs-PlanetScope deltas as the
 controlled result.
 
+\paragraph{Reproducibility.} All runs use \texttt{seed\_everything}\,$=7$, train
+for the full 100 epochs (no early stopping; \texttt{patience}\,$=100$) on a
+single 80\,GB GPU (A100/H100) at bf16-mixed precision, and select the
+minimum-val-loss checkpoint. The complete per-experiment configuration ---
+optimizer and learning-rate schedule, every augmentation hyperparameter, and the
+train/validation/test country lists --- is versioned in \texttt{configs/prue/} in
+the released artifact, and every table regenerates from its source CSV via
+\texttt{paper/scripts/} (provenance in \texttt{paper/scripts/PROVENANCE.md}), so
+each reported number is reproducible from a config.
+
 \begin{table*}[t]
     \centering
     \scriptsize
