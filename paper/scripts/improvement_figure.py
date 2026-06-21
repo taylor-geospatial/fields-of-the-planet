@@ -54,16 +54,11 @@ S2_NORM_DIVISOR = 3000.0
 MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))
 
 
-def _stretch(rgb, p_lo=2, p_hi=98):
-    out = np.empty_like(rgb, dtype=np.float32)
-    for c in range(rgb.shape[-1]):
-        ch = rgb[..., c].astype(np.float32)
-        lo, hi = np.percentile(ch, p_lo), np.percentile(ch, p_hi)
-        if hi - lo < 1e-6:
-            out[..., c] = 0
-        else:
-            out[..., c] = np.clip((ch - lo) / (hi - lo), 0, 1)
-    return out
+def _stretch(rgb, divisor=3000.0):
+    """Constant-divisor reflectance stretch to [0, 1]: the same divisor on every
+    channel preserves true color balance (matches hero.py). Both sensors store
+    surface reflectance scaled by 1e4 (uint16)."""
+    return np.clip(rgb.astype(np.float32) / divisor, 0.0, 1.0)
 
 
 def _instance_cmap(n):

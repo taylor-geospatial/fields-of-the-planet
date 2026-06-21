@@ -12,9 +12,10 @@ also fixes the non-square patch aspect) before upsampling to a fixed size. The S
 chip is resampled nearest so its coarse 10 m pixels stay visibly blocky next to
 the sharp 3 m Planet image; the label is nearest to preserve class ids.
 
-Display uses a per-image 2-98 percentile stretch so scenes of varying brightness
-(e.g. dark smallholder paddies vs bright European fields) all expose well. The
-label uses the shared Taylor Geospatial palette (see ``tg_style``). No logos: the
+Display uses a constant-divisor reflectance clip (refl / 3000, clipped to [0, 1])
+with the same divisor on every channel, preserving true color balance across
+scenes of varying brightness (dark smallholder paddies vs bright European
+fields). The label uses the shared Taylor Geospatial palette (see ``tg_style``). No logos: the
 paper is a double-blind submission.
 
 The default triplets are curated from data/planet/index.parquet: recent (2021+),

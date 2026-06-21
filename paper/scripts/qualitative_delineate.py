@@ -1,8 +1,8 @@
-"""Qualitative appendix figure: FTP-PRUE vs DelineateAnything (zero-shot)
+"""Qualitative appendix figure: FTP-PRUE+ vs DelineateAnything (zero-shot)
 on the same dense-smallholder rows used by ``qualitative_main.py``.
 
 4 columns x N rows:
-  Planet RGB | GT instances | FTP-PRUE (TTA+WS) instances | DelineateAnything
+  Planet RGB | GT instances | FTP-PRUE+ (TTA+WS) instances | DelineateAnything
 
 DelineateAnything is the off-the-shelf YOLO11x-seg checkpoint from HF
 (``torchgeo/delineate-anything``), run on window-B RGB uint8 with the
@@ -197,7 +197,7 @@ def main() -> None:
     col_titles = [
         "Input\nPlanet RGB",
         "GT instances",
-        "FTP-PRUE",
+        "FTP-PRUE+",
         "DelineateAnything",
     ]
     for i, (country, pid, window, rgb_pl, inst_gt, inst_pl, inst_da) in enumerate(rows):
