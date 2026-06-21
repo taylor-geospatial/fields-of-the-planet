@@ -62,6 +62,17 @@ def _extract_shapes(mask: np.ndarray) -> list[shapely.geometry.base.BaseGeometry
     return shapes
 
 
+AREA_BIN_LABELS = ("small", "medium", "large")
+
+
+def _area_bin(area_ha: float, edges: tuple) -> str:
+    """Bin a polygon by area (ha). edges=(0.5,2.0) -> small<0.5, medium 0.5-2, large>2."""
+    for k, e in enumerate(edges):
+        if area_ha < e:
+            return AREA_BIN_LABELS[k]
+    return AREA_BIN_LABELS[len(edges)]
+
+
 def _match_shapes(
     gt_shapes: list,
     pred_shapes: list,
@@ -91,9 +102,8 @@ def _match_shapes(
             ious[i, j] = inter / union
 
     per_t = {}
-    matched_pairs_low = []  # at iou_thresholds[0] — used for SQ + chamfer
-    for ti, t in enumerate(iou_thresholds):
-        tps = 0
+    pairs_per_t: dict[float, list] = {}  # matched (i,j,iou) at each threshold
+    for t in iou_thresholds:
         matched_j: set[int] = set()
         pairs: list[tuple[int, int, float]] = []
         for i in range(n_gt):
@@ -103,15 +113,15 @@ def _match_shapes(
                 iou = float(ious[i, j])
                 if iou > t:
                     matched_j.add(j)
-                    tps += 1
                     pairs.append((i, j, iou))
                     break
-        fps = n_pred - len(matched_j)
-        fns = n_gt - tps
-        per_t[t] = (tps, fps, fns)
-        if ti == 0:
-            matched_pairs_low = pairs
-    return {"per_t": per_t, "matched_pairs_low": matched_pairs_low}
+        per_t[t] = (len(pairs), n_pred - len(matched_j), n_gt - len(pairs))
+        pairs_per_t[t] = pairs
+    return {
+        "per_t": per_t,
+        "matched_pairs_low": pairs_per_t[iou_thresholds[0]],  # SQ + chamfer
+        "pairs_per_t": pairs_per_t,
+    }
 
 
 def _boundary_pixels(mask: np.ndarray) -> np.ndarray:
@@ -152,6 +162,9 @@ def evaluate_country(
     dataset_backend: str,
     s2_data_scale: float,
     upsample_to: int | None,
+    area_edges: tuple | None = None,
+    pixel_area_ha: float = 0.0,
+    bin_stats: dict | None = None,
 ) -> dict[str, float]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -261,6 +274,24 @@ def evaluate_country(
             if c is not None:
                 chamfer_pixels.append(c)
 
+        # ---- per-area-bin x per-IoU-threshold accumulation ----
+        # GT binned by GT polygon area (ha); predicted FPs by predicted area.
+        if bin_stats is not None:
+            gt_bins = [_area_bin(g.area * pixel_area_ha, area_edges) for g in gt_shapes]
+            pred_bins = [_area_bin(p.area * pixel_area_ha, area_edges) for p in pred_shapes]
+            for t in AP_IOU_THRESHOLDS:
+                matched_gt = {i: iou for i, j, iou in m["pairs_per_t"][t]}
+                matched_pred = {j for _, j, _ in m["pairs_per_t"][t]}
+                for i, b in enumerate(gt_bins):
+                    if i in matched_gt:
+                        bin_stats[b][t]["tp"] += 1
+                        bin_stats[b][t]["ious"].append(matched_gt[i])
+                    else:
+                        bin_stats[b][t]["fn"] += 1
+                for j, b in enumerate(pred_bins):
+                    if j not in matched_pred:
+                        bin_stats[b][t]["fp"] += 1
+
     # ---- Aggregate ----
     def _f1(tps: int, fps: int, fns: int) -> float:
         p = tps / max(tps + fps, 1)
@@ -322,7 +353,34 @@ def main() -> int:
         help="Resized-S2 control: upsample image (bilinear) + mask (nearest) "
         "256->N before padding. Use with --dataset-backend s2 and N==min-pad-size.",
     )
+    p.add_argument(
+        "--area-bins",
+        type=str,
+        default=None,
+        help="Comma-separated ha edges, e.g. '0.5,2' -> small<0.5 / medium 0.5-2 / "
+        "large>2 by GT polygon area. Pooled (micro) PQ/RQ/SQ per bin are written to "
+        "<out>.bins.csv. Requires --pixel-size-m.",
+    )
+    p.add_argument(
+        "--pixel-size-m",
+        type=float,
+        default=None,
+        help="Physical pixel size (m) of the eval grid, for area->ha conversion: "
+        "planet native 3, s2 native 10, s2 upsample-512 5.",
+    )
     args = p.parse_args()
+    area_edges = tuple(float(x) for x in args.area_bins.split(",")) if args.area_bins else None
+    pixel_area_ha = (args.pixel_size_m**2) / 1e4 if args.pixel_size_m else 0.0
+    bin_stats = (
+        {
+            b: {t: {"tp": 0, "fp": 0, "fn": 0, "ious": []} for t in AP_IOU_THRESHOLDS}
+            for b in AREA_BIN_LABELS
+        }
+        if area_edges
+        else None
+    )
+    if area_edges and not args.pixel_size_m:
+        p.error("--area-bins requires --pixel-size-m")
 
     device = torch.device(
         f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu"
@@ -397,6 +455,9 @@ def main() -> int:
                 dataset_backend=args.dataset_backend,
                 s2_data_scale=args.s2_data_scale,
                 upsample_to=args.upsample_to,
+                area_edges=area_edges,
+                pixel_area_ha=pixel_area_ha,
+                bin_stats=bin_stats,
             )
         except Exception as e:
             import traceback
@@ -426,6 +487,40 @@ def main() -> int:
             f"  PQ={m['pq']:.4f} (SQ={m['pq_sq']:.3f}, RQ={m['pq_rq']:.3f}) "
             f"AP={m['ap_5_95']:.4f} bnd_err={m['boundary_error_m_mean']:.2f}m"
         )
+
+    if bin_stats is not None:
+        # Pooled (micro) PQ/SQ/RQ per area bin, across area bins AND IoU thresholds.
+        t05 = AP_IOU_THRESHOLDS[0]
+        t75 = min(AP_IOU_THRESHOLDS, key=lambda x: abs(x - 0.75))
+
+        def _f1(tp: int, fp: int, fn: int) -> float:
+            prec = tp / max(tp + fp, 1)
+            rec = tp / max(tp + fn, 1)
+            return (2 * prec * rec / (prec + rec)) if (prec + rec) else 0.0
+
+        all_bin = {t: {"tp": 0, "fp": 0, "fn": 0, "ious": []} for t in AP_IOU_THRESHOLDS}
+        for b in AREA_BIN_LABELS:
+            for t in AP_IOU_THRESHOLDS:
+                for k in ("tp", "fp", "fn"):
+                    all_bin[t][k] += bin_stats[b][t][k]
+                all_bin[t]["ious"] += bin_stats[b][t]["ious"]
+
+        bins_out = Path(str(args.out) + ".bins.csv")
+        with bins_out.open("w") as f:
+            f.write("area_bins,bin,n_gt,n_pred,pq,sq,rq_50,f1_75,ap_5_95\n")
+            for label, st in [*((b, bin_stats[b]) for b in AREA_BIN_LABELS), ("all", all_bin)]:
+                rq = _f1(st[t05]["tp"], st[t05]["fp"], st[t05]["fn"])
+                f1_75 = _f1(st[t75]["tp"], st[t75]["fp"], st[t75]["fn"])
+                ap = float(np.mean([_f1(st[t]["tp"], st[t]["fp"], st[t]["fn"]) for t in AP_IOU_THRESHOLDS]))
+                sq = float(np.mean(st[t05]["ious"])) if st[t05]["ious"] else 0.0
+                n_gt = st[t05]["tp"] + st[t05]["fn"]
+                n_pred = st[t05]["tp"] + st[t05]["fp"]
+                f.write(f"{args.area_bins},{label},{n_gt},{n_pred},{sq * rq:.4f},{sq:.4f},{rq:.4f},{f1_75:.4f},{ap:.4f}\n")
+                print(
+                    f"  [{label:7s}] n_gt={n_gt:6d} PQ={sq * rq * 100:5.1f} SQ={sq * 100:5.1f} "
+                    f"RQ@.5={rq * 100:5.1f} F1@.75={f1_75 * 100:5.1f} AP={ap * 100:5.1f}"
+                )
+        print(f"wrote {bins_out}")
     return 0
 
 
