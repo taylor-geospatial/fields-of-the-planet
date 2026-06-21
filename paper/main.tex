@@ -79,7 +79,7 @@ PlanetScope is Planet Labs' constellation of $\sim$130 Dove CubeSats that images
 AI4SmallFarms~\cite{persello2023ai4smallfarms} releases 50\,k smallholder parcels across South and Southeast Asia at 10m. PASTIS and PASTIS-HD provide panoptic agricultural parcel annotations for France with Sentinel-2 time series and aligned 1m SPOT 6/7 imagery~\cite{garnot2021pastis,pastishd}. Region- or country-scale high-resolution resources include PlanetScope labels for France and India~\cite{wang2022unlocking}, Africa-wide field-boundary labels digitized on NICFI Planet basemaps~\cite{estes2024africa}, and other national releases~\cite{persello2019delineation,dandrimont2021parcel}. FTW~\cite{kerner2024ftw} is broader geographically and already standardizes semantic, boundary, and instance masks across 24 countries / 25 regions. FTP keeps that label protocol and split structure while adding co-registered 3m imagery.
 
 \paragraph{PlanetScope for field segmentation.}
-Wang et al.~\cite{wang2022unlocking} use 3m PlanetScope for French and Indian parcels. Khallaghi et al.~\cite{khallaghi2025generalization} and Estes et al.~\cite{estes2024africa} use Planet basemap mosaics for smallholder cropland or field-boundary labeling; mosaics improve temporal coverage but can blur scene-level spatial detail. Waldner et al.~\cite{waldner2021decode} (DECODE) train field-boundary segmentation on PlanetScope over Australia, but their data and model weights are not released under a shared FTW-style protocol. \emph{Delineate Anything}~\cite{lavreniuk2025delineate} releases pretrained field-instance models trained on a mostly-European RGB mix. These methods motivate FTP: a shared, global, FTW-aligned high-resolution benchmark where PlanetScope recipes can be compared under one evaluation protocol.
+Wang et al.~\cite{wang2022unlocking} use 3m PlanetScope for French and Indian parcels. Khallaghi et al.~\cite{khallaghi2025generalization} and Estes et al.~\cite{estes2024africa} use Planet basemap mosaics for smallholder cropland or field-boundary labeling; mosaics improve temporal coverage but can blur scene-level spatial detail. Waldner et al.~\cite{waldner2021decode} (DECODE) train field-boundary segmentation on PlanetScope over Australia, but their data and model weights are not released under a shared FTW-style protocol. \emph{Delineate Anything}~\cite{lavreniuk2025delineate} fine-tunes a YOLO11~\cite{lavreniuk2025delineate} instance segmenter for field boundaries on a multi-sensor RGB mix spanning Sentinel-2 and higher-resolution (including PlanetScope) imagery; its ``delineate anything'' framing explicitly targets zero-shot transfer, so we include it as an off-the-shelf reference evaluated on FTW \emph{without} fine-tuning rather than as a matched, FTW-trained baseline. These methods motivate FTP: a shared, global, FTW-aligned high-resolution benchmark where PlanetScope recipes can be compared under one evaluation protocol.
 
 \section{Dataset}
 \label{sec:dataset}
@@ -123,7 +123,7 @@ Per-country usable-patch rates vary widely (Portugal 41\%, Netherlands 77\%, vs 
 \begin{figure*}[t!]
     \centering
     \includegraphics[width=0.95\linewidth]{figs/qualitative_v8_main.pdf}
-    \caption{\textbf{On dense smallholder fields, PlanetScope recovers parcels that Sentinel-2 misses.} Four held-out rows (Croatia, Slovenia, Austria, Lithuania). Left to right: Planet RGB (3m), matched S2 RGB (10m), 3-class ground truth, raw argmax predictions (FTP-PRUE+ vs.\ FTW-PRUE+ (B7)~\cite{muhawenayo2026prue}), and post-processed instances (D4 TTA + watershed; each color a distinct field). FTP-PRUE+ recovers near-complete coverage and keeps adjacent parcels separated, while the S2 baseline leaves large gaps and merges neighbours. More samples in \Cref{fig:qualitative_appx,fig:qualitative_post_appx}.}
+    \caption{\textbf{On dense smallholder fields, PlanetScope recovers parcels that Sentinel-2 misses.} Four held-out test-split rows (Croatia, Slovenia, Austria, Lithuania), selected to illustrate the dense-smallholder regime (not a random sample; quantitative results are in \Cref{tab:polygon_metrics,tab:area_bins}). Left to right: Planet RGB (3m), matched S2 RGB (10m), 3-class ground truth, raw argmax predictions (FTP-PRUE+ vs.\ FTW-PRUE+ (B7)~\cite{muhawenayo2026prue}), and post-processed instances (D4 TTA + watershed; each color a distinct field). FTP-PRUE+ recovers near-complete coverage and keeps adjacent parcels separated, while the S2 baseline leaves large gaps and merges neighbours. More samples in \Cref{fig:qualitative_appx,fig:qualitative_post_appx}.}
     \label{fig:qualitative}
 \end{figure*}
 
@@ -218,7 +218,7 @@ controlled result.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE+ / FTP-PRUE+: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is an off-the-shelf baseline with no FTW fine-tuning (\Cref{app:qualitative_delineate}). S2 PQ/SQ/RQ/F1 use the upsampled ($\text{resize\_factor}{=}2$) eval the PRUE checkpoints are run at; the boundary chamfer is reported at each model's native grid, as it is grid-sensitive (\Cref{app:upsampled_s2}). PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
+    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE+ / FTP-PRUE+: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is a YOLO11 field-instance segmenter evaluated off-the-shelf (no FTW fine-tuning); its ``delineate anything'' design targets zero-shot use, so we score it under the same polygon pipeline (\Cref{app:qualitative_delineate}). For Sentinel-2, object metrics (PQ/SQ/RQ/F1) use the canonical upsampled ($\text{resize\_factor}{=}2$) PRUE eval; the boundary chamfer is reported at each model's \emph{native} grid because the chamfer is grid-sensitive and upsampling inflates it --- \Cref{app:upsampled_s2} reports the upsampled-grid S2 boundary ($31.3$m) for completeness. PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -235,7 +235,9 @@ and boundary error (7.4m vs 14.4m); the S2 B7 model has a clear edge
 on polygon-count error ($|\Delta N|$ 37.2 vs 55.5). These comparisons use
 object and polygon metrics because both sensors are scored after
 vectorization from the same FTW polygon source. Our
-FTP-PRUE+ reaches $45.2$ object F1 on the 10-country dense held-out macro,
+FTP-PRUE+ reaches $45.2$ on the FTW-official pixel-instance object F1 (the
+released models' metric, distinct from the polygon RQ of
+\Cref{tab:polygon_metrics}) on the 10-country dense held-out macro,
 close to the best released S2 model's $47.0$ (FTW-PRUE (B7))~\cite{muhawenayo2026prue}
 despite a far smaller backbone. These two numbers are scored on different
 evaluation sets --- our held-out macro vs.\ the released models' test split ---
@@ -489,6 +491,11 @@ AP $11.9$ vs $3.5$ ($3.4\times$) on parcels $<0.5$\,ha, narrowing to
 $1.3\times$ on $>2$\,ha fields. Small fields remain the hardest regime for
 both sensors --- even Planet recognizes only $26\%$ of them at
 IoU\,$=0.5$ --- but $3$m resolution roughly triples their polygon quality.
+Because each sensor is scored against its own native-rasterized targets, this
+is an \emph{end-to-end} comparison: it folds together the $10$m label-grid
+representation loss (S2 resolves $\sim$7k fewer small fields,
+\Cref{tab:area_bins}$^{\dagger}$) and the model's detection difficulty --- the
+quantity a deployed pipeline actually delivers, not a matched-object score.
 This is the per-field evidence for the resolution-for-smallholder motivation
 that the per-region average obscures.
 
