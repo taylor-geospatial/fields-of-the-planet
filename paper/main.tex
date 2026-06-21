@@ -822,21 +822,26 @@ the 10-country dense held-out set referenced from the main text.
 \label{app:gsd_controlled}
 
 \Cref{tab:gsd_controlled} reports the controlled re-gridding
-experiment referenced in \Cref{sec:polygon-first}. For each model we
-run inference on its native imagery, take the argmax, then
-nearest-neighbour reproject the prediction onto the \emph{other}
-sensor's GT grid and score 2-class pixel IoU against that grid's GT.
-If pixel IoU were primarily a function of evaluation-grid resolution,
-moving a model's prediction across grids would change its score
+experiment referenced in \Cref{sec:polygon-first}. We run each model at
+its headline inference resolution (Planet on native $3$m imagery; S2 with
+the $\text{resize\_factor}{=}2$ upsample to $512$, matching its main-table
+eval), take the argmax, then nearest-neighbour reproject the prediction onto
+the \emph{other} sensor's GT grid and score 2-class pixel IoU against that
+grid's GT. If pixel IoU were primarily a function of evaluation-grid
+resolution, moving a model's prediction across grids would change its score
 substantially. It does not: Planet's macro IoU changes by less than
-$0.1$ across grids, and S2's only drops when its $10$m predictions
-are nearest-neighbour resampled to a $3$m grid -- a resampling
-artifact, not a model property.
+$0.1$ across grids, and S2's only drops when its predictions are
+nearest-neighbour resampled to the $3$m grid -- a resampling artifact, not a
+model property. Notably the two sensors reach near-identical pixel IoU at
+$10$m ($67.7$ vs $67.6$), even though the polygon metrics
+(\Cref{tab:polygon_metrics}) show a clear PlanetScope advantage: pixel IoU
+is grid-bound and understates the resolution benefit that the polygon
+metrics surface.
 
 \begin{table}[h]
     \centering
     \small
-    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 10-country dense held-out set (presence-only kenya excluded), no TTA, no watershed. Native-grid inference, then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$m changes IoU by $<0.1$. Pixel IoU is shown $\times 100$.}
+    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 10-country dense held-out set (presence-only kenya excluded), no TTA, no watershed. Inference at each model's headline resolution (S2 upsampled, $\text{resize\_factor}{=}2$), then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$m changes IoU by $<0.1$. Pixel IoU is shown $\times 100$.}
     \label{tab:gsd_controlled}
     \begin{tabular}{llc}
     \toprule
@@ -844,8 +849,8 @@ artifact, not a model property.
     \midrule
     Planet B3 augmax & $3$m (native)              & $67.8$ \\
     Planet B3 augmax & $10$m (NN-reprojected)     & $67.7$ \\
-    S2 B7 augmax     & $10$m (native)             & $65.4$ \\
-    S2 B7 augmax     & $3$m (NN-reprojected)      & $63.0$ \\
+    S2 B7 augmax     & $10$m (native)             & $67.6$ \\
+    S2 B7 augmax     & $3$m (NN-reprojected)      & $65.6$ \\
     \bottomrule
     \end{tabular}
 \end{table}
