@@ -46,7 +46,7 @@ reader-visible number depends on the difference; the 10-country (`36.0`) and
 | `fig:smallholder_scatter` | `make_smallholder_scatter_paper.py` | `paper/scripts/output/smallholder_scatter.csv`; `logs/repro_eval/polygon_metrics_22.csv`; `logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv` |
 | `fig:improvement` | `make_improvement_figure.py` | `logs/per_patch/{planet_b3,s2_b7}.csv` |
 | `fig:metric_example` | `make_metric_example.py` | per-patch vectorized predictions (FTP-PRUE+) |
-| `fig:qualitative`, `*_appx` | `make_qualitative_v8.py`, `make_qualitative_v6/v7.py` | held-out patch predictions (both sensors) |
+| `fig:qualitative`, `*_appx` | `make_qualitative_v8.py`, `make_qualitative_v6/v7.py` | held-out patch predictions (both sensors). `v6` rows are seven dense per-held-out-country patches picked from `logs/per_patch/{planet_b3,s2_b7}.csv` where Planet's per-patch object F1 beats S2 (+25 to +51 pp); disjoint from the `v8` main figure and `v7`. |
 | `fig:qualitative_delineate` | `make_qualitative_delineate.py` | DelineateAnything YOLO11x-seg off-the-shelf predictions |
 
 ## Hand-entered tables (no generator -- values from dataset-build statistics)

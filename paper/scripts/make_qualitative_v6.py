@@ -217,20 +217,21 @@ def main():
         "--ckpt-s2",
         default="logs/best_checkpoints/s2_efnet7_best.ckpt",
     )
-    # 12 dense-label, smallholder-leaning patches; window picked to match the
-    # season we want shown.  All are countries where macro Planet > S2.
+    # Seven dense-smallholder rows, one per held-out country, picked from the
+    # per-patch metrics (logs/per_patch/{planet_b3,s2_b7}.csv): each has many
+    # GT fields (n_gt 30-57) and a large per-patch object-F1 margin for Planet
+    # over S2 (+25 to +51 pp). Disjoint from the main figure and v7. Window a.
     p.add_argument(
         "--rows",
         nargs="+",
         default=[
-            # 7 dense-smallholder rows so the figure + caption fit one page.
-            "croatia:g10-3_00071_11:a",
-            "croatia:g10-3_00015_7:a",
-            "slovenia:g13_00033_1:a",
-            "austria:g83_00031_18:a",
-            "austria:g83_00019_5:a",
-            "lithuania:g11_00088_0:a",
-            "finland:g15-1_00141_12:a",
+            "belgium:g2_00047_2:a",  # n_gt=46  Planet 84.8 vs S2 45.2  (+39.5)
+            "croatia:g14-2_00063_5:a",  # n_gt=39  Planet 74.4 vs S2 27.8  (+46.6)
+            "germany:g1_00003_15:a",  # n_gt=30  Planet 50.0 vs S2 39.3  (+10.7)
+            "latvia:g31_00023_10:a",  # n_gt=33  Planet 74.6 vs S2 47.2  (+27.4)
+            "lithuania:g11_00131_5:a",  # n_gt=42  Planet 72.0 vs S2 24.6  (+47.4)
+            "slovenia:g13_00045_16:a",  # n_gt=57  Planet 51.1 vs S2 25.3  (+25.8)
+            "sweden:g6-0_00009_18:a",  # n_gt=35  Planet 77.4 vs S2 26.7  (+50.8)
         ],
     )
     p.add_argument("--out", default="paper/figs/qualitative_v6_appx.pdf")
