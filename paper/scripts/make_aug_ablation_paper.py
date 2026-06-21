@@ -76,8 +76,8 @@ def main():
     # what made the panel unreadable. Distinct color + linestyle + a value
     # label at the right margin keep the two remaining lines unambiguous.
     ref_styles = {
-        "+ augmax, B3 full": ("#5a7ab8", "-", "FTW-PRUE (B3, full)"),
-        "+ augmax, B7 full": ("#1f3a6b", "--", "FTW-PRUE (B7, full)"),
+        "+ augmax, B3 full": ("#5a7ab8", "-", "FTW-PRUE (B3)"),
+        "+ augmax, B7 full": ("#1f3a6b", "--", "FTW-PRUE (B7)"),
     }
     for _, row in s2.iterrows():
         if row.label in ref_styles:

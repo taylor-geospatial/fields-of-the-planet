@@ -385,6 +385,12 @@ setup are in \Cref{app:upsampled_s2}.
     recovers much of the object-level gap but not the boundary error. Full table in
     \Cref{tab:upsampled_s2}. PQ/SQ/RQ are shown $\times 100$; boundary error is in meters.}
     \label{tab:upsampled_s2_main}
+    % TODO(#13, job 112143): resize_factor=2 (upsample-512) is now the canonical
+    % S2 eval, so the "256 native" row (27.1) is the old zero-pad number and must
+    % be replaced by the train-256 B3 model evaluated at resize_factor=2 (the
+    % corrected main-table S2 B3). Reframe the two S2 rows as "trained 256" vs
+    % "trained 512-upsampled" (both eval'd at resize_factor=2) to isolate the
+    % training-resolution effect; the upsampled row (31.5) already uses rf2.
     \begin{tabular}{lcccc}
     \toprule
     Imagery (grid) & PQ & SQ & RQ & Bd.\ err (m) \\
