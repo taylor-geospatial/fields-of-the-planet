@@ -110,12 +110,12 @@ Patch-to-scene reuse is high ($\sim$23 patches per scene), so the release materi
 \section{Per-patch quality analysis}
 \label{sec:quality}
 
-We compute per-patch UDM2 statistics across the full 133\,k UDM2 release by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{86.6\%} of patches are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%); the per-band percentile breakdown is in \Cref{tab:udm2} (appendix). This is a per-image quality flag computed after pairing, a different denominator from the $94.5\%$ acquisition yield (fraction of targets with an extracted PlanetScope image, \Cref{sec:limitations}).
+We compute per-patch UDM2 statistics across the full 133\,k UDM2 release by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{89.7\%} of (patch, window) tiles are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%); the per-class coverage breakdown is in \Cref{tab:udm2} (appendix). This is a per-image quality flag computed after pairing, a different denominator from the $94.5\%$ acquisition yield (fraction of targets with an extracted PlanetScope image, \Cref{sec:limitations}).
 
 \paragraph{Patch-level resampling.}
 The search filter rejects scenes whose \emph{scene-level} cloud cover exceeds 10\%; this is a coarse proxy because clouds can concentrate over a single patch even in a low-cloud scene. The released index uses a patch-level resampling pass: for each patch failing any UDM2 threshold, we search alternative scenes within the same season ($\pm$60\,d), probe UDM2 over the patch AOI, and replace the SR + UDM2 pair when a candidate strictly improves quality. We ship the tool and the final QA table so users can reproduce the decisions or apply stricter thresholds.
 
-Per-country usable-patch rates vary widely (Portugal 41\%, Netherlands 77\%, vs Brazil/Croatia $>$98\%); full country breakdown in \Cref{app:udm2_country}.
+Per-country usable-patch rates vary widely (Portugal 48\%, Netherlands 79\%, vs Brazil/Croatia $>$99\%); full country breakdown in \Cref{app:udm2_country}.
 
 \section{Building a strong PlanetScope baseline}
 \label{sec:benchmark}
@@ -592,7 +592,7 @@ The main ablation result is that FTP needs stronger regularization than the S2 r
 
 \textbf{Presence-only and hard transfer regions.} As established in the evaluation protocol (\Cref{sec:benchmark}), Kenya is the only presence-only FTW region, so it is excluded from every supervised macro-average and reported only as a marked presence-only row (\Cref{tab:heldout_pc}). One caveat for future work: our eval tooling can mask presence-only backgrounds to the ignore index, but training still rasterizes unlabeled Kenya land as background, so a cleaner comparison would retrain with those pixels masked out. Portugal remains a hard transfer case --- its terraced micro-fields are near or below the PlanetScope GSD --- and these regions need targeted acquisition or a transfer-specific strategy.
 
-\textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia loss, which against the corrected (upsampled) S2-B7 baseline is now a loss on PQ as well ($-7.3$\,pp; \Cref{sec:polygon-first}).
+\textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.5\times$ the global mean) and among the lowest \texttt{clear} fractions. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia loss, which against the corrected (upsampled) S2-B7 baseline is now a loss on PQ as well ($-7.3$\,pp; \Cref{sec:polygon-first}).
 
 \textbf{Societal impact.} Parcel-level field maps can be misused --- for example, by firms for farm-level surveillance or for insurance and credit profiling of individual growers, which would fall hardest on smallholders. We judge the benefits to global agricultural and food-security monitoring to outweigh these risks, and intend the labels and predictions for aggregate analysis rather than targeting individual farms.
 
@@ -784,21 +784,21 @@ Total dataset size              & 102\,GB \\
 
 \begin{table}[h]
 \centering
-\caption{\textbf{Per-patch UDM2 statistics.} Fractions are pixel-area within the patch. Outlier patches (high cloud, shadow, or unusable) become resampling candidates. \textbf{p99} column bolded as the most informative percentile.}
+\caption{\textbf{Per-tile UDM2 coverage.} For each UDM2 class, the percentage of the 133k (patch, window) tiles whose flagged area exceeds a coverage threshold. Tiles are near-fully clear: $95.9\%$ are $\ge\!50\%$ clear. Degraded tiles ($\ge\!50\%$ of the window flagged cloud / shadow / haze / unusable; the bolded column) become resampling candidates.}
 \label{tab:udm2}
 \small
-\begin{tabular}{l S[table-format=3.1] S[table-format=3.1] S[table-format=3.1] S[table-format=3.1]}
+\begin{tabular}{l S[table-format=2.1] S[table-format=2.1] S[table-format=2.1]}
 \toprule
-{Band} & {median} & {p90} & {\bfseries p99} & {max} \\
+{Band} & {any (\textgreater0)} & {\bfseries $\ge 50\%$} & {$\ge 90\%$} \\
 \midrule
-\texttt{clear}      & 100.0 & 100.0 & \bfseries 100.0 & 100.0 \\
-\texttt{cloud}      &   0.0 &   0.0 & \bfseries  49.5 & 100.0 \\
-\texttt{shadow}     &   0.0 &   0.0 & \bfseries  25.6 & 100.0 \\
-\texttt{light\_haze}&   0.0 &   0.0 & \bfseries  93.5 & 100.0 \\
-\texttt{unusable}   &   0.0 &   0.2 & \bfseries  57.9 & 100.0 \\
+\texttt{clear}      & 98.9 & \bfseries 95.9 & 91.1 \\
+\texttt{cloud}      &  9.0 & \bfseries  1.0 &  0.2 \\
+\texttt{shadow}     &  6.9 & \bfseries  0.2 &  0.0 \\
+\texttt{light\_haze}&  5.1 & \bfseries  2.0 &  1.1 \\
+\texttt{unusable}   & 11.3 & \bfseries  1.3 &  0.4 \\
 \bottomrule
 \end{tabular}
-\par\vspace{2pt}\footnotesize Values are percent of patch area.
+\par\vspace{2pt}\footnotesize \% of (patch, window) tiles; each tile's class area as a fraction of the window.
 \end{table}
 
 Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release: the lowest rates are Portugal (48.5\%), the Netherlands (79.1\%), and Cambodia (80.4\%); Brazil and Croatia exceed 99\%. Smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
