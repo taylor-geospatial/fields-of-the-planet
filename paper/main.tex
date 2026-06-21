@@ -353,13 +353,10 @@ majority background, the physical width of the rasterized boundary class,
 and country-specific annotation gaps. In Kenya, FTW labels are
 presence-only, so treating unlabeled parcels as negatives makes pixel IoU
 misleading. We therefore report pixel IoU only in the protocol-comparison
-table and use polygon metrics for the main claims. A controlled
-re-gridding check shows that re-projecting Planet predictions to the
-$10$m S2 grid changes macro pixel IoU by $<0.1$
-(\Cref{tab:gsd_controlled}, appendix).
+table and use polygon metrics for the main claims.
 
 \paragraph{Grid resolution vs.\ true resolution.}
-A second, input-side control isolates how much of the Sentinel-2-to-PlanetScope
+An input-side control isolates how much of the Sentinel-2-to-PlanetScope
 gap is genuine resolution rather than output grid. We retrain the Sentinel-2
 model on imagery bilinearly upsampled to PlanetScope's $512\times512$ ($3$m)
 grid --- same recipe, same field of view, no new image information --- and
@@ -818,49 +815,11 @@ the 10-country dense held-out set referenced from the main text.
     \label{fig:smallholder_scatter}
 \end{figure}
 
-\section{Controlled GSD experiment}
-\label{app:gsd_controlled}
-
-\Cref{tab:gsd_controlled} reports the controlled re-gridding
-experiment referenced in \Cref{sec:polygon-first}. We run each model at
-its headline inference resolution (Planet on native $3$m imagery; S2 with
-the $\text{resize\_factor}{=}2$ upsample to $512$, matching its main-table
-eval), take the argmax, then nearest-neighbour reproject the prediction onto
-the \emph{other} sensor's GT grid and score 2-class pixel IoU against that
-grid's GT. If pixel IoU were primarily a function of evaluation-grid
-resolution, moving a model's prediction across grids would change its score
-substantially. It does not: Planet's macro IoU changes by less than
-$0.1$ across grids, and S2's only drops when its predictions are
-nearest-neighbour resampled to the $3$m grid -- a resampling artifact, not a
-model property. Notably the two sensors reach near-identical pixel IoU at
-$10$m ($67.7$ vs $67.6$), even though the polygon metrics
-(\Cref{tab:polygon_metrics}) show a clear PlanetScope advantage: pixel IoU
-is grid-bound and understates the resolution benefit that the polygon
-metrics surface.
-
-\begin{table}[h]
-    \centering
-    \small
-    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 10-country dense held-out set (presence-only kenya excluded), no TTA, no watershed. Inference at each model's headline resolution (S2 upsampled, $\text{resize\_factor}{=}2$), then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$m changes IoU by $<0.1$. Pixel IoU is shown $\times 100$.}
-    \label{tab:gsd_controlled}
-    \begin{tabular}{llc}
-    \toprule
-    Model & Eval grid & Macro Pixel IoU \\
-    \midrule
-    Planet B3 augmax & $3$m (native)              & $67.8$ \\
-    Planet B3 augmax & $10$m (NN-reprojected)     & $67.7$ \\
-    S2 B7 augmax     & $10$m (native)             & $67.6$ \\
-    S2 B7 augmax     & $3$m (NN-reprojected)      & $65.6$ \\
-    \bottomrule
-    \end{tabular}
-\end{table}
-
 \section{Upsampled-Sentinel-2 control}
 \label{app:upsampled_s2}
 
-The re-gridding check in \Cref{app:gsd_controlled} moves a fixed model's
-predictions across grids; this is the complementary \emph{input-side}
-control. We retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery
+This \emph{input-side} control isolates genuine resolution from the
+evaluation grid. We retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery
 bilinearly upsampled to PlanetScope's $512\times512$ ($3$m) grid --- identical
 \emph{augmax} recipe, same field of view, no new image information --- and
 score it through the full polygon pipeline (\Cref{tab:upsampled_s2}). Giving
