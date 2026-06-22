@@ -69,7 +69,7 @@ PlanetScope is Planet Labs' constellation of $\sim$130 Dove CubeSats that images
 \itemsep0em
     \item A 3m PlanetScope companion to FTW across 24 countries / 25 regions: 66{,}584 patches, each pairing a planting- and harvest-season image (133{,}168 SR images) with a corresponding 3-class label mask rasterized from the FTW polygons.
     \item Per-patch UDM2 (Usable Data Mask 2) quality statistics and final QA decisions, so users can filter or audit imagery quality without re-reading the raw Planet assets.
-    \item A reproducible, sharded access pipeline that assembles the release from 6{,}113 PlanetScope scenes (\Cref{app:pipeline}).
+    \item A reproducible, sharded access pipeline that assembles the release from 6{,}113 PlanetScope scenes.
     \item A benchmark built on the released FTW training recipe (PRUE~\cite{muhawenayo2026prue}, which we improve to PRUE+) showing that, under matched architecture and recipe, FTP improves PQ, object F1, and meter-scale boundary error over Sentinel-2, and that broken down by field size the gains concentrate on the smallest (sub-$0.5$\,ha) fields that 10m imagery cannot resolve as distinct parcels.
 \end{itemize}
 
@@ -98,7 +98,7 @@ PlanetScope scene (\texttt{ortho\_analytic\_4b\_sr}: 4-band surface
 reflectance, $\sim$3m, uint16 Cloud-Optimized GeoTIFF, COG) acquired inside the
 window whose footprint fully covers the chip, preferring the least-cloudy
 scene nearest the window midpoint; if none covers the chip we drop that
-(patch, window) target (\Cref{app:pipeline}). Patches are written at native 3m
+(patch, window) target. Patches are written at native 3m
 on the PlanetScope grid, so their pixel dimensions track the chip footprint
 (typically $\sim$510$\times$330\,px) rather than the fixed 256$\times$256 S2
 grid; we pad to fixed $512\times512$ crops for training (\Cref{sec:benchmark}).
@@ -229,16 +229,6 @@ depend on these choices: any recipe effect applies to both sensors equally and
 cannot create the Planet-vs-S2 delta. We therefore read those sweeps as
 component characterizations and the Sentinel-2-vs-PlanetScope deltas as the
 controlled result.
-
-\paragraph{Reproducibility.} All runs use \texttt{seed\_everything}\,$=7$, train
-for the full 100 epochs (no early stopping; \texttt{patience}\,$=100$) on a
-single 80\,GB GPU (A100/H100) at bf16-mixed precision, and select the
-minimum-val-loss checkpoint. The complete per-experiment configuration ---
-optimizer and learning-rate schedule, every augmentation hyperparameter, and the
-train/validation/test country lists --- is versioned in \texttt{configs/prue/} in
-the released artifact, and every script-generated table regenerates from its source CSV via
-\texttt{paper/scripts/} (provenance in \texttt{paper/scripts/PROVENANCE.md}), so
-each reported number is reproducible from a config.
 
 \subsection{Main result}
 
@@ -470,15 +460,9 @@ $86$) and tends to \emph{merge} adjacent parcels rather than fragment them
 field-area accuracy (pixel IoU) is comparable; the boundaries there are often
 low-contrast cadastral lines rather than physical features.
 
-\paragraph{Does the 3m GSD advantage track field size?}
-Across regions, $\Delta$\,PQ correlates positively with per-region median FTW
-field area (Pearson $r=+0.45$ on log-hectares, Spearman $\rho=+0.47$, $n=22$;
-\Cref{fig:smallholder_scatter}, appendix): the gains concentrate on mid-size
-European fields, while the smallest-field tropical regions (Cambodia, Vietnam)
-are losses or ties and large-regular Germany is also a loss.
 \paragraph{At the field level, the smallholder gain is real.}
-The per-region correlation is a confound: regions mix field sizes, and the
-$10$m S2 labels merge small adjacent parcels (below). Binning \emph{individual}
+Per-region averages are a confound: regions mix field sizes, and the
+$10$m S2 labels merge small adjacent parcels. Binning \emph{individual}
 GT fields by area (\Cref{tab:area_bins}) resolves it. FTP-PRUE+ beats both S2
 baselines in every size bin, and its \emph{relative} advantage is largest on
 the smallest parcels: $2.8\times$ the S2-B7 polygon quality and $3.4\times$ its
@@ -674,8 +658,8 @@ To localize \emph{where} resolution helps, we also report the polygon metrics
 per field-size bin. Each ground-truth polygon is assigned by its area to
 \emph{small} ($<0.5$\,ha), \emph{medium} ($0.5$--$2$\,ha), or \emph{large}
 ($>2$\,ha); the $2$\,ha cut is the standard smallholder ceiling~\cite{lowder2016farms}
-and $0.5$\,ha splits the dominant sub-hectare mass (median field $=0.41$\,ha;
-\Cref{fig:smallholder_scatter}). A matched / missed ground-truth polygon is
+and $0.5$\,ha splits the dominant sub-hectare mass (median field $=0.41$\,ha).
+A matched / missed ground-truth polygon is
 credited to the bin of \emph{its} area; a false positive to the bin of the
 predicted polygon's area. The per-bin columns are the same quantities defined
 above evaluated within a bin: $\mathrm{RQ}_{.5}=\mathrm{F1}_{0.5}$ (detection),
@@ -703,28 +687,6 @@ different numbers of small fields.
     \label{tab:area_bins}
     \input{figs/area_bins.tex}
 \end{table*}
-
-\section{Access pipeline and operational lessons}
-\label{app:pipeline}
-
-The pipeline runs three phases, each independently sharded and resumable from JSONL caches:
-
-\begin{enumerate}
-\itemsep0em
-    \item \textbf{Search.} Per (patch, window), call the Planet Data API with a date range, geometry filter, and cloud-cover ceiling. Output: best item\_id per patch.
-    \item \textbf{Activate.} Deduplicate item\_ids globally; call \texttt{:activate} for SR and UDM2 in parallel. Output: signed Google Cloud Storage URLs.
-    \item \textbf{Extract.} Group all (patch, window) by scene, open each COG once with \texttt{rasterio} via \texttt{/vsicurl/}, range-read every member's window, write a local GeoTIFF in PSScene's native UTM at 3m. No reprojection.
-\end{enumerate}
-
-All phases run on CPU nodes; no GPUs are used. We extract with windowed COG
-range reads via \texttt{/vsicurl/}, which need only the Data API role and avoid
-materializing full scenes through the Orders API.
-
-\paragraph{Activation reliability.} Across 6{,}113 unique scenes, $\sim$24\% of
-\texttt{:activate} calls returned URLs that failed with HTTP 400 on the first
-range read. A second \texttt{:activate} call typically returned a working URL,
-so the pipeline includes an automatic reactivation pass; this recovered 99\% of
-the affected patches.
 
 \section{Dataset scope and per-tile UDM2 quality}
 \label{app:scope}
@@ -875,28 +837,9 @@ the 10-country dense held-out set referenced from the main text.
 
 \begin{figure}[h]
     \centering
-    \begin{minipage}[t]{0.63\linewidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/per_country_pq_objf1.pdf}
-        \captionof{figure}{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7; same per-region $\Delta$PQ as \Cref{fig:per_country_bars}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
-        \label{fig:per_country_objf1_appx}
-    \end{minipage}\hfill
-    \begin{minipage}[t]{0.35\linewidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/smallholder_scatter.pdf}
-        \captionof{figure}{\textbf{PQ gain vs.\ field size.}
-        Per-region median FTW polygon area (hectares, log scale; EPSG:6933
-        equal-area) vs $\Delta$\,PQ (FTP-PRUE+ WS+TTA $-$ FTW-PRUE+ (B7)) across
-        the 23 test regions ($n=22$: minus Brazil, which has no per-region
-        field-size estimate). Positive $y$ = Planet wins. Countries $<\!2$\,ha
-        median (sienna, \cite{lowder2016farms}) are smallholder; remainder
-        olive. Pearson $r=+0.45$, Spearman $\rho=+0.47$: against the corrected
-        S2-B7 baseline the gain correlates \emph{positively} with field size.
-        Biggest gains are mid-size fields (Netherlands $+22.0$, Lithuania
-        $+16.3$); smallest-field tropical regions are losses (Cambodia $-7.3$,
-        Vietnam $-0.3$) as is large-regular Germany ($-6.8$).}
-        \label{fig:smallholder_scatter}
-    \end{minipage}
+    \includegraphics[width=0.85\linewidth]{figs/per_country_pq_objf1.pdf}
+    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7; same per-region $\Delta$PQ as \Cref{fig:per_country_bars}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
+    \label{fig:per_country_objf1_appx}
 \end{figure}
 
 \section{Upsampled-Sentinel-2 control}

@@ -28,7 +28,7 @@ each model's native grid.
 The dense-10 headline (`tab:polygon_metrics`, `tab:area_bins`, etc.) reads the
 **most recent** Planet B3 eval, `logs/repro_eval/` (2026-06-13), giving PQ
 `36.0`. The 23-region per-region breakdown (`fig:per_country_bars`,
-`fig:smallholder_scatter`, per-region head-to-head prose) reads
+per-region head-to-head prose) reads
 `logs/polygon_metrics/planet_b3_augmax_full_22.csv` (2026-05-21), the only run
 with all 23 regions; its dense-10 subset is PQ `35.6`. The two runs use the same
 `planet_efnet3_augmax_full_best.ckpt` and differ by `<=0.4` PQ on shared
@@ -43,7 +43,6 @@ reader-visible number depends on the difference; the 10-country (`36.0`) and
 | `fig:aug_ablation` | `aug_ablation.py` | `paper/scripts/output/aug_ablation_heldout10.csv` (Kenya-excluded, matching the paper's supervised-macro protocol; from `logs/heldout/*.csv`, `logs/repro_eval/pp_ws_tta.csv`). Bars 1--4 are CC-BY-subset models on the 10 held-out (OOD) countries; the final bar is the in-distribution full-data model. |
 | `fig:per_country_bars` | `per_country_bars.py` | per-region $\Delta$PQ from `logs/polygon_metrics/planet_b3_augmax_full_22.csv` (Planet, all-23-region run; the 37.9 macro) vs `logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv` (S2-B7) |
 | `fig:per_country_objf1_appx` | `per_country_pq_objf1.py` | left panel: same 23-region $\Delta$PQ as `fig:per_country_bars` (`planet_b3_augmax_full_22.csv` vs `s2_upsampled_b7_augmax_full_22.csv`); right panel: FTW-official per-region Obj-F1 (`logs/fulldata_eval/`, `logs/ftw_official/b7_*.csv`) |
-| `fig:smallholder_scatter` | `smallholder_scatter.py` | `paper/scripts/output/smallholder_scatter.csv`; `logs/polygon_metrics/planet_b3_augmax_full_22.csv`; `logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv` |
 | `fig:improvement` | `improvement_figure.py` | `logs/per_patch/{planet_b3,s2_b7}.csv` |
 | `fig:metric_example` | `metric_example.py` | per-patch vectorized predictions (FTP-PRUE+) |
 | `fig:qualitative`, `*_appx` | `qualitative_main.py`, `qualitative_raw_appendix.py`, `qualitative_instances_appendix.py` | held-out patch predictions (both sensors). `qualitative_raw_appendix` rows are seven dense per-held-out-country patches picked from `logs/per_patch/{planet_b3,s2_b7}.csv` where Planet's per-patch object F1 beats S2 (+25 to +51 pp); disjoint from the main figure (`qualitative_main`) and `qualitative_instances_appendix`. |
