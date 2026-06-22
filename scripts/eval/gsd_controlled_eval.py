@@ -156,6 +156,24 @@ def _argmax_pred(model: torch.nn.Module, image: torch.Tensor) -> np.ndarray:
     return out.squeeze(0).cpu().numpy().astype(np.uint8)[:h, :w]
 
 
+def _argmax_pred_rf(model: torch.nn.Module, image: torch.Tensor, resize_factor: int) -> np.ndarray:
+    """resize_factor>1: bilinear-upsample the input, predict, then nearest-
+    downsample the prediction back to the native grid. Mirrors ftw_tools'
+    resize_factor inference so the S2 model sees the same finer pixel grid it is
+    scored on in the headline tables; the returned map is at native resolution
+    so the downstream warp/scoring is unchanged."""
+    if resize_factor == 1:
+        return _argmax_pred(model, image)
+    h, w = image.shape[-2], image.shape[-1]
+    up = torch.nn.functional.interpolate(
+        image, size=(h * resize_factor, w * resize_factor), mode="bilinear", align_corners=False
+    )
+    upp, uh, uw = _pad_to_mult(up, 32)
+    pred = model(upp).argmax(dim=1)[:, :uh, :uw].float()  # (1, h*rf, w*rf)
+    pred = torch.nn.functional.interpolate(pred.unsqueeze(1), size=(h, w), mode="nearest")
+    return pred.squeeze(1).squeeze(0).cpu().numpy().astype(np.uint8)
+
+
 # ---------- raster IO + warp -----------------------------------------------
 
 
@@ -225,6 +243,7 @@ def evaluate_country(
     device: torch.device,
     root: str,
     split: str,
+    s2_resize_factor: int = 1,
 ) -> dict[tuple[str, str], Accum]:
     """Returns {(model, grid): Accum} for the country."""
     ds = FTWPlanet(
@@ -268,7 +287,7 @@ def evaluate_country(
         pred_planet = _argmax_pred(planet_model, p_in)  # 3 m grid, 0/1/2
 
         s_in = _norm_image(s2_img, S2_SCALE).to(device)
-        pred_s2 = _argmax_pred(s2_model, s_in)  # 10 m grid, 0/1/2
+        pred_s2 = _argmax_pred_rf(s2_model, s_in, s2_resize_factor)  # 10 m grid, 0/1/2
 
         # ---- prepare GT masks (2-class: field vs not-field; boundary->bg) ----
         # Planet GT: 0=bg, 1=field, 2=boundary (when load_boundaries semantics).
@@ -324,6 +343,13 @@ def main() -> int:
     ap.add_argument("--split", default="test", choices=["test", "val"])
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--countries", nargs="*", default=None, help="Defaults to 11 held-out.")
+    ap.add_argument(
+        "--s2-resize-factor",
+        type=int,
+        default=1,
+        help="Upsample the S2 input by this factor before inference (resize_factor; "
+        "2 matches the upsample-512 headline eval). Prediction is downsampled back to native.",
+    )
     ap.add_argument("--gpu", type=int, default=0)
     args = ap.parse_args()
 
@@ -362,7 +388,15 @@ def main() -> int:
     for country in countries:
         print(f"=== {country} ===")
         try:
-            accs = evaluate_country(country, planet_model, s2_model, device, args.root, args.split)
+            accs = evaluate_country(
+                country,
+                planet_model,
+                s2_model,
+                device,
+                args.root,
+                args.split,
+                s2_resize_factor=args.s2_resize_factor,
+            )
         except (RuntimeError, FileNotFoundError) as e:
             print(f"  skip {country}: {type(e).__name__}: {e}")
             continue

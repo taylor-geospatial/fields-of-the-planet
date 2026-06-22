@@ -49,28 +49,28 @@ Paper ID \wacvPaperID}
 \centering
 \includegraphics[width=0.99\textwidth]{hero.pdf}
 \vspace{2pt}
-\captionof{figure}{\textbf{Fields of the Planet (FTP) pairs Fields of The World Sentinel-2 patches with co-registered 3m PlanetScope imagery and field boundary labels.} Each triplet left-to-right, FTW's Sentinel-2 patch at 10m (reprojected onto the Planet patch UTM grid for comparison), the matched PlanetScope SR image (4-band; RGB shown), and the label rasterized from FTW polygons at 3m (background / field interior / boundary).}\label{fig:hero}
+\captionof{figure}{\textbf{Fields of the Planet (FTP) pairs Fields of The World Sentinel-2 patches with co-registered 3m PlanetScope imagery and field boundary labels.} Each triplet left-to-right, FTW's Sentinel-2 patch at 10m (reprojected onto the Planet patch UTM grid for comparison), the matched PlanetScope surface-reflectance (SR) image (4-band; RGB shown), and the label rasterized from FTW polygons at 3m (background / field interior / boundary).}\label{fig:hero}
 %\vspace{12pt}
 }]
 \begin{abstract}
-Fields of The World (FTW) pairs global field-boundary labels with publicly available 10m Sentinel-2 imagery, making global agricultural field delineation practical at scale. But in many regions smallholder fields are too small to resolve accurately at Sentinel-2's 10m resolution. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope variant of FTW that keeps the same polygon labels and data splits but pairs them with higher-resolution imagery. With the task, geography, labels, architecture, and training recipe all fixed, training on PlanetScope instead of Sentinel-2 improves panoptic quality from 27.1 to 36.0 (on a 0--100 scale) and more than halves mean boundary error, from 17.5m to 7.4m. We additionally evaluate with polygon-level metrics that score whether predicted fields are recognized and localized as usable geometric parcels, rather than measuring overlap at the pixel level. \footnote{Code, release metadata, and dataset access instructions will be released after acceptance.}
+Fields of The World (FTW) makes global agricultural field delineation practical at scale, pairing field-boundary labels across 24 countries with public 10m Sentinel-2 imagery. But at 10m the smallest fields are often impossible to resolve as distinct parcels: rasterizing the same labels at 10m merges thousands of adjacent smallholder fields into single blobs, so a model cannot recover what the grid has already destroyed. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to FTW built from the same field polygons, splits, and training recipe (rasterized to each sensor's native grid), and show that the finer imagery recovers parcels Sentinel-2 loses. With task, geography, labels, architecture, and recipe all fixed, training on PlanetScope instead of Sentinel-2 lifts panoptic quality from 27.4 to 36.0 (0--100 scale) and more than halves mean boundary error (18.6m to 7.4m). Breaking results down by field size, the gain is largest on the smallest parcels: on sub-$0.5$\,ha smallholder fields PlanetScope lifts polygon quality $2.8\times$ (PQ 18.4 vs 6.6) and object F1 $2.6\times$ (26\% vs 10\% detected on each sensor's native targets). We score field-level polygon metrics (panoptic quality, object F1, and meter-scale boundary error), not pixel overlap. \footnote{Code, configs, result CSVs, and dataset-access instructions for review are available at \url{https://github.com/anon/anon} (anonymized); the full dataset is released on acceptance.}
 \end{abstract}
 
 \section{Introduction}
 
-Field boundaries feed downstream pipelines for crop-yield estimation, irrigation accounting, subsidy verification, and global food-security monitoring~\cite{beckerreshef2020geoglam,defourny2019sen2agri}. They matter most where they are hardest to see: farms under 2\,ha account for roughly 84\% of the world's farms \emph{by count}~\cite{lowder2016farms,samberg2016smallholder}, and these smallholdings produce a disproportionate share of the food consumed in low- and middle-income regions. Their parcels are also the smallest --- often only tens of meters across --- so the imagery resolution that maps them is exactly where a field boundary either resolves or disappears. This tension between \emph{where boundaries matter most} and \emph{where they are hardest to resolve} motivates the two choices in this paper: the move to higher-resolution imagery, and the polygon-level metrics we adopt to test whether that move actually recovers small fields as usable geometry.
+Field boundaries feed downstream pipelines for crop-yield estimation, irrigation accounting, subsidy verification, and global food-security monitoring~\cite{beckerreshef2020geoglam,defourny2019sen2agri}. They matter most where they are hardest to see: farms under 2\,ha account for roughly 84\% of the world's farms \emph{by count}~\cite{lowder2016farms,samberg2016smallholder}, and these smallholdings produce a disproportionate share of the food consumed in low- and middle-income regions. Their parcels are also the smallest, often only tens of meters across, so the imagery resolution that maps them is where a field boundary either resolves or disappears. This tension between \emph{where boundaries matter most} and \emph{where they are hardest to resolve} motivates the two choices in this paper: the move to higher-resolution imagery, and the polygon-level metrics we adopt to test whether that move recovers small fields as usable geometry.
 
-The largest public benchmark, \emph{Fields of The World} (FTW)~\cite{kerner2024ftw}, packages 1{,}627{,}378 parcel polygons across 24 countries and 25 labeled regions paired with 10m Sentinel-2 imagery~\cite{drusch2012sentinel2}. Ten meters approaches the resolution floor for smallholder delineation, and several authors~\cite{persello2019delineation,wang2022unlocking,garciapedrero2017boundary} have made this argument directly: fields on the order of tens of meters per side are difficult to delineate at S2 resolution --- a sub-hectare parcel can span only a handful of 10m pixels, leaving its boundary indistinguishable from interior texture. Existing high-resolution field-boundary datasets are either geographically narrower, use different label protocols, or are not aligned to FTW splits~\cite{wang2022unlocking,dandrimont2021parcel,estes2024africa,pastishd}.
+A large public benchmark, \emph{Fields of The World} (FTW)~\cite{kerner2024ftw}, packages 1{,}627{,}378 parcel polygons across 24 countries and 25 labeled regions paired with 10m Sentinel-2 imagery~\cite{drusch2012sentinel2}. Ten meters approaches the resolution floor for smallholder delineation, and several authors~\cite{persello2019delineation,wang2022unlocking,garciapedrero2017boundary} have made this argument directly: fields on the order of tens of meters per side are difficult to delineate at S2 resolution. A sub-hectare parcel can span only a handful of 10m pixels, leaving its boundary indistinguishable from interior texture. The limit is baked into the labels: rasterizing FTW's own polygons onto the 10m grid already merges thousands of adjacent smallholder parcels into single connected blobs (\Cref{tab:area_bins}), so a model trained on those 10m targets cannot recover them; the field has been destroyed in the label before training begins. Existing high-resolution field-boundary datasets are either geographically narrower, use different label protocols, or are not aligned to FTW splits~\cite{wang2022unlocking,dandrimont2021parcel,estes2024africa,pastishd}.
 
-PlanetScope is Planet Labs' constellation of $\sim$130 Dove CubeSats that images the entire land surface near-daily at $\sim$3m ground sample distance~\cite{planet2017} --- roughly $3\times$ finer than Sentinel-2, and enough to place several pixels across the smallholder parcels that S2 cannot resolve. We pair PlanetScope's 3m surface-reflectance imagery with the FTW polygon ground truth, season windows, and country splits, and rasterize the published FTW polygons onto each PlanetScope grid rather than collecting new labels. Each FTW patch has two seasonal windows, so the 70{,}484 FTW patches define 140{,}968 (patch, window) targets; FTP pairs 133{,}168 of them (94.5\%) with a cloud-screened PlanetScope acquisition, leaving 7{,}800 targets without a usable scene (\Cref{sec:limitations}).
+PlanetScope is Planet Labs' constellation of $\sim$130 Dove CubeSats that images the entire land surface near-daily at $\sim$3m ground sample distance~\cite{planet2017}, roughly $3\times$ finer than Sentinel-2 and enough to place several pixels across the smallholder parcels that S2 cannot resolve. We pair PlanetScope's 3m surface-reflectance imagery with the FTW polygon ground truth, season windows, and tile-level splits, and rasterize the published FTW polygons onto each PlanetScope grid rather than collecting new labels. Each FTW patch has two seasonal windows, so the 70{,}484 FTW patches define 140{,}968 (patch, window) targets; FTP pairs 133{,}168 of them (94.5\%) with a cloud-screened PlanetScope acquisition, leaving 7{,}800 targets without a usable scene (\Cref{sec:limitations}).
 
 \textbf{This paper makes the following contributions:}
 \begin{itemize}
 \itemsep0em
-    \item A 3m PlanetScope companion to FTW across 24 countries / 25 regions: 66{,}584 patches, each pairing a planting- and harvest-season image (133{,}168 SR images and UDM2 masks) with a corresponding 3-class label mask rasterized from the FTW polygons.
-    \item Per-patch UDM2 quality statistics and final QA decisions, so users can filter or audit imagery quality without re-reading the raw Planet assets.
-    \item A reproducible, sharded access pipeline that assembles the release from 6{,}113 PlanetScope scenes (\Cref{app:pipeline}).
-    \item A benchmark built on the released FTW training recipe (PRUE~\cite{muhawenayo2026prue}) showing that, under matched architectures and training recipes, FTP improves PQ, F1$_{[.5:.95]}$, and meter-scale boundary error over the Sentinel-2 version.
+    \item A 3m PlanetScope companion to FTW across 24 countries / 25 regions: 66{,}584 patches, each pairing a planting- and harvest-season image (133{,}168 SR images) with a corresponding 3-class label mask rasterized from the FTW polygons.
+    \item Per-patch UDM2 (Usable Data Mask 2) quality statistics and final QA decisions, so users can filter or audit imagery quality without re-reading the raw Planet assets.
+    \item A reproducible, sharded access pipeline that assembles the release from 6{,}113 PlanetScope scenes.
+    \item A benchmark built on the released FTW training recipe (PRUE~\cite{muhawenayo2026prue}, which we improve to PRUE+) showing that, under matched architecture and recipe, FTP improves PQ, object F1, and meter-scale boundary error over Sentinel-2, and that broken down by field size the gains concentrate on the smallest (sub-$0.5$\,ha) fields that 10m imagery cannot resolve as distinct parcels.
 \end{itemize}
 
 \section{Related work}
@@ -79,82 +79,66 @@ PlanetScope is Planet Labs' constellation of $\sim$130 Dove CubeSats that images
 AI4SmallFarms~\cite{persello2023ai4smallfarms} releases 50\,k smallholder parcels across South and Southeast Asia at 10m. PASTIS and PASTIS-HD provide panoptic agricultural parcel annotations for France with Sentinel-2 time series and aligned 1m SPOT 6/7 imagery~\cite{garnot2021pastis,pastishd}. Region- or country-scale high-resolution resources include PlanetScope labels for France and India~\cite{wang2022unlocking}, Africa-wide field-boundary labels digitized on NICFI Planet basemaps~\cite{estes2024africa}, and other national releases~\cite{persello2019delineation,dandrimont2021parcel}. FTW~\cite{kerner2024ftw} is broader geographically and already standardizes semantic, boundary, and instance masks across 24 countries / 25 regions. FTP keeps that label protocol and split structure while adding co-registered 3m imagery.
 
 \paragraph{PlanetScope for field segmentation.}
-Wang et al.~\cite{wang2022unlocking} use 3m PlanetScope for French and Indian parcels. Khallaghi et al.~\cite{khallaghi2025generalization} and Estes et al.~\cite{estes2024africa} use Planet basemap mosaics for smallholder cropland or field-boundary labeling; mosaics improve temporal coverage but can blur scene-level spatial detail. Waldner et al.~\cite{waldner2021decode} (DECODE) train field-boundary segmentation on PlanetScope over Australia, but their data and model weights are not released under a shared FTW-style protocol. \emph{Delineate Anything}~\cite{lavreniuk2025delineate} releases pretrained field-instance models trained on a mostly-European RGB mix. These methods motivate FTP: a shared, global, FTW-aligned high-resolution benchmark where PlanetScope recipes can be compared under one evaluation protocol.
+Wang et al.~\cite{wang2022unlocking} use 3m PlanetScope for French and Indian parcels. Khallaghi et al.~\cite{khallaghi2025generalization} and Estes et al.~\cite{estes2024africa} use Planet basemap mosaics for smallholder cropland or field-boundary labeling; mosaics improve temporal coverage but can blur scene-level spatial detail. Waldner et al.~\cite{waldner2021decode} (DECODE) train field-boundary segmentation on PlanetScope over Australia, but their data and model weights are not released under a shared FTW-style protocol. \emph{Delineate Anything}~\cite{lavreniuk2025delineate} fine-tunes a YOLO11 instance segmenter~\cite{lavreniuk2025delineate} for field boundaries on a multi-sensor RGB mix spanning Sentinel-2 and higher-resolution (including PlanetScope) imagery; its ``delineate anything'' framing explicitly targets zero-shot transfer, so we include it as an off-the-shelf reference evaluated on FTW \emph{without} fine-tuning rather than as a matched, FTW-trained baseline. These methods motivate FTP: a shared, global, FTW-aligned high-resolution benchmark where PlanetScope recipes can be compared under one evaluation protocol.
+
+\begin{table*}[t]
+    \centering
+    \scriptsize
+    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, watershed + D4 TTA). Each row pairs a method with an imagery source: zero-shot DelineateAnything (YOLO11x) and the smaller DelineateAnything-S (YOLO11n)~\cite{lavreniuk2025delineate} on each sensor, the PRUE recipe~\cite{muhawenayo2026prue} as FTW-PRUE+ on Sentinel-2, and our FTP-PRUE+ on PlanetScope. Polygon metrics are macro-averaged over countries; $|\Delta N|/N$ (polygon-count error) and boundary error are lower-is-better. The right block reports PQ by ground-truth field-area bin (small $<\!0.5$, medium $0.5$--$2$, large $>\!2$\,ha; full breakdown in \Cref{tab:area_bins}). Best per column in \textbf{bold}; presence-only Kenya excluded. $^{*}$off-the-shelf, no FTW fine-tuning. $^{\dagger}$pixel IoU is rasterized at each sensor's native grid and is not comparable across the 3\,m/10\,m resolutions; the polygon and meter-scale boundary metrics are. Sentinel-2 polygon metrics use the upsampled PRUE eval (\Cref{app:upsampled_s2}); boundary chamfer is at each model's native grid. Definitions in \Cref{app:metrics}. Metrics $\times100$ except boundary error (meters).}
+    \label{tab:polygon_metrics}
+    \input{figs/polygon_metrics.tex}
+\end{table*}
 
 \section{Dataset}
 \label{sec:dataset}
 
-\subsection{Source data}
+FTP reuses the existing FTW chips. For each FTW chip and each of its two
+seasonal Sentinel-2 windows, we query the Planet Data API for a single
+PlanetScope scene (\texttt{ortho\_analytic\_4b\_sr}: 4-band surface
+reflectance, $\sim$3m, uint16 Cloud-Optimized GeoTIFF, COG) acquired inside the
+window whose footprint fully covers the chip, preferring the least-cloudy
+scene nearest the window midpoint; if none covers the chip we drop that
+(patch, window) target. Patches are written at native 3m
+on the PlanetScope grid, so their pixel dimensions track the chip footprint
+(typically $\sim$510$\times$330\,px) rather than the fixed 256$\times$256 S2
+grid; we pad to fixed $512\times512$ crops for training (\Cref{sec:benchmark}).
+We rank by scene-level cloud cover because the UDM2 quality mask is only
+available after activation; after extraction we recompute UDM2 over each patch
+and resample cloudy patches from alternate same-season scenes (\Cref{sec:quality}).
 
-\textbf{FTW patches.} Each FTW region ships geographic chip footprints, two seasonal Sentinel-2 windows per chip, and per-patch parquet metadata. We use the chip footprint as the AOI for PlanetScope matching, not the Sentinel-2 pixel grid (\Cref{tab:scope}). Each patch is written at native 3m resolution, so its pixel dimensions vary with the chip footprint (typically $\sim$510$\times$330\,px) rather than matching the fixed 256$\times$256 S2 grid; for training we pad with the ignore label and take fixed $512\times512$ crops (\Cref{sec:benchmark}).
-
-\textbf{FTW polygons.} A separate Source Cooperative repository hosts each region's GeoParquet polygons (1{,}627{,}378 total)~\cite{ftw-source-coop}. We download these directly and rasterize them onto each PlanetScope patch's grid (\Cref{sec:labels}).
-
-\textbf{PlanetScope.} We target the \texttt{ortho\_analytic\_4b\_sr} asset (4-band Surface Reflectance, $\sim$3m, uint16 COG) and \texttt{ortho\_udm2} (8-band quality mask, uint8).
-
-\subsection{Pairing strategy}
-
-For each FTW chip and each seasonal window, we identify a single PSScene whose acquisition date falls inside the window and whose footprint fully covers the chip polygon. We rank candidates first by scene-level cloud cover (Planet's reported \texttt{cloud\_cover}, ceiling $\le$\,10\%), then by absolute day-distance to the window midpoint, with ties broken by item\_id (deterministic). If no candidate covers the chip fully, we drop the (patch, window) target; partial-coverage scenes are not stitched.
-
-We use scene-level cloud cover during search because UDM2 is only available after asset activation. After extraction, we compute patch-level UDM2 quality and resample cloudy patches from alternate same-season scenes when a better candidate exists (\Cref{sec:quality}).
-
-\subsection{Labels}
+\textbf{Labels.}
 \label{sec:labels}
+We download the published FTW polygons (1{,}627{,}378 across all
+regions)~\cite{ftw-source-coop} and rasterize them onto each PlanetScope patch
+grid as FTW's 3-class mask: background, field interior, and a boundary class
+buffered $3$m ($\approx$1 pixel per side) from each polygon's exterior ring,
+which separates touching parcels that a binary mask would merge.
 
-For each PlanetScope tif we rasterize the region's polygons onto the patch grid as a 3-class mask: 0 (background), 1 (field interior), 2 (boundary). The boundary class is generated by buffering each polygon's exterior ring by 3m ($\approx$2 pixels at 3m resolution) and rasterizing on top of the interior. This follows FTW's semantic/boundary convention and separates touching parcels that a binary field/non-field mask would merge. We use a 3m buffer as a one-pixel-per-side GSD heuristic: thinner buffers can disappear on diagonal edges, while thicker buffers can swallow small interiors in dense smallholder regions. We have not ablated the buffer width.
-
-\subsection{Statistics}
-
-\begin{table}[t]
-\centering
-\caption{\textbf{Dataset scope.} FTW contains 24 countries and 25 labeled regions because Corsica is released separately from mainland France. Each FTW patch has two seasonal windows. \emph{Success rate} is the fraction of (patch, window) targets with a successfully extracted PlanetScope image.}
-\label{tab:scope}
-\small
-\begin{tabular}{lr}
-\toprule
-\textbf{Property} & \textbf{Value} \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Geographic coverage}}\\
-Countries / regions / continents & 24\,/\,25\,/\,4 \\
-FTW patches                  & 70{,}484 \\
-(Patch, window) targets      & 140{,}968 \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Source imagery}}\\
-Unique PSScene COGs touched  & 6{,}113 \\
-Mean patches per scene       & 23.0 \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Released artifacts}}\\
-PlanetScope SR (4-band, uint16) & 133{,}168 \\
-UDM2 masks (8-band, uint8)      & 133{,}168 \\
-3-class labels (uint8, 1/patch) & 66{,}584 \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Yield}}\\
-Successfully matched pairs      & 133{,}168 \\
-\textbf{Success rate}           & \textbf{94.5\%} \\
-Total dataset size              & 102\,GB \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\Cref{tab:scope} summarizes the release. Patch-to-scene reuse is high ($\sim$23 patches per scene), so the release materializes 102\,GB of patch data from 6{,}113 scenes (\Cref{app:pipeline}). Each patch pairs a planting- and harvest-season window on a common grid and carries one 3-class label mask for the pair. FTP covers 66{,}584 of the 70{,}484 FTW patches; the rest were dropped because no PlanetScope scene was available for the patch, or only one of its two seasonal windows was, and we keep only patches with both. \textbf{Licenses:} imagery is released under Planet Labs' research terms. Labels inherit the per-region FTW label licenses rather than a single global license; the release index carries those license fields for filtering. The access pipeline is MIT licensed.
+\textbf{Scope and licenses.} FTP covers 66{,}584 of the 70{,}484 FTW patches
+(we keep only patches with a PlanetScope match for both seasonal windows),
+materializing 102\,GB from 6{,}113 scenes ($\sim$22 windows per scene);
+\Cref{tab:scope} gives the full scope. The dataset and trained models are
+released under \textbf{CC-BY-NC 4.0}, inheriting Planet's non-commercial terms;
+labels additionally carry their per-region FTW licenses (exposed in the release
+index), and the access-pipeline code is MIT licensed.
 
 \section{Per-patch quality analysis}
 \label{sec:quality}
 
-We compute per-patch UDM2 statistics across the full 133\,k UDM2 release by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{86.6\%} of patches are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%); the per-band percentile breakdown is in \Cref{tab:udm2} (appendix).
+We compute per-patch UDM2 statistics over the 129{,}490 released windows with non-null UDM2 statistics by reading the patch-area windows directly from each mask and counting positive pixels per band. \textbf{89.7\%} of those tiles are usable at a strict threshold (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%); the per-class coverage breakdown is in \Cref{tab:udm2} (appendix). This is a per-image quality flag computed after pairing, a different denominator from the $94.5\%$ acquisition yield (fraction of targets with an extracted PlanetScope image, \Cref{sec:limitations}).
 
 \paragraph{Patch-level resampling.}
-The search filter rejects scenes whose \emph{scene-level} cloud cover exceeds 10\%; this is a coarse proxy because clouds can concentrate over a single patch even in a low-cloud scene. The released index uses a patch-level resampling pass: for each patch failing any UDM2 threshold, we search alternative scenes within the same season ($\pm$60\,d), probe UDM2 over the patch AOI, and replace the SR + UDM2 pair when a candidate strictly improves quality. We ship the tool and the final QA table so users can reproduce the decisions or apply stricter thresholds.
+The search filter rejects scenes whose \emph{scene-level} cloud cover exceeds 10\%; this is a coarse proxy because clouds can concentrate over a single patch even in a low-cloud scene. The released index uses a patch-level resampling pass: for each patch failing any UDM2 threshold, we search alternative scenes within the same season ($\pm$60\,d), probe UDM2 over the patch footprint, and replace the SR + UDM2 pair when a candidate strictly improves quality. We ship the tool and the final QA table so users can reproduce the decisions or apply stricter thresholds.
 
-Per-country usable-patch rates vary widely (Portugal 41\%, Netherlands 77\%, vs Brazil/Croatia $>$98\%); full country breakdown in \Cref{app:udm2_country}.
+Per-country usable-patch rates vary widely (Portugal 48\%, Netherlands 79\%, vs Brazil/Croatia $>$99\%); full country breakdown in \Cref{app:udm2_country}.
 
 \section{Building a strong PlanetScope baseline}
 \label{sec:benchmark}
 
 \begin{figure*}[t!]
     \centering
-    \includegraphics[width=0.95\linewidth]{figs/qualitative_v8_main.pdf}
-    \caption{\textbf{Qualitative predictions: FTP-PRUE \emph{augmax} full vs.\ released FTW-PRUE (B7, full)~\cite{muhawenayo2026prue}, before and after post-processing.} Four dense-smallholder rows from countries where $\Delta$ PQ favors FTP-PRUE (Croatia, Slovenia, Austria, Lithuania; see \Cref{fig:per_country_bars}). All cells are center-cropped square and resized; both modalities show the \emph{same} season. Columns 1--2: Planet RGB (3m) and matched S2 RGB (10m, reprojected to the Planet grid). Column 3: 3-class ground truth (green = field interior, black = bg + boundary). Columns 4--5: raw argmax predictions (same color scheme). Columns 6--7: post-processed instance segmentations (D4 TTA + marker-controlled watershed); each color is a distinct field instance (perturbed \texttt{tab20}). FTP-PRUE recovers near-complete field coverage and adjacent parcels stay separated after watershed; FTW-PRUE (B7) leaves large black gaps in the raw mask and merges neighboring parcels into single instances after WS. Eight more raw-mask samples in \Cref{fig:qualitative_appx} and eight more instance samples in \Cref{fig:qualitative_post_appx}.}
+    \includegraphics[width=0.95\linewidth]{figs/qualitative_main.pdf}
+    \caption{\textbf{On dense smallholder fields, PlanetScope recovers parcels that Sentinel-2 misses.} Four held-out rows (Belgium, Latvia, Lithuania) chosen for the densest smallholder regime, where the 10\,m grid merges most sub-$0.5$\,ha parcels before training (not a random sample). Columns: Planet RGB (3m), matched S2 RGB (10m), 3-class ground truth, raw argmax predictions (FTP-PRUE+ vs.\ FTW-PRUE+ B7~\cite{muhawenayo2026prue}), and post-processed instances (D4 TTA + watershed; each color a field). PlanetScope keeps adjacent parcels separated where the S2 baseline merges neighbours and leaves gaps. More samples in \Cref{fig:qualitative_appx,fig:qualitative_post_appx}.}
     \label{fig:qualitative}
 \end{figure*}
 
@@ -162,20 +146,20 @@ We use PRUE~\cite{muhawenayo2026prue} as the benchmark recipe because it is the 
 
 \paragraph{How we measure (polygons first).} A pixel-overlap score can
 look healthy while every small field in a patch is merged into its
-neighbours --- exactly the failure that higher resolution is meant to
+neighbours, the failure that higher resolution is meant to
 fix. We therefore lead with four metrics defined on \emph{vectorized
 parcels}, all computed on the field-interior class, so that ``did we
 recover this small field as a usable polygon?'' is the question being
 scored (\Cref{fig:metric_example}). We report four rather than one
-because parcel quality fails in distinct ways --- a field can go
+because parcel quality fails in distinct ways (a field can go
 undetected, be detected but poorly shaped, or be well-shaped yet
-mislocated at its edges --- and any single scalar hides which failure
+mislocated at its edges), and any single scalar hides which failure
 occurred:
 \begin{itemize}
 \itemsep0em
   \item \textbf{Object F1 at IoU\,$=\,0.5$} --- \emph{did we find the right
   fields?} A predicted parcel counts as a true positive when it overlaps a
-  ground-truth parcel with IoU\,$\ge\,0.5$; F1 is the harmonic mean of the
+  ground-truth parcel with IoU\,$>\,0.5$; F1 is the harmonic mean of the
   resulting precision (of the parcels we predict, how many are real) and
   recall (of the real parcels, how many we find).
   \item \textbf{Panoptic quality}~\cite{kirillov2019panoptic}
@@ -202,14 +186,13 @@ with bulk-area accuracy. We keep pixel IoU only for continuity
 with the released PRUE protocol and make the full case in
 \Cref{sec:polygon-first}.
 
-\paragraph{Evaluation protocols.} We separate two comparisons. The
-\textbf{CC-BY split} mirrors the released CC-BY PRUE checkpoints: it trains
-on the 14 CC-BY--licensed FTW countries and evaluates on the remaining 11
-held-out countries, so those countries are never seen during training. The
-\textbf{full-data split} follows the FTW full-data protocol: models train on
-the full 24-country / 25-region release and are evaluated on held-out patches
-from the test regions. Our architecture-matched dataset comparison uses the
-same training split on both sensors. Independent of the split, Kenya is the
+\paragraph{Evaluation protocol.} We use the same per-region chip splits as the PRUE
+paper~\cite{muhawenayo2026prue}: we train and evaluate on the official Fields
+of the World per-region train/validation/test chip splits. Within each region,
+FTW partitions chips into disjoint train/validation/test sets; training sees
+only \emph{train} chips and evaluation only the held-out \emph{test} chips, the
+same protocol as PRUE. Our architecture-matched dataset comparison uses these
+identical splits on both sensors. Kenya is the
 \emph{only} presence-only region in FTW v2: it annotates a subset of fields
 and leaves surrounding land unlabeled, so its background class is untrusted
 and supervised pixel/object metrics computed against it are not comparable
@@ -233,46 +216,57 @@ $512\!\times\!512$ crops, and bf16-mixed precision~\cite{micikevicius2018mixedpr
 This gives a controlled S2-vs-Planet comparison before we add Planet-specific
 regularization.
 
-\begin{table*}[t]
-    \centering
-    \scriptsize
-    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE / FTP-PRUE: the PRUE recipe~\cite{muhawenayo2026prue} trained on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column notes otherwise. Metrics are computed on vectorized field polygons (definitions in \Cref{app:metrics}); $|\Delta N|$ and boundary error are lower-is-better. Best per column in \textbf{bold}; presence-only Kenya is excluded (\Cref{sec:limitations}). $^{*}$DelineateAnything~\cite{lavreniuk2025delineate} is an off-the-shelf baseline with no FTW fine-tuning (\Cref{app:qualitative_delineate}). PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
-    \label{tab:polygon_metrics}
-    \input{figs/polygon_metrics.tex}
-\end{table*}
+\paragraph{Model selection.} Per-model checkpoints are selected by minimum
+\emph{validation} loss (FTW's validation chips; \texttt{ModelCheckpoint} on
+\texttt{val/loss}), never the test chips. The PRUE+ augmentation recipe and the
+post-processing (watershed (WS), D4 test-time augmentation (TTA)) are fixed once and applied \emph{identically}
+to both sensors and all backbones; the augmentation and post-processing sweeps
+(\Cref{fig:aug_ablation}, \Cref{tab:heldout}) report each component's effect on
+the held-out test set to characterize the recipe, not to tune it per sensor.
+Because the same recipe and selection rule are applied to Sentinel-2 and
+PlanetScope, the sensor comparison --- the paper's central claim --- does not
+depend on these choices: any recipe effect applies to both sensors equally and
+cannot create the Planet-vs-S2 delta. We therefore read those sweeps as
+component characterizations and the Sentinel-2-vs-PlanetScope deltas as the
+controlled result.
 
 \subsection{Main result}
 
-\Cref{tab:polygon_metrics} isolates the dataset effect under the same
-architecture and training recipe. With an EfficientNet-B3 backbone, replacing
-Sentinel-2 with FTP improves PQ from 27.1 to 36.0, F1$_{[.5:.95]}$
-from 21.0 to 29.1, and mean boundary error from 17.5m to 7.4m. FTP
-B3 also outperforms the larger S2 EfficientNet-B7 baseline trained with the
-same augmax recipe on PQ (36.0 vs 31.1), F1$_{[.5:.95]}$ (29.1 vs 24.7),
-and boundary error (7.4m vs 15.2m); the S2 B7 model retains a slight edge
-on polygon-count error ($|\Delta N|$ 54.9 vs 55.5). These comparisons use
-object and polygon metrics because both sensors are scored after
-vectorization from the same FTW polygon source. Our full-data
-FTP-PRUE reaches $45.2$ object F1 on the 10-country dense held-out macro,
-close to the best released S2 model's $47.0$ (FTW-PRUE (B7))~\cite{muhawenayo2026prue}
-despite a far smaller backbone. These two numbers are scored on different
-evaluation sets --- our held-out macro vs.\ the released full-data test split ---
-so we report the comparison for orientation only, not as a head-to-head
-(full table in \Cref{tab:full_data}, appendix).
+\Cref{tab:polygon_metrics} isolates the dataset effect under a fixed
+architecture and recipe. At matched EfficientNet-B3, replacing Sentinel-2 with
+FTP improves every polygon metric and more than halves the mean boundary error
+(18.6m to 7.4m), lifting panoptic quality from 27.4 to 36.0. The PlanetScope B3
+model also matches or beats the larger Sentinel-2 B7 baseline trained with the
+same recipe on every polygon metric, so the gain is the imagery, not backbone
+capacity. Both sensors are scored after vectorization from the same FTW polygon
+source, so these are like-for-like object comparisons.
+
+Our FTP-PRUE+ reaches 45.2 object F1 at IoU\,$=0.5$ --- identically the polygon
+RQ column of \Cref{tab:polygon_metrics} --- close to the best released S2
+model's 47.0 (FTW-PRUE B7~\cite{muhawenayo2026prue}) despite a far smaller
+backbone. The two are scored on different evaluation sets and instance
+extractions (watershed vs.\ connected components), so we report it for
+orientation only, not a head-to-head (full table in \Cref{tab:full_data}).
 
 \subsection{Better augmentations}
 
 \begin{figure}[t!]
     \centering
-    \includegraphics[width=0.7\linewidth]{figs/aug_ablation_paper.pdf}
-\caption{\textbf{Cumulative augmentation lift on Obj F1} (FTP-PRUE B3, dense held-out, WS+TTA). Each step adds one augmentation group to the PRUE recipe. Horizontal lines mark the same-recipe FTW-PRUE \emph{augmax} baselines (solid: B3, architecture-matched; dashed: B7, strongest S2 model). The final FTP-PRUE model exceeds every S2 reference, so the dataset change drives the gain even at matched architecture.}
+    \includegraphics[width=0.7\linewidth]{figs/aug_ablation.pdf}
+\caption{\textbf{Cumulative augmentation lift on object F1} (FTP-PRUE+ B3, ten dense held-out countries, WS+TTA). The first four bars are CC-BY-subset models evaluated on countries \emph{absent} from their training set (out-of-sample); the final \emph{B3 full} bar is the in-distribution full-data model, so its step up also adds training countries, not an augmentation. Horizontal lines mark the same-recipe full-data FTW-PRUE+ S2 baselines (solid B3, architecture-matched; dashed B7, strongest S2 model). The full-data PlanetScope model exceeds every S2 reference at matched architecture.}
     \label{fig:aug_ablation}
 \end{figure}
 
 Data augmentations were the largest lever for PlanetScope performance
 (\Cref{fig:aug_ablation}). We group the sweep into three stages so the
 comparison is easy to audit: PRUE normalization/crop augmentations,
-temporal/radiometric augmentations, and a final geometry/noise bundle.
+temporal/radiometric augmentations, and a final geometry/noise bundle. Each
+rung of this sweep is a model trained on the CC-BY-licensed training countries
+and evaluated on the ten dense held-out countries, \emph{none} of which appear
+in its training set, so the lift reported below is out-of-sample generalization
+rather than a within-country fit. The in-distribution full-data FTP-PRUE+ model
+(the \Cref{tab:polygon_metrics} headline, Obj F1 $45.2$) adds the remaining
+training countries on top of this same recipe.
 
 \paragraph{PRUE normalization and crop augmentations.} The released PRUE configs enable
 \texttt{preprocess\_aug} (random per-batch divisor in
@@ -281,15 +275,15 @@ $[5000, 15000]$ replacing the fixed $/10000$) and \texttt{resize\_aug}
 crop). Adding them moves Obj F1 (WS+TTA) from $29.1 \rightarrow 31.9$.
 
 \paragraph{Window swap and per-band gamma (+$1.0$ Obj
-F1). \emph{augplus}.} Two cheap additions. \texttt{swap\_order}
+F1).} Two low-cost additions. \texttt{swap\_order}
 randomly flips the A/B window ordering in the 8-channel stack per
 sample; the FTW S2 datamodule already supported this but it was not enabled in our initial recipe.
 Per-band random gamma ($\gamma \sim \mathcal{U}[0.8, 1.2]$, per channel
 independently, $p\!=\!0.3$) models per-band atmospheric/radiometric
-variation. We call this configuration \emph{augplus}.
+variation.
 
-\paragraph{Geometry/noise bundle (+$4.5$ Obj F1 over augplus). \emph{augmax}.}
-Seven augmentations on top of \emph{augplus} form the final bundle. Per-band random affine
+\paragraph{Geometry/noise bundle (+$4.5$ Obj F1). \textbf{PRUE+}.}
+Seven augmentations on top of the previous step form the final bundle. Per-band random affine
 ($y = ax + b$ per channel, $a \sim \mathcal{U}[0.9, 1.1]$,
 $b \sim \mathcal{U}[-0.02, 0.02]$, $p\!=\!0.3$); Gaussian blur
 ($3\!\times\!3$ kernel, $\sigma \sim \mathcal{U}[0.5, 1.5]$,
@@ -300,7 +294,7 @@ $p\!=\!0.5$, applied on top of the $90^\circ$-multiple rotation, H/V
 flip, and random sharpness already present in the Kornia~\cite{riba2020kornia} base stack);
 shear ($\pm 5^\circ$, $p\!=\!0.3$); and boundary-thickness jitter
 (random binary dilation of the boundary class by $0\text{--}2$\,px,
-$p\!=\!0.5$ per batch). The \emph{augmax} config additionally keeps
+$p\!=\!0.5$ per batch). The PRUE+ config additionally keeps
 the two earlier baseline-fix augs enabled -- the PRUE
 \texttt{preprocess\_aug} (random-divisor input normalization, modeling
 cross-acquisition radiometric drift) and \texttt{RandomResizedCrop}
@@ -309,10 +303,9 @@ Together on the 10-country dense held-out:
 $32.9 \rightarrow 37.4$ Obj F1 (WS+TTA),
 $56.4 \rightarrow 58.1$ pixel IoU.
 The Obj F1 gain splits roughly evenly across precision and recall
-($+3.4$\,pts each at the watershed F1). We call this \emph{augmax};
-\emph{augplus} drops the seven bundle augmentations and keeps only
-\texttt{swap\_order} and per-band gamma on top of the PRUE
-normalization/crop stage.
+($+3.4$\,pts each at the watershed F1). We call this recipe --- the PRUE recipe
+extended with these additional augmentations --- \textbf{PRUE+}; it is the only
+change from PRUE, and it is applied identically to both sensors.
 
 \subsection{Sharper boundaries}
 
@@ -325,22 +318,18 @@ consistent gain across checkpoints.
 \paragraph{D4 test-time augmentation (+$0.5$--$1.1$\,pts Obj F1 once
 augmentations are on).} We use an 8-way flip+rotate ensemble~\cite{wang2019tta,moshkov2020tta}.
 D4 TTA has little effect on the no-augmentation baseline but improves
-models trained with \emph{augmax}.
+models trained with PRUE+.
 
 \subsection{Stronger recipe}
 
-\paragraph{Train on all 24 countries / 25 regions (+$7.8$\,pts Obj F1 over CC-BY).}
-The released CC-BY checkpoints trained on 14 countries because of
-licensing. We retrained on the full release; this lifts the B3 augmax model
-from $37.4 \rightarrow 45.2$ Obj F1 (WS+TTA) on the 10-country dense
-evaluation set. This is not a country-transfer claim; it measures the
-full-data protocol used by the released full PRUE checkpoints.
-
 \paragraph{Augmentations matter more than backbone scaling here.}
-Scaling B3 to B7 gives a small lift on the CC-BY split
-(\Cref{tab:polygon_metrics}) but hurts on the full-data split
-($-1.6$ Obj F1; \Cref{tab:ablation_summary}). We therefore use B3 as
-the main PlanetScope baseline.
+Scaling B3 to B7 gives no improvement on the dense held-out polygon metrics
+(PQ $36.0$ vs $36.0$, RQ $45.2$ vs $45.2$) and slightly worse polygon-count
+error; across all $23$ regions B7 is marginally behind ($-0.2$ PQ) and
+degrades the dense-smallholder regions most (Planet B3$\to$B7 per-region
+$\Delta$PQ: Cambodia $-9.3$, Rwanda $-6.5$, Vietnam $-5.1$\,pp --- distinct
+from the Planet$-$S2 deltas of \Cref{sec:polygon-first}). We therefore use the
+smaller B3 as the main PlanetScope baseline.
 
 
 % tab:heldout (full 4-postproc x 4-config sweep) lives in the supplementary
@@ -350,37 +339,24 @@ the main PlanetScope baseline.
 \subsection{Metric choice}
 \label{sec:polygon-first}
 
-Field-boundary models are not consumed as rasters. Downstream
-pipelines -- crop-yield estimation, irrigation accounting, subsidy
-verification, parcel-level food-security monitoring -- ingest
-\emph{vectorized parcels}. What these pipelines need is a polygon that
-closes, separates from its neighbors, and lands in the right place
-on the ground. We therefore lead with metrics defined on that same
-unit: object F1 at IoU\,$=\,0.5$, panoptic
-quality~\cite{kirillov2019panoptic} (PQ\,$=$\,SQ$\times$RQ, which
-cleanly separates recognition from localization),
-object F1 averaged over IoU thresholds $\{0.5,\ldots,0.95\}$~\cite{lin2014coco},
-and a mean symmetric boundary chamfer in \emph{meters}.
+Field-boundary outputs are consumed as vectorized parcels, not rasters, so we
+lead with polygon-defined metrics (the four of \Cref{sec:benchmark}, defined
+exactly in \Cref{app:metrics}) and treat pixel IoU as secondary: it is dominated
+by majority background, sensitive to the rasterized boundary width, and (for
+presence-only Kenya) misleading, so we report it only for continuity with the
+PRUE protocol~\cite{muhawenayo2026prue}.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=\linewidth]{figs/metric_example.pdf}
-    \caption{\textbf{The polygon metrics on worked examples.} Two
-    dense-smallholder held-out PlanetScope patches, a strong case (top) and a
-    hard one (bottom). Left to right: the PlanetScope image, the FTP-PRUE
-    \emph{augmax} predicted field mask, and that mask vectorized into polygons
-    and matched to the ground-truth parcels by IoU --- the same raster-to-vector
-    step the evaluation runs on. Green polygons are matched to a GT parcel
-    (true positives), red are unmatched (false positives), and gray outlines
-    are the GT parcels; the table lists the per-patch metrics. Object F1 at
-    IoU\,$=\,0.5$ rewards each field matched as a whole parcel,
-    PQ\,$=$\,SQ$\times$RQ factors that into how many parcels are found (RQ) and
-    how tightly the matched ones overlap (SQ), and the boundary chamfer is the
-    mean edge displacement in meters. The bottom row is the divergence we care
-    about: pixel IoU is still $72$ while object F1 collapses to $27$,
-    because the model fragments the dense parcels into many unmatched polygons
-    (red) even though the bulk field area is roughly right --- a failure pixel
-    IoU cannot see but the object metrics penalize directly.}
+    \caption{\textbf{Why we score polygons, not pixels.} Two held-out
+    PlanetScope patches --- a strong case (top) and a hard one (bottom). Left to
+    right: the image, the FTP-PRUE+ predicted field mask, and that mask vectorized
+    and matched to ground-truth parcels by IoU (green = matched, red = unmatched,
+    gray = GT); the table lists per-patch metrics. In the bottom row pixel IoU
+    stays high ($73$) while object F1 collapses ($29$) because the dense parcels
+    fragment into many unmatched polygons --- a failure the polygon metrics
+    penalize but pixel IoU cannot see.}
     \label{fig:metric_example}
 \end{figure}
 
@@ -393,57 +369,60 @@ scalar. PQ, averaged F1, and meter-scale chamfer are defined on polygons and
 are directly comparable: a $3$m boundary slip is $3$m whether
 scored at $3$m or $10$m.
 
-We retain pixel IoU as a secondary signal for continuity with the
-PRUE protocol~\cite{muhawenayo2026prue}. We do not use it as a headline
-metric, and we do not interpret Kenya pixel IoU because the Kenya labels
-are presence-only.
-
-\paragraph{Pixel IoU is secondary.}
-Pixel IoU remains useful for reproducing the PRUE protocol, but it is a
-poor summary of field-boundary utility here. The metric is sensitive to
-majority background, the physical width of the rasterized boundary class,
-and country-specific annotation gaps. In Kenya, FTW labels are
-presence-only, so treating unlabeled parcels as negatives makes pixel IoU
-misleading. We therefore report pixel IoU only in the protocol-comparison
-table and use polygon metrics for the main claims. A controlled
-re-gridding check shows that re-projecting Planet predictions to the
-$10$m S2 grid changes macro pixel IoU by $<0.1$
-(\Cref{tab:gsd_controlled}, appendix).
+\paragraph{Score the full pipeline, not the raw mask.} Because the deliverable
+is vectorized parcels, the unit of comparison is not a raw segmentation map but
+the full \mbox{prediction\,$\rightarrow$\,post-processing\,$\rightarrow$\,vectorization}
+pipeline that downstream users run. Post-processing that removes raster
+artifacts --- marker-controlled watershed that splits touching parcels, D4
+test-time augmentation that stabilizes boundaries --- can move the polygon
+metrics while barely changing pixel IoU, because pixel IoU is blind to
+the instance fragmentation these steps repair (\Cref{fig:metric_example}). We
+therefore never score a segmentation model in a vacuum: we fix one
+post-processing pipeline, apply it identically to every model and sensor, and
+report the full post-processing sweep (\Cref{tab:heldout}) so that ``which model
+is better'' is decided on the pipeline that is deployed, not on the raw mask.
 
 \paragraph{Grid resolution vs.\ true resolution.}
-A second, input-side control isolates how much of the Sentinel-2-to-PlanetScope
-gap is genuine resolution rather than output grid. We retrain the Sentinel-2
-model on imagery bilinearly upsampled to PlanetScope's $512\times512$ ($3$m)
-grid --- same recipe, same field of view, no new image information --- and
-score it through the full polygon pipeline (\Cref{tab:upsampled_s2_main}). The
-finer grid recovers $\sim$45\% of the object-F1 / PQ gap to native PlanetScope
-and lifts segmentation quality to near-parity ($77.5$ vs $77.9$): for the
-parcels it matches, the overlap is as good as $3$m imagery. The boundary
-chamfer, however, does \emph{not} improve --- it \emph{worsens} from $17.5$m to
-$28.0$m, against $7.4$m for native PlanetScope --- even though the upsampled
-predictions are scored on a finer grid that could in principle localize edges
-more precisely. Output-grid resolution can inflate the object-detection scores,
-but only genuine higher-resolution imagery delivers meter-scale boundary
-precision. This is exactly why we report the boundary chamfer, in meters,
-alongside the object metrics. Per-country numbers and the full experimental
-setup are in \Cref{app:upsampled_s2}.
+An input-side control isolates how much of the Sentinel-2-to-PlanetScope
+gap is genuine resolution rather than output grid. We give the Sentinel-2
+model PlanetScope's $3$m grid with no new information --- first by upsampling
+its input at evaluation ($\text{resize\_factor}{=}2$, our headline S2-B3 setup),
+then by retraining on bilinearly upsampled imagery --- and score each through
+the full polygon pipeline (\Cref{tab:upsampled_s2_main}). The object-level
+scores climb steadily toward PlanetScope (PQ $23.8\!\to\!27.4\!\to\!31.5$ vs
+$36.0$; SQ reaches near-parity, $77.5$ vs $77.9$): for the parcels it matches,
+the overlap is as good as $3$m imagery. The boundary chamfer, however, never
+tracks it: it stays $28$--$31$m against $7.4$m for native PlanetScope, even
+though the upsampled predictions are scored on a finer grid that could in
+principle localize edges more precisely. Output-grid resolution inflates the
+object-detection scores, but only genuine higher-resolution imagery delivers
+meter-scale boundary precision. This is why we report the boundary
+chamfer, in meters, alongside the object metrics. Per-country numbers and the
+full experimental setup are in \Cref{app:upsampled_s2}.
 
 \begin{table}[t]
     \centering
     \small
     \setlength{\tabcolsep}{5pt}
-    \caption{\textbf{Grid resolution vs.\ true resolution} (B3 \emph{augmax} full,
-    dense held-out, WS\,+\,TTA). Upsampling Sentinel-2 to PlanetScope's $3$m grid
-    recovers much of the object-level gap but not the boundary error. Full table in
-    \Cref{tab:upsampled_s2}. PQ/SQ/RQ are shown $\times 100$; boundary error is in meters.}
+    \caption{\textbf{Grid resolution vs.\ true resolution} (B3, dense held-out,
+    WS\,+\,TTA). Giving the Sentinel-2 model PlanetScope's $3$m grid with no new
+    information --- upsampling at evaluation (the headline S2-B3 row), then
+    training on upsampled imagery --- recovers most of the object-level (PQ/RQ)
+    gap to native PlanetScope, but the boundary chamfer never follows: only
+    genuine $3$m imagery delivers meter-scale edges. Boundary error is measured
+    on each row's own output grid (the headline \Cref{tab:polygon_metrics}
+    reports the native-$10$m S2 chamfer instead). Full per-country table in
+    \Cref{tab:upsampled_s2}. PQ/SQ/RQ $\times 100$; boundary error in meters.}
     \label{tab:upsampled_s2_main}
     \begin{tabular}{lcccc}
     \toprule
-    Imagery (grid) & PQ & SQ & RQ & Bd.\ err (m) \\
+    Sentinel-2 grid & PQ & SQ & RQ & Bd.\ err (m) \\
     \midrule
-    S2 ($256$, native)     & $27.1$ & $68.4$ & $34.9$ & $17.5$ \\
-    S2 ($512$, upsampled)  & $31.5$ & $77.5$ & $39.5$ & $28.0$ \\
-    Planet ($512$, native) & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{7.4}$ \\
+    Native ($256$, $10$m)         & $23.8$ & $67.8$ & $30.8$ & $18.6$ \\
+    Upsampled at eval ($512$)     & $27.4$ & $75.8$ & $34.9$ & $31.3$ \\
+    Trained upsampled ($512$)     & $31.5$ & $77.5$ & $39.5$ & $28.0$ \\
+    \midrule
+    Planet ($512$, native $3$m)   & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{7.4}$ \\
     \bottomrule
     \end{tabular}
 \end{table}
@@ -453,74 +432,57 @@ computed on the field-interior class after vectorization: predicted and
 ground-truth field instances are matched, and PQ, the object F1 scores, and
 the boundary chamfer are accumulated over those matches (definitions in
 \Cref{sec:benchmark}). \Cref{tab:polygon_metrics} additionally reports the
-polygon-count delta $|N_\text{pred} - N_\text{gt}|$, a simple over- vs
+normalized polygon-count error $|\Delta N|/N$, a simple over- vs
 under-segmentation diagnostic, and \Cref{fig:metric_example} shows the
 metrics on a worked example.
 
 \paragraph{Per-region head-to-head.}
-On the FTW \texttt{full\_data} protocol, macro PQ across the 23 regions
+Across the 23 test regions
 with complete polygon-metric outputs (all FTW regions except presence-only
-Kenya and label-sparse India) is $38.3$ (Planet) vs $31.1$
-(FTW-PRUE (B7), same recipe), a $+7.2$\,pp Planet win. Figure~\ref{fig:per_country_bars}
-unpacks PQ into per-region deltas. Planet wins on $21/23$ regions and
-loses two (two-sided sign test over the 23 decided regions:
-$p \approx 6.6\times10^{-5}$).
-The largest gains include Netherlands $+20.1$, Brazil $+15.5$,
-Luxembourg $+15.3$, Lithuania $+13.7$, and Corsica $+10.6$.
-The losses are Germany ($-7.0$\,pp) and Portugal ($-0.2$\,pp).
-Germany is the clearest S2 win, and it is expected:
-its fields are large and regular (median $3.5$\,ha, near the largest in the
-release) and are already well resolved at $10$\,m, so PlanetScope's finer GSD
-adds little detection signal. There, the Planet model's sharper, thinner
-boundary predictions fragment the large parcels and lower its recognition and
-segmentation quality (RQ $41$ vs $46$, SQ $80$ vs $86$) even though
-its mean boundary error is actually \emph{lower} than S2's ($16.2$\,m vs
-$19.0$\,m). Germany is precisely the regime --- large, sparse, geometrically
-simple fields --- where higher resolution is least needed, which is the
-mirror image of the smallholder regions where FTP gains most.
+Kenya and label-sparse India), macro-average PQ is $37.9$ (Planet) vs $32.3$
+(FTW-PRUE+ (B7), same recipe), a $+5.6$\,pp Planet win. Figure~\ref{fig:per_country_bars}
+unpacks PQ into per-region deltas. Planet wins on $18/23$ regions --- a
+directional consistency check across regions (two-sided sign test vs.\ a
+$50\%$ win rate, $p \approx 1.1\times10^{-2}$), not a test of out-of-distribution
+generalization, since under the PRUE protocol every region contributes both
+train and test chips. All configurations are trained with a single seed
+(\texttt{seed\_everything}\,$=7$); we report point estimates and do not claim
+seed-level significance.
+The largest gains are mid-size European regions; the five losses are Cambodia,
+Germany, Portugal, Slovenia, and Vietnam --- the last three within $1.6$\,pp of
+a tie. Germany is the one consistent Sentinel-2 win. At matched EfficientNet-B3 the
+two sensors are within $\sim$2.9\,pp on Germany (Planet $32.2$ vs S2 $35.1$);
+most of the larger headline gap is backbone capacity (scaling to B7 helps the
+S2 model on Germany but not Planet). The Planet model recognizes and localizes
+Germany's large parcels less well than S2-B7 (RQ $40$ vs $46$, SQ $80$ vs
+$86$) and tends to \emph{merge} adjacent parcels rather than fragment them
+(it predicts about half as many polygons as there are parcels), while its
+field-area accuracy (pixel IoU) is comparable; the boundaries there are often
+low-contrast cadastral lines rather than physical features.
 
-\paragraph{Does the 3m GSD advantage track field size?}
-Across regions, $\Delta$\,PQ is only weakly correlated with per-region
-median FTW field area (Pearson $r$ $=$ $+0.11$ on log-hectares, Spearman
-$\rho$ $=$ $+0.15$, $n$ $=$ 22; scatter in \Cref{fig:smallholder_scatter},
-appendix): the PQ gain is spread across regions and not tied to parcel size alone.
-Small-field regions do anchor several top wins (Luxembourg $+15.3$\,pp at
-$0.3$\,ha; Rwanda $+10.2$\,pp at $1.4$\,ha; Lithuania $+13.7$\,pp at
-$1.4$\,ha), but so does large-field Netherlands
-($+20.1$\,pp), whose PQ gain comes from sharper instance separation
-rather than resolving sub-pixel parcels.
-Germany is the one country that consistently favors S2 ($-7.0$\,pp): its
-large, regular fields are already well resolved at $10$\,m, so resolution
-adds little and the sharper Planet mask fragments large parcels
-(detailed above). Cambodia is a modest Planet win on PQ ($+3.1$\,pp)
-despite its monsoon-season imagery degradation
-(\Cref{sec:limitations}).
+\paragraph{At the field level, the smallholder gain is real.}
+Per-region averages are a confound: regions mix field sizes, and the
+$10$m S2 labels merge small adjacent parcels. Binning \emph{individual}
+GT fields by area (\Cref{tab:area_bins}) resolves it. FTP-PRUE+ beats both S2
+baselines in every size bin, and its \emph{relative} advantage is largest on
+the smallest parcels: $2.8\times$ the S2-B7 polygon quality and $3.4\times$ its
+localization AP on fields $<0.5$\,ha, narrowing to $1.3\times$ above $2$\,ha.
+Small fields remain the hardest regime for both sensors --- even Planet
+recognizes only $26\%$ of them at IoU\,$=0.5$ --- but $3$m resolution roughly
+triples their polygon quality.
+Because each sensor is scored against its own native-rasterized targets, this
+is an \emph{end-to-end} comparison: it folds together the $10$m label-grid
+representation loss and the model's detection difficulty --- the
+quantity a deployed pipeline delivers, not a matched-object score.
+This is the per-field evidence for the resolution-for-smallholder motivation
+that the per-region average obscures.
 
 \paragraph{Where higher resolution helps most.}
-\Cref{fig:improvement} shows the held-out patches with the largest per-patch
-object-F1 gain from Sentinel-2 to PlanetScope under the matched recipe. They
-are uniformly dense smallholder scenes: the 10m model collapses adjacent
-parcels into a few blobs or misses them entirely (per-patch object F1
-$8$--$31$), while the 3m model recovers the parcel grid (object F1
-$69$--$100$). These are the per-patch extremes, not the typical case: the
-largest single-patch gains land on small, tightly-packed fields that are
-sub-resolvable at 10m, even though aggregate per-region gain is only weakly
-tied to field size (\Cref{fig:smallholder_scatter}).
-
-\begin{figure*}[t]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figs/improvement_examples.pdf}
-    \caption{\textbf{Where the 3m imagery helps most.} The five held-out
-    patches with the largest per-patch object-F1 improvement (FTP-PRUE
-    \emph{augmax} full $-$ FTW-PRUE (B7) full, both WS+TTA). Columns: Sentinel-2
-    (10m), PlanetScope (3m), ground-truth field instances, the S2-model
-    prediction, and the Planet-model prediction (each color is a distinct field
-    instance). Per-patch object F1 is annotated at left. In every case the S2
-    model leaves large gaps or merges neighbours while the Planet model recovers
-    the dense parcel structure; these are the patches with the largest per-patch
-    gain, the regime where higher resolution helps most.}
-    \label{fig:improvement}
-\end{figure*}
+The held-out patches with the largest per-patch object-F1 gain are dense
+smallholder scenes where the 10m model collapses adjacent parcels into blobs
+(per-patch object F1 $8$--$31$) while the 3m model recovers the parcel grid
+($69$--$100$); these per-patch extremes are shown in \Cref{fig:improvement}
+(appendix).
 
 % tab:heldout_pc (per-country pixel IoU on 11 held-out countries) is
 % moved to the supplementary appendix; macro pixel IoU is in
@@ -528,8 +490,8 @@ tied to field size (\Cref{fig:smallholder_scatter}).
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.8\linewidth]{figs/per_country_bars_pq.pdf}
-\caption{\textbf{Per-region $\Delta$ PQ on the FTW \texttt{full\_data} protocol} (FTP-PRUE \emph{augmax} full $-$ FTW-PRUE (B7) full). Wins (olive) and losses (sienna). Planet wins PQ on $21$ of $23$ regions; Germany and Portugal are the two losses. $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
+    \includegraphics[width=0.8\linewidth]{figs/per_country_bars.pdf}
+\caption{\textbf{Per-region $\Delta$ PQ across the 23 test regions} (FTP-PRUE+ $-$ FTW-PRUE+ (B7)). Wins (olive) and losses (sienna). Planet wins PQ on $18$ of $23$ regions; the five losses are Cambodia, Germany, Portugal, Vietnam, and Slovenia (the last three within $1.6$\,pp of a tie). $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
     \label{fig:per_country_bars}
 \end{figure}
 
@@ -538,35 +500,52 @@ tied to field size (\Cref{fig:smallholder_scatter}).
 The full lever-by-lever recipe sweep --- including the rejected clDice,
 SDF, frame-field, CutMix, and curriculum variants --- is consolidated in
 \Cref{tab:ablation_summary} (appendix). The largest effects are the
-augmentation bundle, full-data training ($+7.8$\,pp Obj F1), and, among the
-rejected levers, the SDF auxiliary head ($-2.6$).
+augmentation bundle and, among the rejected levers, the SDF auxiliary head
+($-3.1$).
 
-The main ablation result is that FTP needs stronger regularization than the S2 recipe: \textbf{augmax} adds +4.5 Obj F1 over \emph{augplus}, while CutMix, clDice, frame fields, and curriculum boundary dilation do not improve the final model. Full-data training adds +7.8 Obj F1 over the CC-BY split. The SDF auxiliary head helps without augmentations but hurts with \emph{augmax}, suggesting that the auxiliary task is redundant once the model is already regularized.
+The main ablation result is that FTP needs stronger regularization than the S2 recipe: PRUE+ adds +4.5 Obj F1 over the lighter swap-order/gamma step, while CutMix, clDice, frame fields, and curriculum boundary dilation do not improve the final model. The SDF auxiliary head helps without augmentations but hurts with PRUE+, suggesting that the auxiliary task is redundant once the model is already regularized.
 
 \section{Limitations and future work}
 \label{sec:limitations}
 
-\textbf{Coverage.} 7{,}800 (5.5\%) of (patch, window) targets lack a PlanetScope companion in the released index, leaving a net yield of $94.5\%$ (133{,}168 of 140{,}968 targets; \Cref{tab:scope}). Because we release only patches with both seasonal windows, a patch missing either window is dropped in full. The dominant cause is activation failures that never produced a usable URL despite repeated reactivation; a smaller fraction extracted successfully but contained only low-quality imagery (heavy cloud, shadow, or unusable per UDM2) for which the resampling tool found no acceptable alternative scene within the season. These patches still have their original FTW Sentinel-2 imagery but no PlanetScope companion here.
+\textbf{Coverage and selection bias.} 7{,}800 (5.5\%) of (patch, window) targets
+lack a PlanetScope companion (net yield $94.5\%$; \Cref{tab:scope}), mostly from
+activation failures or patches with only low-quality imagery and no acceptable
+same-season replacement; these keep their original FTW Sentinel-2 imagery. The
+dropped fraction is not uniform: retention is lowest in cloudier countries
+(Portugal $24\%$, Finland $75\%$, the Netherlands $77\%$), and dropped patches
+are systematically cloudier and \emph{lower} label-density than kept ones.
+Reported numbers for those regions therefore reflect a cloudier-leaning
+surviving subset, and the release under-represents low-density scenes in cloudy
+regions; full per-country cross-tabs ship with the index.
 
-\textbf{Selection bias of dropped patches.} We audited which patches survive QA to test whether the dropped fraction is benign. Per-patch retention (the fraction of a country's targets that survive both scene matching and QA, distinct from the usable-patch rate of \Cref{app:udm2_country}) is uneven across countries: Portugal (24\%, 66 patches), Finland (75\%), and the Netherlands (77\%) anchor the low end, while Croatia, Brazil, and Latvia exceed 96\%. Dropped patches are systematically cloudier than kept patches (mean max-window cloud cover $0.041$ vs. $0.024$; Mann-Whitney U two-sided $p < 10^{-300}$), with drop rate rising from $13\%$ in the cleanest cloud bin ($<1\%$) to $36\%$ in the cloudiest ($5\text{--}8\%$) within Planet's hard $10\%$ search filter. Conversely, dropped patches have \emph{lower} mean label density than kept patches ($0.276$ vs. $0.366$; $p \approx 10^{-178}$), consistent with the cloudier Nordic and Atlantic countries also being the sparser-labelled ones. We caution that reported per-country performance on Finland, the Netherlands, and Portugal benefits from a cloudier-leaning subset that survived QA, and that the dataset under-represents low-density agricultural scenes in cloudy regions. Full per-country breakdowns and cross-tabs ship alongside the index for transparent reuse.
+\textbf{Hard evaluation regions.} Kenya is the only presence-only FTW region, so
+it is excluded from every supervised macro-average and reported only as a marked
+row (\Cref{tab:heldout_pc}); a cleaner comparison would also mask its unlabeled
+land during training. Portugal (terraced micro-fields near the PlanetScope GSD)
+and Cambodia stay hard: Cambodia's FTW v2 windows overlap only monsoon-season
+coverage, giving the release's highest haze fraction and a
+high-precision/low-recall model that drives the Cambodia loss
+(\Cref{sec:polygon-first}).
 
-\textbf{Temporal misalignment.} Our PlanetScope acquisition date is the closest cloud-free match to the FTW season midpoint, not to the exact Sentinel-2 acquisition date. The gap is usually under two weeks but can exceed a month in cloudy regions.
+\textbf{Temporal and spectral scope.} The PlanetScope date is the closest
+cloud-free match to the FTW season midpoint (usually within two weeks), and FTP
+ships the two FTW v2 seasonal windows per patch, so we make no multi-year or
+cross-year claim. The release targets the 4-band Dove product; 8-band SuperDove
+would add red-edge/yellow bands but postdates most FTW v2 windows.
 
-\textbf{Temporal generalization.} FTP ships exactly two seasonal windows per patch, drawn from the FTW v2 season definitions; we make no claim about multi-year or cross-year transfer. Models trained on this release should be re-evaluated before deployment on a different year's imagery.
+\textbf{Societal impact.} Parcel-level field maps can be misused, for example for
+farm-level surveillance or credit profiling of individual growers, which would
+fall hardest on smallholders. We intend the labels and predictions for aggregate
+monitoring rather than targeting individual farms.
 
-\textbf{Spectral coverage.} The current release targets the 4-band Dove product (\texttt{ortho\_analytic\_4b\_sr}). 8-band SuperDove imagery would add red-edge and yellow bands that help vegetation discrimination, but FTW v2's labeled windows are historical and most predate SuperDove's full operational coverage, so the 4-band Dove archive is the only product with end-to-end coverage of the FTW season range. A SuperDove companion release is feasible only for the more recent country windows.
-
-\textbf{Presence-only and hard transfer regions.} Kenya is presence-only in FTW: the tile annotates a subset of fields and leaves surrounding land unlabeled, so its background class is untrusted and supervised pixel/object metrics computed against it are not comparable across models. We therefore exclude Kenya from every supervised macro-average in this paper and report it only as a clearly marked presence-only row (\Cref{tab:heldout_pc}). Our evaluation tooling supports masking presence-only backgrounds to the ignore index at evaluation time, but the training labels still rasterize unlabeled Kenya land as background; a cleaner comparison should retrain with presence-only pixels masked out. Portugal remains a hard transfer case because its terraced micro-fields are near or below the PlanetScope GSD. These regions need either targeted data acquisition or a transfer-specific strategy.
-
-\textbf{Forced monsoon acquisitions (Cambodia).} Cambodia is forced into monsoon-season PlanetScope acquisitions: the FTW v2 Cambodia window range overlaps only July--August 2021 PSScene coverage, with no dry-season fallback for the resampling tool to draw from. The result is the highest light-haze fraction of any region in the release ($3.7\times$ the global mean) and the lowest \texttt{clear} percentile. The model becomes high-precision / low-recall under that imagery (precision $47.5$, recall $29.4$), missing fields with diffuse boundaries. This is the primary driver of the Cambodia Obj F1 loss; on PQ and boundary chamfer Cambodia is still a Planet win (see \Cref{sec:polygon-first}).
-
-\textbf{Societal impact.} Parcel-level field maps can be misused --- for example, by firms for farm-level surveillance or for insurance and credit profiling of individual growers, which would fall hardest on smallholders. We judge the benefits to global agricultural and food-security monitoring to outweigh these risks, and intend the labels and predictions for aggregate analysis rather than targeting individual farms.
-
-\textbf{Future work.} Country-scale inference is the next practical test of FTP, especially in regions where small fields and dense parcel boundaries make 10m products brittle. We also plan to release trained PlanetScope checkpoints and investigate resolution-agnostic joint training that combines the Planet and Sentinel-2 versions of FTW in a single model. These directions are outside the scope of this paper.
+\textbf{Future work.} Country-scale inference is the next practical test of FTP,
+and we plan to release trained PlanetScope checkpoints and explore
+resolution-agnostic joint training over the Planet and Sentinel-2 versions of FTW.
 
 \section{Conclusion}
 
-Fields of the Planet (FTP) is a 3m PlanetScope companion to Fields of The World. It releases co-registered PlanetScope imagery, UDM2 quality masks, rasterized FTW labels, and the range-read pipeline used to build them. Under a matched PRUE recipe, FTP improves polygon-level field delineation over Sentinel-2 on PQ, F1$_{[.5:.95]}$, polygon-count error, and meter-scale boundary error. The result is a high-resolution FTW benchmark that keeps the original label protocol and splits while reducing the operational cost of working with PlanetScope imagery.
+Fields of the Planet (FTP) is a 3m PlanetScope companion to Fields of The World. It releases co-registered PlanetScope imagery, per-patch UDM2 quality statistics, rasterized FTW labels, and the range-read pipeline used to build them. Under a matched PRUE recipe, FTP improves polygon-level field delineation over Sentinel-2 on PQ, F1$_{[.5:.95]}$, and meter-scale boundary error. The result is a high-resolution FTW benchmark that keeps the original label protocol and splits while reducing the operational cost of working with PlanetScope imagery.
 
 {\small
 \bibliographystyle{ieeenat_fullname}
@@ -629,9 +608,13 @@ With $\mathcal{T}=\{0.5,0.55,\ldots,0.95\}$ ($|\mathcal{T}|=10$)~\cite{lin2014co
 \end{equation}
 
 \paragraph{Polygon-count error.}
-Per patch we report $|\Delta N_\text{poly}|=|M-N|$, the absolute difference
-between the number of predicted and ground-truth polygons, averaged over
-patches. It is a coarse over/under-segmentation check independent of matching.
+Per patch the absolute count error is $|\Delta N_\text{poly}|=|M-N|$, the
+difference between the number of predicted and ground-truth polygons. The raw
+mean scales with parcel density --- a patch with hundreds of parcels dominates
+the average --- so we report it normalized: for each country we divide the mean
+per-patch $|\Delta N_\text{poly}|$ by the mean per-patch ground-truth count $N$,
+then macro-average across countries ($|\Delta N|/N$). It is a coarse
+over/under-segmentation check independent of matching.
 
 \paragraph{Symmetric boundary chamfer~\cite{cheng2021biou}.}
 For each matched pair $(g,p)\in\mathcal{M}_{0.5}$, let $B_g$ and $B_p$ be the
@@ -666,75 +649,121 @@ RQ, SQ, PQ, and $\mathrm{F1}_{[.5:.95]}$; the chamfer is averaged over that
 country's matched pairs. \Cref{tab:polygon_metrics} reports the macro-average
 across the ten dense-label held-out countries (presence-only Kenya excluded;
 see \Cref{sec:limitations}). Where a country has no predicted polygons under a
-given configuration (Portugal under some CC-BY models), its boundary error is
+given configuration (e.g.\ Portugal under the weaker S2 models), its boundary error is
 undefined and that configuration's two boundary columns average the remaining
 nine countries; every other column averages all ten.
 
-\section{Access pipeline and operational lessons}
-\label{app:pipeline}
+\paragraph{Field-area breakdown (\Cref{tab:area_bins}).}
+To localize \emph{where} resolution helps, we also report the polygon metrics
+per field-size bin. Each ground-truth polygon is assigned by its area to
+\emph{small} ($<0.5$\,ha), \emph{medium} ($0.5$--$2$\,ha), or \emph{large}
+($>2$\,ha); the $2$\,ha cut is the standard smallholder ceiling~\cite{lowder2016farms}
+and $0.5$\,ha splits the dominant sub-hectare mass (median field $=0.41$\,ha).
+A matched / missed ground-truth polygon is
+credited to the bin of \emph{its} area; a false positive to the bin of the
+predicted polygon's area. The per-bin columns are the same quantities defined
+above evaluated within a bin: $\mathrm{RQ}_{.5}=\mathrm{F1}_{0.5}$ (detection),
+$\mathrm{F1}_{0.75}$, $\mathrm{AP}=\mathrm{F1}_{[.5:.95]}$ (localization), and
+$\mathrm{PQ}=\mathrm{SQ}\times\mathrm{RQ}_{.5}$. Unlike the per-country
+aggregation, per-bin $\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ and matched IoUs are
+pooled (micro) across \emph{all} dense-label patches before forming each bin's
+metrics, so sparsely-populated bins stay stable; the ``All'' row pools every
+field. Because area in hectares is grid-invariant, the bins are comparable
+across sensors even though the $10$m and $3$m label rasterizations resolve
+different numbers of small fields.
 
-The pipeline runs three phases, each independently sharded and resumable from JSONL caches:
+\begin{table*}[h]
+    \centering
+    \caption{\textbf{Polygon metrics by field-area bin and IoU threshold --- the
+    $3$m advantage is largest on small fields.} Full breakdown behind the
+    ``PQ by GT area'' columns of \Cref{tab:polygon_metrics}. Micro-pooled over
+    fields across the 10 dense held-out countries (so the ``All'' column differs
+    from the macro-averaged headline of \Cref{tab:polygon_metrics}); fields
+    binned by GT polygon area (Small $<0.5$, Medium $0.5$--$2$, Large
+    $>2$\,ha). RQ$_{.5}$ is object F1 at IoU\,$=0.5$ (detection);
+    PQ\,$=$\,SQ$\times$RQ; AP is averaged over IoU\,$[.5{:}.95]$ (localization).
+    Each model is scored against its own-sensor GT (definitions in
+    \Cref{app:metrics}). Best per column in \textbf{bold}; shown $\times100$.}
+    \label{tab:area_bins}
+    \input{figs/area_bins.tex}
+\end{table*}
 
-\begin{enumerate}
-\itemsep0em
-    \item \textbf{Search.} Per (patch, window), call the Planet Data API with a date range, geometry filter, and cloud-cover ceiling. Output: best item\_id per patch.
-    \item \textbf{Activate.} Deduplicate item\_ids globally; call \texttt{:activate} for SR and UDM2 in parallel. Output: signed Google Cloud Storage URLs.
-    \item \textbf{Extract.} Group all (patch, window) by scene, open each COG once with \texttt{rasterio} via \texttt{/vsicurl/}, range-read every member's window, write a local GeoTIFF in PSScene's native UTM at 3m. No reprojection.
-\end{enumerate}
-
-All phases run on CPU nodes; no GPUs are used. We extract with windowed COG
-range reads via \texttt{/vsicurl/}, which need only the Data API role and avoid
-materializing full scenes through the Orders API.
-
-\paragraph{Activation reliability.} Across 6{,}113 unique scenes, $\sim$24\% of
-\texttt{:activate} calls returned URLs that failed with HTTP 400 on the first
-range read. A second \texttt{:activate} call typically returned a working URL,
-so the pipeline includes an automatic reactivation pass; this recovered 99\% of
-the affected patches.
-
-\section{Per-country UDM2 quality}
+\section{Dataset scope and per-tile UDM2 quality}
+\label{app:scope}
 \label{app:udm2_country}
 
 \begin{table}[h]
 \centering
-\caption{\textbf{Per-patch UDM2 statistics.} Fractions are pixel-area within the patch. Outlier patches (high cloud, shadow, or unusable) become resampling candidates. \textbf{p99} column bolded as the most informative percentile.}
-\label{tab:udm2}
+\begin{minipage}[t]{0.54\linewidth}
+\centering
+\captionof{table}{\textbf{Dataset scope.} FTW contains 24 countries and 25 labeled regions because Corsica is released separately from mainland France. Each FTW patch has two seasonal windows. \emph{Success rate} is the fraction of (patch, window) targets with a successfully extracted PlanetScope image.}
+\label{tab:scope}
 \small
-\begin{tabular}{l S[table-format=3.1] S[table-format=3.1] S[table-format=3.1] S[table-format=3.1]}
+\begin{tabular}{lr}
 \toprule
-{Band} & {median} & {p90} & {\bfseries p99} & {max} \\
+\textbf{Property} & \textbf{Value} \\
 \midrule
-\texttt{clear}      & 100.0 & 100.0 & \bfseries 100.0 & 100.0 \\
-\texttt{cloud}      &   0.0 &   0.0 & \bfseries  88.0 & 100.0 \\
-\texttt{shadow}     &   0.0 &   0.0 & \bfseries  21.0 & 100.0 \\
-\texttt{light\_haze}&   0.0 &   0.0 & \bfseries  41.0 & 100.0 \\
-\texttt{unusable}   &   0.0 &   0.8 & \bfseries  51.9 & 100.0 \\
+\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Geographic coverage}}\\
+Countries / regions / continents & 24\,/\,25\,/\,4 \\
+FTW patches                  & 70{,}484 \\
+(Patch, window) targets      & 140{,}968 \\
+\midrule
+\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Source imagery}}\\
+Unique PSScene COGs touched  & 6{,}113 \\
+Mean windows per scene       & 21.8 \\
+\midrule
+\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Released artifacts}}\\
+PlanetScope SR (4-band, uint16) & 133{,}168 \\
+Per-window UDM2 QA statistics   & 129{,}490 \\
+3-class labels (uint8, 1/patch) & 66{,}584 \\
+\midrule
+\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Yield}}\\
+Successfully matched pairs      & 133{,}168 \\
+\textbf{Success rate}           & \textbf{94.5\%} \\
+Total dataset size              & 102\,GB \\
 \bottomrule
 \end{tabular}
-\par\vspace{2pt}\footnotesize Values are percent of patch area.
+\end{minipage}\hfill
+\begin{minipage}[t]{0.43\linewidth}
+\centering
+\captionof{table}{\textbf{Per-tile UDM2 coverage.} For each UDM2 class, the percentage of the 129{,}490 (patch, window) tiles with UDM2 statistics whose flagged area exceeds a coverage threshold. Tiles are near-fully clear: $95.9\%$ are $\ge\!50\%$ clear. Degraded tiles ($\ge\!50\%$ of the window flagged cloud / shadow / haze / unusable; the bolded column) become resampling candidates.}
+\label{tab:udm2}
+\small
+\begin{tabular}{l S[table-format=2.1] S[table-format=2.1] S[table-format=2.1]}
+\toprule
+{Band} & {any (\textgreater0)} & {\bfseries $\ge 50\%$} & {$\ge 90\%$} \\
+\midrule
+\texttt{clear}      & 98.9 & \bfseries 95.9 & 91.1 \\
+\texttt{cloud}      &  9.0 & \bfseries  1.0 &  0.2 \\
+\texttt{shadow}     &  6.9 & \bfseries  0.2 &  0.0 \\
+\texttt{light\_haze}&  5.1 & \bfseries  2.0 &  1.1 \\
+\texttt{unusable}   & 11.3 & \bfseries  1.3 &  0.4 \\
+\bottomrule
+\end{tabular}
+\par\vspace{2pt}\footnotesize \% of (patch, window) tiles; each tile's class area as a fraction of the window.
+\end{minipage}
 \end{table}
 
-Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release: the lowest rates are Portugal (40.9\%), South Africa (56.5\%), and the Netherlands (76.5\%); Brazil and Croatia exceed 98\%. Smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
+Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release: the lowest rates are Portugal (48.5\%), the Netherlands (79.1\%), and Cambodia (80.4\%); Brazil and Croatia exceed 99\%. Smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
 
 \section{Held-out post-processing sweep}
 \label{app:heldout_sweep}
 
 \Cref{tab:heldout} reports the full 4 post-processing combos
-(watershed and/or D4 TTA) $\times$ 4 \textbf{augmax} configurations
-(B3/B7 $\times$ CC-BY/full) Obj F1 sweep on the 10-country dense
-held-out set referenced from the main text.
+(watershed and/or D4 TTA) $\times$ B3/B7 PRUE+ Obj F1 sweep on
+the 10-country dense held-out set referenced from the main text.
 
 \begin{table*}[h]
     \centering
     \scriptsize
     \caption{\textbf{Held-out benchmark.} 10-country dense-label
     held-out Obj F1 across four post-processing combos (watershed
-    and/or D4 TTA) and four \textbf{augmax} configurations per imagery
-    source (B3/B7 $\times$ CC-BY/full train split). Presence-only
+    and/or D4 TTA) for the B3 and B7 PRUE+ models per imagery
+    source. Presence-only
     Kenya is excluded from all supervised macro-averages; Portugal is
     retained. The released PRUE (S2) checkpoints are
     listed as reference (their numbers are on the FTW
-    \texttt{full\_data} test split, not held-out only;
+    PRUE test split, not held-out only;
     see~\Cref{tab:full_data} for the held-out macro of our own runs).
     Best per row in bold. Obj F1 and pixel IoU are shown $\times 100$.}
     \label{tab:heldout}
@@ -744,7 +773,7 @@ held-out set referenced from the main text.
 \begin{table}[h]
     \centering
     \small
-\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the FTW \texttt{full\_data} split. Our rows: 10-country dense held-out macro summaries for orientation only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary. Pixel IoU and Obj F1 are shown $\times 100$.}
+\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows: published values on the PRUE test split. Our rows: 10-country dense held-out macro summaries for orientation only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary. Pixel IoU and Obj F1 are shown $\times 100$.}
     \label{tab:full_data}
     \input{figs/full_data_compare.tex}
 \end{table}
@@ -753,7 +782,7 @@ held-out set referenced from the main text.
     \centering
     \footnotesize
     \setlength{\tabcolsep}{3pt}
-    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 10-country dense-label held-out set unless noted (Obj F1 with WS+TTA where applicable; presence-only kenya excluded). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
+    \caption{\textbf{Recipe ablation summary.} Effect sizes on the 10-country dense-label held-out set unless noted (Obj F1 with WS+TTA where applicable; presence-only Kenya excluded). Adopted in our final recipe (\checkmark) vs rejected ($\times$).}
     \label{tab:ablation_summary}
     \begin{tabular}{@{}p{0.62\linewidth} @{\hspace{2pt}}c@{\hspace{2pt}} r@{}}
     \toprule
@@ -761,24 +790,23 @@ held-out set referenced from the main text.
     \midrule
     \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Augmentation \& training}} \\
     PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.8} \\
-    \texttt{swap\_order} + per-band $\gamma$ (\emph{augplus}) & \checkmark & {\color{earthDark}\bfseries +1.0} \\
-    Geometry/noise bundle (\emph{augmax}: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
-    Train on full release vs CC-BY 14 & \checkmark & {\color{earthDark}\bfseries +7.8} \\
-    Backbone B3 $\to$ B7 (full split) & $\times$ & {\color{earthSienna}\bfseries -1.6} \\
+    \texttt{swap\_order} + per-band $\gamma$ & \checkmark & {\color{earthDark}\bfseries +1.0} \\
+    Geometry/noise bundle (PRUE+: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
+    Backbone B3 $\to$ B7 (no gain, larger) & $\times$ & {\color{black!50}\bfseries $\sim$0} \\
     Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries failed} \\
-    SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with \emph{augmax}, full) & $\times$ & {\color{earthSienna}\bfseries -2.6} \\
+    SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with PRUE+) & $\times$ & {\color{earthSienna}\bfseries -3.1} \\
     Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries -1.7} \\
     CutMix~\cite{yun2019cutmix} (2\,px ignore) & $\times$ & {\color{earthSienna}\bfseries -0.1} \\
     Curriculum~\cite{bengio2009curriculum} boundary dilation $3\!\to\!0$\,px & $\times$ & {\color{earthSienna}\bfseries -0.4} \\
     \midrule
     \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Inference \& post-processing}} \\
     Marker-controlled watershed & \checkmark & {\color{earthDark}\bfseries +0.5} \\
-    D4 8-way TTA (with \emph{augmax}) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
+    D4 8-way TTA (with PRUE+) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
     Replicate input padding & $\times$ & {\color{earthSienna}\bfseries -8\,/\,-10} \\
     \midrule
     \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Checkpoint selection}} \\
     Austria-only val vs mixed & \checkmark & {\color{earthDark}\bfseries +4\,IoU} \\
-    Last vs best-by-val checkpoint & either & {\color{black!50}\bfseries $\pm$0.5} \\
+    Last vs best-by-val checkpoint & either & {\color{black!50}\bfseries $\le0.3$} \\
     \bottomrule
     \end{tabular}
 \end{table}
@@ -793,85 +821,34 @@ held-out set referenced from the main text.
     \centering
     \scriptsize
     \caption{\textbf{Per-region pixel IoU on the held-out regions.}
-    FTW-PRUE (B3, CC-BY) vs FTP-PRUE \emph{augmax} full + watershed + D4 TTA
-    (main Planet row). The S2 model is trained on the CC-BY 14-country split;
-    ours on the full 24-country / 25-region release. Kenya is
+    FTW-PRUE+ (B3) vs FTP-PRUE+ + watershed + D4 TTA
+    (main Planet row). Both models use the same PRUE per-region chip splits.
+    Kenya is
     presence-only, so its supervised pixel/object metrics are omitted
     and the macro row averages the 10 dense-label regions only. IoU and Obj F1 are shown $\times 100$.}
     \label{tab:heldout_pc}
     \input{figs/heldout_per_country.tex}
 \end{table*}
 
-\section{Per-region $\Delta$PQ vs.\ $\Delta$Obj F1 (full-data protocol)}
+\section{Per-region $\Delta$PQ vs.\ $\Delta$Obj F1 (23 test regions)}
 \label{app:per_country_objf1}
 
-\Cref{fig:per_country_objf1_appx} places per-region $\Delta$ PQ (polygon) next to $\Delta$ Obj F1 (the FTW-official pixel-instance metric reported by the released PRUE models~\cite{muhawenayo2026prue}, \emph{not} the polygon recognition quality of \Cref{tab:polygon_metrics}) under the same region order. The two metrics rank regions differently: on the pixel-instance object F1 Planet wins $11$ of $22$ regions (Brazil lacks a full-data PlanetScope Obj F1 eval; it is present in the polygon-PQ comparison) --- Germany ($-7.1$), France ($-3.5$), and Cambodia ($-8.6$) are the largest losses --- whereas on polygon PQ it wins $21$ of $23$ (\Cref{fig:per_country_bars}). The pixel-instance metric is recall-sensitive and grid-dependent, so it understates the resolution benefit the polygon metrics surface. The Cambodia loss reflects the monsoon-season imagery degradation described in \Cref{sec:limitations}; on PQ Cambodia is a Planet win ($+3.1$\,pp).
+\Cref{fig:per_country_objf1_appx} places per-region $\Delta$ PQ (polygon) next to $\Delta$ Obj F1 (the FTW-official pixel-instance metric reported by the released PRUE models~\cite{muhawenayo2026prue}, \emph{not} the polygon recognition quality of \Cref{tab:polygon_metrics}) under the same region order. The two metrics rank regions differently: on the pixel-instance object F1 Planet wins $11$ of $22$ regions (Brazil lacks a PlanetScope Obj F1 eval; it is present in the polygon-PQ comparison), with Germany ($-7.1$), France ($-3.5$), and Cambodia ($-8.6$) the largest losses, whereas on polygon PQ it wins $18$ of $23$ (\Cref{fig:per_country_bars}). The pixel-instance metric is recall-sensitive and grid-dependent, so it understates the resolution benefit the polygon metrics surface. The Cambodia loss reflects the monsoon-season imagery degradation described in \Cref{sec:limitations}; against the corrected S2-B7 baseline Cambodia is now a loss on PQ as well ($-7.3$\,pp).
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.7\linewidth]{figs/per_country_both.pdf}
-    \caption{\textbf{Per-region $\Delta$ (FTP-PRUE $-$ FTW-PRUE (B7)) under two metrics, same region order.} Left: polygon panoptic quality (PQ; released B3-full checkpoint vs.\ S2 B7-full, \Cref{tab:polygon_metrics}). Right: the FTW-official pixel-instance object F1 used by the released PRUE models~\cite{muhawenayo2026prue}. Polygon PQ shows a broad, consistent PlanetScope advantage ($21/23$ regions), whereas the pixel-instance object F1 is far noisier and barely favors Planet ($11/22$). The two metrics disagree because pixel-instance object F1 is recall-sensitive and grid-dependent, so it \emph{understates} the resolution benefit that the polygon metrics surface --- which is why we lead with polygon-level metrics.}
+    \includegraphics[width=0.85\linewidth]{figs/per_country_pq_objf1.pdf}
+    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7; same per-region $\Delta$PQ as \Cref{fig:per_country_bars}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
     \label{fig:per_country_objf1_appx}
 \end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.6\linewidth]{figs/smallholder_scatter_paper.pdf}
-    \caption{\textbf{PQ gain vs.\ field size.}
-    Per-region median FTW polygon area (hectares, log scale; EPSG:6933
-    equal-area) vs $\Delta$\,PQ (FTP-PRUE \emph{augmax} full WS+TTA $-$
-    FTW-PRUE (B7) full) on the FTW \texttt{full\_data} protocol
-    ($n=22$: the 23 PQ head-to-head regions minus Brazil, which has no
-    per-region field-size estimate). Positive $y$ = Planet wins.
-    Countries $<\!2$\,ha median (sienna, \cite{lowder2016farms}) are
-    smallholder; remainder olive. Pearson $r=+0.11$, Spearman
-    $\rho=+0.15$: the gain holds across field sizes, not just small ones.
-    Small-field anchors: luxembourg $+15.3$, rwanda $+10.2$, lithuania
-    $+13.7$; large-field netherlands $+20.1$ shows the gain extends to
-    large parcel sizes. Germany ($-7.0$) is the largest loss.}
-    \label{fig:smallholder_scatter}
-\end{figure}
-
-\section{Controlled GSD experiment}
-\label{app:gsd_controlled}
-
-\Cref{tab:gsd_controlled} reports the controlled re-gridding
-experiment referenced in \Cref{sec:polygon-first}. For each model we
-run inference on its native imagery, take the argmax, then
-nearest-neighbour reproject the prediction onto the \emph{other}
-sensor's GT grid and score 2-class pixel IoU against that grid's GT.
-If pixel IoU were primarily a function of evaluation-grid resolution,
-moving a model's prediction across grids would change its score
-substantially. It does not: Planet's macro IoU changes by less than
-$0.1$ across grids, and S2's only drops when its $10$m predictions
-are nearest-neighbour resampled to a $3$m grid -- a resampling
-artifact, not a model property.
-
-\begin{table}[h]
-    \centering
-    \small
-    \caption{\textbf{Controlled re-gridding experiment.} Macro pixel IoU on the 10-country dense held-out set (presence-only kenya excluded), no TTA, no watershed. Native-grid inference, then NN-reprojection of the argmax onto the other sensor's GT grid. Re-projecting Planet predictions to $10$m changes IoU by $<0.1$. Pixel IoU is shown $\times 100$.}
-    \label{tab:gsd_controlled}
-    \begin{tabular}{llc}
-    \toprule
-    Model & Eval grid & Macro Pixel IoU \\
-    \midrule
-    Planet B3 augmax full & $3$m (native)              & $67.8$ \\
-    Planet B3 augmax full & $10$m (NN-reprojected)     & $67.7$ \\
-    S2 B7 augmax full     & $10$m (native)             & $65.4$ \\
-    S2 B7 augmax full     & $3$m (NN-reprojected)      & $63.0$ \\
-    \bottomrule
-    \end{tabular}
-\end{table}
 
 \section{Upsampled-Sentinel-2 control}
 \label{app:upsampled_s2}
 
-The re-gridding check in \Cref{app:gsd_controlled} moves a fixed model's
-predictions across grids; this is the complementary \emph{input-side}
-control. We retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery
+This \emph{input-side} control isolates genuine resolution from the
+evaluation grid. We retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery
 bilinearly upsampled to PlanetScope's $512\times512$ ($3$m) grid --- identical
-\emph{augmax} recipe, same field of view, no new image information --- and
+PRUE+ recipe, same field of view, no new image information --- and
 score it through the full polygon pipeline (\Cref{tab:upsampled_s2}). Giving
 the S2 model the finer output grid recovers roughly $45\%$ of its PQ and
 object-F1 gap to native PlanetScope and brings segmentation quality to
@@ -879,7 +856,7 @@ near-parity ($77.5$ vs $77.9$): for the parcels it matches, the overlap is
 as good as $3$m imagery.
 
 Boundary precision tells the opposite story. The mean symmetric chamfer does
-not improve --- it \emph{worsens} from $17.5$m to $28.0$m, against $7.4$m for
+not improve --- it \emph{worsens} from $18.6$m to $28.0$m, against $7.4$m for
 native PlanetScope --- even though the upsampled predictions are scored on a
 finer $3$m grid that could in principle localize edges more precisely.
 Upsampling lets the model detect and loosely overlap more small fields, but
@@ -887,8 +864,8 @@ their boundaries are interpolated from $10$m content and wobble; only genuine
 $3$m imagery recovers meter-scale boundary accuracy. The absolute chamfer is
 inflated by large-field countries (e.g.\ South Africa $44$m, Germany $39$m),
 but the direction --- worse than native S2 despite a finer scoring grid --- is
-unambiguous. This is direct evidence that object F1 / PQ are partly sensitive
-to output-grid resolution while the boundary chamfer is not, and motivates
+consistent across configurations. This indicates that object F1 / PQ are partly
+sensitive to output-grid resolution while the boundary chamfer is not, and motivates
 reporting both. (Training was stopped at $77/100$ epochs on a converged
 val-loss plateau; we evaluate its best-val/loss checkpoint, matching the
 protocol used for every other row.)
@@ -898,22 +875,25 @@ protocol used for every other row.)
     \small
     \caption{\textbf{Upsampled-Sentinel-2 control.} Full polygon metrics on the
     10-country dense held-out set (presence-only Kenya excluded), WS\,+\,TTA, B3
-    \emph{augmax} full recipe. Upsampling S2 to PlanetScope's $3$m grid recovers
-    much of the object-level gap (PQ, RQ, and especially SQ) but does not recover
-    --- indeed worsens --- the meter-scale boundary error, which only native
-    PlanetScope brings down. Native-S2 and native-Planet rows are reproduced from
-    \Cref{tab:polygon_metrics}. PQ/SQ/RQ/F1 are shown $\times 100$; boundary error is in meters.}
+    PRUE+. The native-Planet row is reproduced from \Cref{tab:polygon_metrics};
+    the headline S2-B3 row there pairs this table's upsampled-at-eval object
+    metrics (PQ/SQ/RQ/F1) with the native-$256$ boundary chamfer (each model's
+    native grid). Boundary columns here are on each row's own output grid;
+    object-vs-boundary interpretation in text.
+    PQ/SQ/RQ/F1 $\times 100$; boundary error in meters.}
     \label{tab:upsampled_s2}
     \setlength{\tabcolsep}{4pt}
     \begin{tabular}{lcccccc}
     \toprule
     & & & & & \multicolumn{2}{c}{Bd.\ err (m)} \\
     \cmidrule(lr){6-7}
-    Imagery (grid) & PQ & SQ & RQ & F1$_{[.5:.95]}$ & mean & p95 \\
+    Sentinel-2 grid & PQ & SQ & RQ & F1$_{[.5:.95]}$ & mean & p95 \\
     \midrule
-    S2 ($256$, native)        & $27.1$ & $68.4$ & $34.9$ & $21.0$ & $17.5$ & $53.5$ \\
-    S2 ($512$, upsampled)     & $31.5$ & $77.5$ & $39.5$ & $25.5$ & $28.0$ & $90.0$ \\
-    Planet ($512$, native)    & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{29.1}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
+    Native ($256$, $10$m)        & $23.8$ & $67.8$ & $30.8$ & $18.4$ & $18.6$ & $54.7$ \\
+    Upsampled at eval ($512$)    & $27.4$ & $75.8$ & $34.9$ & $21.6$ & $31.3$ & $96.9$ \\
+    Trained upsampled ($512$)    & $31.5$ & $77.5$ & $39.5$ & $25.5$ & $28.0$ & $90.0$ \\
+    \midrule
+    Planet ($512$, native $3$m)  & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{29.1}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
     \bottomrule
     \end{tabular}
 \end{table}
@@ -921,32 +901,35 @@ protocol used for every other row.)
 \section{Additional qualitative samples}
 \label{app:qualitative_extra}
 
-\Cref{fig:qualitative_appx,fig:qualitative_post_appx} give eight additional dense-smallholder rows each — non-overlapping with the main-paper figures (\Cref{fig:qualitative}).
+\Cref{fig:qualitative_appx,fig:qualitative_post_appx} give seven additional dense-smallholder rows each, non-overlapping with the main-paper figures (\Cref{fig:qualitative}).
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.9\linewidth]{figs/qualitative_v6_appx.pdf}
-    \caption{\textbf{Additional raw-prediction samples} (companion to \Cref{fig:qualitative}). Eight more dense-smallholder patches. Green = predicted field interior; black = background and boundary. FTP-PRUE (col 4) recovers the parcel grid; FTW-PRUE (B7, col 5) leaves large black gaps.}
+    \includegraphics[width=0.8\linewidth]{figs/improvement_examples.pdf}
+    \caption{\textbf{Where the 3m imagery helps most.} The five held-out
+    patches with the largest per-patch object-F1 improvement
+    (FTP-PRUE+ $-$ FTW-PRUE+ (B7), both WS+TTA). Columns:
+    Sentinel-2 (10m), PlanetScope (3m), ground-truth field instances, the
+    S2-model prediction, and the Planet-model prediction (each color is a
+    distinct field instance). Per-patch object F1 is annotated at left.
+    In every case the S2 model leaves large gaps or merges neighbours while the
+    Planet model recovers the dense parcel structure; these are the patches with
+    the largest per-patch gain, the regime where higher resolution helps most.}
+    \label{fig:improvement}
+\end{figure*}
+
+\begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.84\linewidth]{figs/qualitative_raw_appendix.pdf}
+    \caption{\textbf{Additional raw-prediction samples} (companion to \Cref{fig:qualitative}). Seven dense-smallholder patches spanning seven of the ten dense held-out countries, selected by per-patch object F1 as cases where Planet beats S2 (per-patch margins $+10.7$ to $+50.8$\,pp). Green = predicted field interior; black = background and boundary. FTP-PRUE+ (col 4) recovers the parcel grid; FTW-PRUE+ (B7, col 5) leaves large black gaps.}
     \label{fig:qualitative_appx}
 \end{figure*}
 
 \begin{figure*}[h]
     \centering
-    \includegraphics[width=0.9\linewidth]{figs/qualitative_v7_appx.pdf}
-    \caption{\textbf{Additional post-processed instance samples} (D4 TTA + watershed; companion to \Cref{fig:qualitative}). Eight more dense-smallholder patches. Each color = a distinct field instance.}
+    \includegraphics[width=0.84\linewidth]{figs/qualitative_instances_appendix.pdf}
+    \caption{\textbf{Additional post-processed instance samples} (D4 TTA + watershed; companion to \Cref{fig:qualitative}). Seven more dense-smallholder patches. Each color = a distinct field instance.}
     \label{fig:qualitative_post_appx}
 \end{figure*}
-
-\section{DelineateAnything qualitative comparison}
-\label{app:qualitative_delineate}
-
-\Cref{fig:qualitative_delineate} compares the FTP-PRUE \emph{augmax} full model against the off-the-shelf DelineateAnything~\cite{lavreniuk2025delineate} checkpoint (YOLO11x-seg, RGB uint8 (window B, clip(refl/3000)$\cdot$255), no FTW fine-tuning, canonical inference: conf $=0.005$, NMS IoU $=0.5$, FP16, \texttt{max\_det} raised to $2000$ for dense smallholder patches). We omit their 2500m$^{2}$ minimum-area filter so Cambodia/Vietnam smallholders are not excluded by construction. FTP-PRUE over-segments in dense parcel grids (watershed seeds at the field-boundary ring trigger too readily); DelineateAnything systematically returns far fewer instances than there are fields. The qualitative picture matches \Cref{tab:polygon_metrics}: DelineateAnything's SQ rivals our trained models on the masks it does produce, but RQ is low because it misses most fields.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figs/qualitative_delineate.pdf}
-    \caption{\textbf{FTP-PRUE (ours) vs DelineateAnything.} Same four dense-smallholder rows as \Cref{fig:qualitative}. Columns: Planet RGB, GT instances, FTP-PRUE (TTA + watershed), DelineateAnything (YOLO11x-seg, RGB uint8, canonical inference settings; no FTW or PlanetScope fine-tuning). Each color = a distinct field instance.}
-    \label{fig:qualitative_delineate}
-\end{figure}
 
 \end{document}

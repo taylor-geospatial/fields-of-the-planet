@@ -227,6 +227,7 @@ def evaluate_country(
     dataset_backend: str = "planet",
     s2_data_scale: float = 3000.0,
     presence_only: bool = False,
+    upsample_to: int | None = None,
 ) -> dict[str, float]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -264,6 +265,19 @@ def evaluate_country(
             # Presence-only labels (e.g. kenya): background is untrusted, so
             # supervise metrics only on labeled polygon + boundary pixels.
             mask[mask == 0] = 3
+        if upsample_to is not None:
+            # resize_factor>1 equivalent: bilinear-upsample image / nearest mask
+            # 256->upsample_to, matching ftw_tools inference and the headline S2 eval.
+            image = torch.nn.functional.interpolate(
+                image, size=(upsample_to, upsample_to), mode="bilinear", align_corners=False
+            )
+            mask = (
+                torch.nn.functional.interpolate(
+                    mask.unsqueeze(1).float(), size=(upsample_to, upsample_to), mode="nearest"
+                )
+                .squeeze(1)
+                .to(mask.dtype)
+            )
         image, mask, H, W = _pad_min32(image, mask, min_size=min_pad_size, pad_mode=pad_mode)
 
         if use_tta:
@@ -391,6 +405,13 @@ def main() -> int:
         help="Countries whose labels are presence-only (e.g. kenya): background "
         "pixels are masked to ignore_index=3 and object precision/F1 are NaN.",
     )
+    p.add_argument(
+        "--upsample-to",
+        type=int,
+        default=None,
+        help="Bilinear-upsample image / nearest mask 256->N before padding "
+        "(resize_factor equivalent). Use with --dataset-backend s2 and N==min-pad-size.",
+    )
     args = p.parse_args()
 
     device = torch.device(
@@ -465,6 +486,7 @@ def main() -> int:
                 dataset_backend=args.dataset_backend,
                 s2_data_scale=args.s2_data_scale,
                 presence_only=country in args.presence_only_countries,
+                upsample_to=args.upsample_to,
             )
         except Exception as e:
             import traceback

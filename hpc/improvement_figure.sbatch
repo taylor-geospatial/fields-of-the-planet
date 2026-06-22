@@ -22,7 +22,7 @@ TOP_N="${TOP_N:-5}"
 MIN_N_GT="${MIN_N_GT:-8}"
 
 # tg_style lives in paper/scripts; put it on the path.
-PYTHONPATH="paper/scripts:${PYTHONPATH:-}" uv run --no-sync python paper/scripts/make_improvement_figure.py \
+PYTHONPATH="paper/scripts:${PYTHONPATH:-}" uv run --no-sync python paper/scripts/improvement_figure.py \
     --planet-csv logs/per_patch/planet_b3.csv \
     --s2-csv logs/per_patch/s2_b7.csv \
     --top-n "$TOP_N" \

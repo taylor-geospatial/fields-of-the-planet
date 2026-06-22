@@ -1,26 +1,20 @@
 \footnotesize
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.05}
-\begin{tabular}{@{}l l l ccc c c@{}}
+\begin{tabular}{@{}l l ccc c c@{}}
 \toprule
-& & & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\
-\cmidrule(lr){4-7}
-Model & Backbone & Split & \makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & \makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & \makecell{Pix\\IoU} \\
+& & \multicolumn{4}{c}{Obj F1 (10-country dense held-out)} & \\
+\cmidrule(lr){3-6}
+Model & Backbone & \makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & \makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & \makecell{Pix\\IoU} \\
 \midrule
-FTW-PRUE & B3 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- & 39.0$^\ddag$ & 76.0$^\ddag$ \\
-FTW-PRUE & B7 & CC-BY~\cite{muhawenayo2026prue} & --- & --- & --- & 44.0$^\ddag$ & 77.0$^\ddag$ \\
-FTW-PRUE & B7 & full~\cite{muhawenayo2026prue}  & --- & --- & --- & 47.0$^\ddag$ & 76.0$^\ddag$ \\
+FTW-PRUE & B7~\cite{muhawenayo2026prue}  & --- & --- & --- & 47.0$^\ddag$ & 76.0$^\ddag$ \\
 \midrule
-\multicolumn{8}{@{}l}{\textit{Ours --- FTP-PRUE \textbf{augmax}}} \\
-FTP-PRUE & B3 & CC-BY & 36.0 & 36.1 & 36.5 & \textbf{37.4} & 58.1 \\
-FTP-PRUE & B7 & CC-BY & 36.8 & 37.2 & 37.2 & \textbf{38.3} & 58.3 \\
-FTP-PRUE & B3 & full & 43.5 & 43.9 & 44.1 & \textbf{45.2} & \textbf{68.8} \\
+\multicolumn{7}{@{}l}{\textit{Ours --- FTP-PRUE+}} \\
+FTP-PRUE+ & B3 & 43.5 & 43.9 & 44.1 & \textbf{45.2} & \textbf{68.8} \\
 \midrule
-\multicolumn{8}{@{}l}{\textit{FTW-PRUE baselines re-trained with our \textbf{augmax} recipe}} \\
-FTW-PRUE & B3 & CC-BY & 32.3 & 32.4 & 32.8 & \textbf{33.3} & 57.6 \\
-FTW-PRUE & B7 & CC-BY & 33.2 & 33.7 & 33.9 & \textbf{34.8} & 56.8 \\
-FTW-PRUE & B3 & full & 33.4 & 33.9 & 34.1 & \textbf{34.9} & 59.0 \\
-FTW-PRUE & B7 & full & 37.8 & 38.3 & 38.6 & \textbf{39.4} & 62.2 \\
+\multicolumn{7}{@{}l}{\textit{FTW-PRUE baselines re-trained with our \textbf{PRUE+} recipe}} \\
+FTW-PRUE+ & B3 & 33.4 & 33.3 & 33.9 & \textbf{34.9} & 61.8 \\
+FTW-PRUE+ & B7 & 39.9 & 39.5 & 40.4 & \textbf{40.7} & 63.6 \\
 \bottomrule
 \end{tabular}
 
