@@ -129,11 +129,11 @@ def main() -> None:
         r"\toprule",
         r" & & \multicolumn{3}{c}{Panoptic} & & & "
         r"\multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} & & "
-        r"\multicolumn{3}{c}{\makecell{PQ by GT area}} \\",
+        r"\multicolumn{3}{c}{\makecell{PQ by GT field-area bin}} \\",
         r"\cmidrule(lr){3-5} \cmidrule(lr){8-9} \cmidrule(lr){11-13}",
-        r"Method & Bb. & PQ & SQ & \makecell{RQ\\($=$F1$_{.5}$)} & "
+        r"Method & Bb. & PQ & SQ & RQ$_{.5}$ & "
         r"F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$} & mean & p95 & "
-        r"\makecell{Pixel\\IoU$^{\dagger}$} & Sm. & Med. & Lg. \\",
+        r"\makecell{Pixel\\IoU$^{\dagger}$} & PQ$_\mathrm{s}$ & PQ$_\mathrm{m}$ & PQ$_\mathrm{l}$ \\",
         r"\midrule",
     ]
     for (name, bb, _poly, _a, _p, _b, bold_bb, sep), agg in zip(ROWS, aggs):
