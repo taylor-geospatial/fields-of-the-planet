@@ -34,6 +34,8 @@ sys.path.insert(0, str(REPO / "scripts" / "eval"))
 
 from polygon_metrics_eval import (  # noqa: E402
     AP_IOU_THRESHOLDS,
+    AREA_BIN_LABELS,
+    _area_bin,
     _extract_shapes,
     _match_shapes,
 )
@@ -68,6 +70,8 @@ def evaluate_country_per_patch(
     dataset_backend: str,
     s2_data_scale: float,
     upsample_to: int | None,
+    area_edges: tuple | None,
+    pixel_area_ha: float,
 ) -> list[dict]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -165,18 +169,34 @@ def evaluate_country_per_patch(
         union = int((pred_bin | gt_bin).sum())
         pixel_iou = inter / union if union else 0.0
 
-        rows.append(
-            {
-                "country": country,
-                "patch_id": patch_ids[i],
-                "n_gt": len(gt_shapes),
-                "n_pred": len(pred_shapes),
-                "obj_f1": obj_f1,
-                "pq": pq,
-                "sq": sq,
-                "pixel_iou": pixel_iou,
-            }
-        )
+        row = {
+            "country": country,
+            "patch_id": patch_ids[i],
+            "n_gt": len(gt_shapes),
+            "n_pred": len(pred_shapes),
+            "obj_f1": obj_f1,
+            "pq": pq,
+            "sq": sq,
+            "pixel_iou": pixel_iou,
+        }
+
+        # Per-area-bin object F1 at IoU>=0.5 (same binning as tab:area_bins:
+        # GT polygons binned by GT area, FPs by predicted area).
+        if area_edges is not None:
+            gt_bins = [_area_bin(g.area * pixel_area_ha, area_edges) for g in gt_shapes]
+            pred_bins = [_area_bin(p.area * pixel_area_ha, area_edges) for p in pred_shapes]
+            matched_gt = {gi for gi, _, _ in m["pairs_per_t"][t05]}
+            matched_pred = {pj for _, pj, _ in m["pairs_per_t"][t05]}
+            for b in AREA_BIN_LABELS:
+                tp = sum(1 for gi, bb in enumerate(gt_bins) if bb == b and gi in matched_gt)
+                fn = sum(1 for gi, bb in enumerate(gt_bins) if bb == b and gi not in matched_gt)
+                fp = sum(1 for pj, bb in enumerate(pred_bins) if bb == b and pj not in matched_pred)
+                pp = tp / max(tp + fp, 1)
+                rr = tp / max(tp + fn, 1)
+                row[f"f1_{b}"] = (2 * pp * rr / (pp + rr)) if (pp + rr) else 0.0
+                row[f"n_gt_{b}"] = tp + fn
+
+        rows.append(row)
     return rows
 
 
@@ -227,7 +247,24 @@ def main() -> int:
         help="Bilinear-upsample 256->N before padding (resize_factor equivalent). "
         "Use with --dataset-backend s2 and N==min-pad-size.",
     )
+    p.add_argument(
+        "--area-bins",
+        type=str,
+        default=None,
+        help="Comma-separated ha edges, e.g. '0.5,2' -> small<0.5 / medium 0.5-2 / "
+        "large>2 by GT polygon area. Adds per-bin f1_/n_gt_ columns. Requires --pixel-size-m.",
+    )
+    p.add_argument(
+        "--pixel-size-m",
+        type=float,
+        default=None,
+        help="Physical pixel size (m) of the eval grid: planet native 3, s2 upsample-512 5.",
+    )
     args = p.parse_args()
+    area_edges = tuple(float(x) for x in args.area_bins.split(",")) if args.area_bins else None
+    pixel_area_ha = (args.pixel_size_m**2) / 1e4 if args.pixel_size_m else 0.0
+    if area_edges and not args.pixel_size_m:
+        p.error("--area-bins requires --pixel-size-m")
 
     device = torch.device(
         f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu"
@@ -244,9 +281,15 @@ def main() -> int:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     cols = ["country", "patch_id", "n_gt", "n_pred", "obj_f1", "pq", "sq", "pixel_iou"]
+    if area_edges is not None:
+        for b in AREA_BIN_LABELS:
+            cols += [f"f1_{b}", f"n_gt_{b}"]
     if not args.out.exists():
         with args.out.open("w") as f:
             f.write(",".join(cols) + "\n")
+
+    def _fmt(v: float) -> str:
+        return f"{v:.6f}" if isinstance(v, float) else str(v)
 
     for country in args.countries:
         print(f"=== {country} ({args.split}) ===")
@@ -267,13 +310,12 @@ def main() -> int:
             dataset_backend=args.dataset_backend,
             s2_data_scale=args.s2_data_scale,
             upsample_to=args.upsample_to,
+            area_edges=area_edges,
+            pixel_area_ha=pixel_area_ha,
         )
         with args.out.open("a") as f:
             for row in rows:
-                f.write(
-                    f"{row['country']},{row['patch_id']},{row['n_gt']},{row['n_pred']},"
-                    f"{row['obj_f1']:.6f},{row['pq']:.6f},{row['sq']:.6f},{row['pixel_iou']:.6f}\n"
-                )
+                f.write(",".join(_fmt(row[c]) for c in cols) + "\n")
         mean_f1 = float(np.mean([r["obj_f1"] for r in rows])) if rows else 0.0
         print(f"  wrote {len(rows)} rows, mean obj_f1={mean_f1:.4f}")
     return 0
