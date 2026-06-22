@@ -353,17 +353,12 @@ smaller B3 as the main PlanetScope baseline.
 \subsection{Metric choice}
 \label{sec:polygon-first}
 
-Field-boundary models are not consumed as rasters. Downstream
-pipelines -- crop-yield estimation, irrigation accounting, subsidy
-verification, parcel-level food-security monitoring -- ingest
-\emph{vectorized parcels}. What these pipelines need is a polygon that
-closes, separates from its neighbors, and lands in the right place
-on the ground. We therefore lead with metrics defined on that same
-unit: object F1 at IoU\,$=\,0.5$, panoptic
-quality~\cite{kirillov2019panoptic} (PQ\,$=$\,SQ$\times$RQ, which
-cleanly separates recognition from localization),
-object F1 averaged over IoU thresholds $\{0.5,\ldots,0.95\}$~\cite{lin2014coco},
-and a mean symmetric boundary chamfer in \emph{meters}.
+Field-boundary outputs are consumed as vectorized parcels, not rasters, so we
+lead with polygon-defined metrics (the four of \Cref{sec:benchmark}, defined
+exactly in \Cref{app:metrics}) and treat pixel IoU as secondary: it is dominated
+by majority background, sensitive to the rasterized boundary width, and (for
+presence-only Kenya) misleading, so we report it only for continuity with the
+PRUE protocol~\cite{muhawenayo2026prue}.
 
 \begin{figure}[t]
     \centering
@@ -400,20 +395,6 @@ therefore never score a segmentation model in a vacuum: we fix one
 post-processing pipeline, apply it identically to every model and sensor, and
 report the full post-processing sweep (\Cref{tab:heldout}) so that ``which model
 is better'' is decided on the pipeline that is deployed, not on the raw mask.
-
-We retain pixel IoU as a secondary signal for continuity with the
-PRUE protocol~\cite{muhawenayo2026prue}. We do not use it as a headline
-metric, and we do not interpret Kenya pixel IoU because the Kenya labels
-are presence-only.
-
-\paragraph{Pixel IoU is secondary.}
-Pixel IoU remains useful for reproducing the PRUE protocol, but it is a
-poor summary of field-boundary utility here. The metric is sensitive to
-majority background, the physical width of the rasterized boundary class,
-and country-specific annotation gaps. In Kenya, FTW labels are
-presence-only, so treating unlabeled parcels as negatives makes pixel IoU
-misleading. We therefore report pixel IoU only in the protocol-comparison
-table and use polygon metrics for the main claims.
 
 \paragraph{Grid resolution vs.\ true resolution.}
 An input-side control isolates how much of the Sentinel-2-to-PlanetScope
@@ -525,30 +506,11 @@ This is the per-field evidence for the resolution-for-smallholder motivation
 that the per-region average obscures.
 
 \paragraph{Where higher resolution helps most.}
-\Cref{fig:improvement} shows the held-out patches with the largest per-patch
-object-F1 gain from Sentinel-2 to PlanetScope under the matched recipe. They
-are dense smallholder scenes: the 10m model collapses adjacent
-parcels into a few blobs or misses them entirely (per-patch object F1
-$8$--$31$), while the 3m model recovers the parcel grid (object F1
-$69$--$100$). These are the per-patch extremes, not the typical case: the
-largest single-patch gains land on small, tightly-packed fields that are
-sub-resolvable at 10m, even though aggregate per-region gain is only weakly
-tied to field size (\Cref{fig:smallholder_scatter}).
-
-\begin{figure*}[t]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figs/improvement_examples.pdf}
-    \caption{\textbf{Where the 3m imagery helps most.} The five held-out
-    patches with the largest per-patch object-F1 improvement
-    (FTP-PRUE+ $-$ FTW-PRUE+ (B7), both WS+TTA). Columns:
-    Sentinel-2 (10m), PlanetScope (3m), ground-truth field instances, the
-    S2-model prediction, and the Planet-model prediction (each color is a
-    distinct field instance). Per-patch object F1 is annotated at left.
-    In every case the S2 model leaves large gaps or merges neighbours while the
-    Planet model recovers the dense parcel structure; these are the patches with
-    the largest per-patch gain, the regime where higher resolution helps most.}
-    \label{fig:improvement}
-\end{figure*}
+The held-out patches with the largest per-patch object-F1 gain are dense
+smallholder scenes where the 10m model collapses adjacent parcels into blobs
+(per-patch object F1 $8$--$31$) while the 3m model recovers the parcel grid
+($69$--$100$); these per-patch extremes are shown in \Cref{fig:improvement}
+(appendix).
 
 % tab:heldout_pc (per-country pixel IoU on 11 held-out countries) is
 % moved to the supplementary appendix; macro pixel IoU is in
@@ -1009,6 +971,21 @@ protocol used for every other row.)
 \label{app:qualitative_extra}
 
 \Cref{fig:qualitative_appx,fig:qualitative_post_appx} give seven additional dense-smallholder rows each, non-overlapping with the main-paper figures (\Cref{fig:qualitative}).
+
+\begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figs/improvement_examples.pdf}
+    \caption{\textbf{Where the 3m imagery helps most.} The five held-out
+    patches with the largest per-patch object-F1 improvement
+    (FTP-PRUE+ $-$ FTW-PRUE+ (B7), both WS+TTA). Columns:
+    Sentinel-2 (10m), PlanetScope (3m), ground-truth field instances, the
+    S2-model prediction, and the Planet-model prediction (each color is a
+    distinct field instance). Per-patch object F1 is annotated at left.
+    In every case the S2 model leaves large gaps or merges neighbours while the
+    Planet model recovers the dense parcel structure; these are the patches with
+    the largest per-patch gain, the regime where higher resolution helps most.}
+    \label{fig:improvement}
+\end{figure*}
 
 \begin{figure*}[h]
     \centering
