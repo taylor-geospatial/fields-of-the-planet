@@ -68,7 +68,7 @@ def _planet_rgb_for_window(country: str, pid: str, window: str):
     p = Path("data/planet") / country / f"window_{window}" / f"{pid}.tif"
     with rasterio.open(p) as src:
         rgb = src.read([3, 2, 1])
-    return np.transpose(rgb, (1, 2, 0)).astype(np.float32) / PLANET_SR_SCALE
+    return np.transpose(rgb, (1, 2, 0)).astype(np.float32)  # raw DN; _stretch clips DN/3000
 
 
 def _planet_rgb_uint8_for_yolo(country: str, pid: str, window: str):

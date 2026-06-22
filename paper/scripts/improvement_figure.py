@@ -113,7 +113,7 @@ def _planet_rgb(country, pid, window):
     p = Path("data/planet") / country / f"window_{window}" / f"{pid}.tif"
     with rasterio.open(p) as src:
         rgb = src.read([3, 2, 1])  # PSScene BGR(N) -> display R,G,B
-    return np.transpose(rgb, (1, 2, 0)).astype(np.float32) / PLANET_SR_SCALE
+    return np.transpose(rgb, (1, 2, 0)).astype(np.float32)  # raw DN; _stretch clips DN/3000
 
 
 def _s2_rgb_on_planet_grid(country, pid, window):
@@ -134,7 +134,7 @@ def _s2_rgb_on_planet_grid(country, pid, window):
                 dst_crs=dst_crs,
                 resampling=Resampling.bilinear,
             )
-    return np.transpose(out, (1, 2, 0)).astype(np.float32) / 10000.0
+    return np.transpose(out, (1, 2, 0)).astype(np.float32)  # raw DN; _stretch clips DN/3000
 
 
 def _predict_instances_planet(task, model, country, pid):

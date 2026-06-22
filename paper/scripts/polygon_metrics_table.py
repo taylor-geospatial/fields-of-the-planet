@@ -49,7 +49,7 @@ COLS = (
     "pq_sq",
     "pq_rq",
     "ap_5_95",
-    "polygon_count_delta_mean",
+    "polygon_count_delta_norm",
     "boundary_error_m_mean",
     "boundary_error_m_p95",
 )
@@ -64,7 +64,18 @@ def main() -> None:
             raise RuntimeError(
                 f"{csv_path}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries"
             )
-        agg = {c: float(sub[c].mean(skipna=True)) for c in COLS}
+        agg = {
+            c: float(sub[c].mean(skipna=True))
+            for c in COLS
+            if c != "polygon_count_delta_norm"
+        }
+        # Normalized polygon-count error: per-country mean |dN| divided by the
+        # per-country mean GT count, then macro-averaged. |dN| alone scales with
+        # parcel density (Cambodia's ~600 parcels/patch dominate the raw mean),
+        # so the normalized form is the density-invariant over/under-seg metric.
+        agg["polygon_count_delta_norm"] = float(
+            (sub["polygon_count_delta_mean"] / sub["n_gt_mean"]).mean()
+        )
         bsub = sub
         if bnd_csv is not None:
             bsub = load_and_filter(bnd_csv, HELDOUT_10_DENSE)
@@ -99,7 +110,7 @@ def main() -> None:
             f"{m} & {b} & "
             f"{cell(agg['pq'], 'pq')} & {cell(agg['pq_sq'], 'pq_sq')} & "
             f"{cell(agg['pq_rq'], 'pq_rq')} & {cell(agg['ap_5_95'], 'ap_5_95')} & "
-            f"{cell(agg['polygon_count_delta_mean'], 'polygon_count_delta_mean', 1, 1.0)} & "
+            f"{cell(agg['polygon_count_delta_norm'], 'polygon_count_delta_norm', 2, 1.0)} & "
             f"{cell(agg['boundary_error_m_mean'], 'boundary_error_m_mean', 1, 1.0)} & "
             f"{cell(agg['boundary_error_m_p95'], 'boundary_error_m_p95', 1, 1.0)} \\\\"
         )
@@ -116,7 +127,7 @@ def main() -> None:
     lines.append(r"\cmidrule(lr){3-5} \cmidrule(lr){8-9}")
     lines.append(
         r"Model & Backbone & PQ & SQ & \makecell{RQ\\($=$F1$_{.5}$)} & "
-        r"F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|$} & mean & p95 \\"
+        r"F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$} & mean & p95 \\"
     )
     lines.append(r"\midrule")
     for (model, backbone, _, sep, bold, _), agg in zip(ROWS, aggregates):

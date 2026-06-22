@@ -138,12 +138,12 @@ def _planet_rgb_for_window(country, pid, window):
     p = Path("data/planet") / country / f"window_{window}" / f"{pid}.tif"
     with rasterio.open(p) as src:
         bgr_nir = src.read([3, 2, 1])  # R, G, B
-        return np.transpose(bgr_nir, (1, 2, 0)).astype(np.float32) / PLANET_SR_SCALE
+        return np.transpose(bgr_nir, (1, 2, 0)).astype(np.float32)  # raw DN; _stretch clips DN/3000
 
 
 def _s2_rgb_for_window(country, pid, window):
     """Reproject the FTW S2 chip for `window_{window}` onto the Planet patch
-    grid. Returns float RGB normalized by 10000 (FTW S2 native DN scale)."""
+    grid. Returns raw float DN (FTW S2 native scale); _stretch clips DN/3000."""
     s2 = Path("data/ftw") / country / "s2_images" / f"window_{window}" / f"{pid}.tif"
     planet = Path("data/planet") / country / f"window_{window}" / f"{pid}.tif"
     with rasterio.open(planet) as dst:
@@ -162,7 +162,7 @@ def _s2_rgb_for_window(country, pid, window):
                 dst_crs=dst_crs,
                 resampling=Resampling.bilinear,
             )
-    return np.transpose(out, (1, 2, 0)).astype(np.float32) / 10000.0
+    return np.transpose(out, (1, 2, 0)).astype(np.float32)  # raw DN; _stretch clips DN/3000
 
 
 def _predict_s2_to_planet_grid(model_s2, country, pid, device):

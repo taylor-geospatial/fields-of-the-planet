@@ -195,7 +195,7 @@ def _planet_rgb_for_window(country, pid, window):
     p = Path("data/planet") / country / f"window_{window}" / f"{pid}.tif"
     with rasterio.open(p) as src:
         rgb = src.read([3, 2, 1])
-    return np.transpose(rgb, (1, 2, 0)).astype(np.float32) / PLANET_SR_SCALE
+    return np.transpose(rgb, (1, 2, 0)).astype(np.float32)  # raw DN; _stretch clips DN/3000
 
 
 def _s2_rgb_for_window(country, pid, window):
@@ -217,7 +217,7 @@ def _s2_rgb_for_window(country, pid, window):
                 dst_crs=dst_crs,
                 resampling=Resampling.bilinear,
             )
-    return np.transpose(out, (1, 2, 0)).astype(np.float32) / 10000.0
+    return np.transpose(out, (1, 2, 0)).astype(np.float32)  # raw DN; _stretch clips DN/3000
 
 
 def _predict_s2_inst_to_planet_grid(model_s2, country, pid, device):
