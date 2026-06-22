@@ -53,9 +53,9 @@ mpl.rcParams.update(
 
 
 def _load_pq() -> pd.DataFrame:
-    pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[
-        ["country", "pq"]
-    ].rename(columns={"pq": "pq_pl"})
+    pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[["country", "pq"]].rename(
+        columns={"pq": "pq_pl"}
+    )
     s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[
         ["country", "pq"]
     ].rename(columns={"pq": "pq_s2"})

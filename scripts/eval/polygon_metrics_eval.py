@@ -22,6 +22,7 @@ Example:
 import argparse
 import time
 from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
 import rasterio.features
@@ -63,6 +64,19 @@ def _extract_shapes(mask: np.ndarray) -> list[shapely.geometry.base.BaseGeometry
 
 
 AREA_BIN_LABELS = ("small", "medium", "large")
+
+
+class _BinCell(TypedDict):
+    """Per-(area-bin, IoU-threshold) tallies: integer match counts + matched IoUs."""
+
+    tp: int
+    fp: int
+    fn: int
+    ious: list[float]
+
+
+def _new_bin_cell() -> _BinCell:
+    return {"tp": 0, "fp": 0, "fn": 0, "ious": []}
 
 
 def _area_bin(area_ha: float, edges: tuple) -> str:
@@ -164,7 +178,7 @@ def evaluate_country(
     upsample_to: int | None,
     area_edges: tuple | None = None,
     pixel_area_ha: float = 0.0,
-    bin_stats: dict | None = None,
+    bin_stats: dict[str, dict[float, _BinCell]] | None = None,
 ) -> dict[str, float]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -277,6 +291,8 @@ def evaluate_country(
         # ---- per-area-bin x per-IoU-threshold accumulation ----
         # GT binned by GT polygon area (ha); predicted FPs by predicted area.
         if bin_stats is not None:
+            # bin_stats and area_edges are set together by the caller.
+            assert area_edges is not None
             gt_bins = [_area_bin(g.area * pixel_area_ha, area_edges) for g in gt_shapes]
             pred_bins = [_area_bin(p.area * pixel_area_ha, area_edges) for p in pred_shapes]
             for t in AP_IOU_THRESHOLDS:
@@ -371,11 +387,8 @@ def main() -> int:
     args = p.parse_args()
     area_edges = tuple(float(x) for x in args.area_bins.split(",")) if args.area_bins else None
     pixel_area_ha = (args.pixel_size_m**2) / 1e4 if args.pixel_size_m else 0.0
-    bin_stats = (
-        {
-            b: {t: {"tp": 0, "fp": 0, "fn": 0, "ious": []} for t in AP_IOU_THRESHOLDS}
-            for b in AREA_BIN_LABELS
-        }
+    bin_stats: dict[str, dict[float, _BinCell]] | None = (
+        {b: {t: _new_bin_cell() for t in AP_IOU_THRESHOLDS} for b in AREA_BIN_LABELS}
         if area_edges
         else None
     )
@@ -506,11 +519,12 @@ def main() -> int:
             rec = tp / max(tp + fn, 1)
             return (2 * prec * rec / (prec + rec)) if (prec + rec) else 0.0
 
-        all_bin = {t: {"tp": 0, "fp": 0, "fn": 0, "ious": []} for t in AP_IOU_THRESHOLDS}
+        all_bin: dict[float, _BinCell] = {t: _new_bin_cell() for t in AP_IOU_THRESHOLDS}
         for b in AREA_BIN_LABELS:
             for t in AP_IOU_THRESHOLDS:
-                for k in ("tp", "fp", "fn"):
-                    all_bin[t][k] += bin_stats[b][t][k]
+                all_bin[t]["tp"] += bin_stats[b][t]["tp"]
+                all_bin[t]["fp"] += bin_stats[b][t]["fp"]
+                all_bin[t]["fn"] += bin_stats[b][t]["fn"]
                 all_bin[t]["ious"] += bin_stats[b][t]["ious"]
 
         bins_out = Path(str(args.out) + ".bins.csv")
@@ -519,11 +533,15 @@ def main() -> int:
             for label, st in [*((b, bin_stats[b]) for b in AREA_BIN_LABELS), ("all", all_bin)]:
                 rq = _f1(st[t05]["tp"], st[t05]["fp"], st[t05]["fn"])
                 f1_75 = _f1(st[t75]["tp"], st[t75]["fp"], st[t75]["fn"])
-                ap = float(np.mean([_f1(st[t]["tp"], st[t]["fp"], st[t]["fn"]) for t in AP_IOU_THRESHOLDS]))
+                ap = float(
+                    np.mean([_f1(st[t]["tp"], st[t]["fp"], st[t]["fn"]) for t in AP_IOU_THRESHOLDS])
+                )
                 sq = float(np.mean(st[t05]["ious"])) if st[t05]["ious"] else 0.0
                 n_gt = st[t05]["tp"] + st[t05]["fn"]
                 n_pred = st[t05]["tp"] + st[t05]["fp"]
-                f.write(f"{args.area_bins},{label},{n_gt},{n_pred},{sq * rq:.4f},{sq:.4f},{rq:.4f},{f1_75:.4f},{ap:.4f}\n")
+                f.write(
+                    f"{args.area_bins},{label},{n_gt},{n_pred},{sq * rq:.4f},{sq:.4f},{rq:.4f},{f1_75:.4f},{ap:.4f}\n"
+                )
                 print(
                     f"  [{label:7s}] n_gt={n_gt:6d} PQ={sq * rq * 100:5.1f} SQ={sq * 100:5.1f} "
                     f"RQ@.5={rq * 100:5.1f} F1@.75={f1_75 * 100:5.1f} AP={ap * 100:5.1f}"

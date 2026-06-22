@@ -74,7 +74,9 @@ def main() -> None:
     print(f"wrote {OUT}")
     for _, _, stem, _ in ROWS:
         sm = data[stem]["small"]
-        print(f"  {stem}: small RQ@.5={sm['rq_50'] * 100:.1f} PQ={sm['pq'] * 100:.1f} n_gt={int(sm['n_gt'])}")
+        print(
+            f"  {stem}: small RQ@.5={sm['rq_50'] * 100:.1f} PQ={sm['pq'] * 100:.1f} n_gt={int(sm['n_gt'])}"
+        )
 
 
 if __name__ == "__main__":

@@ -297,7 +297,9 @@ def _write_bins_csv(out: Path, bin_stats: dict, area_tag: str) -> None:
         for label, st in [*((b, bin_stats[b]) for b in AREA_BIN_LABELS), ("all", all_bin)]:
             rq = _f1(st[t05]["tp"], st[t05]["fp"], st[t05]["fn"])
             f1_75 = _f1(st[t75]["tp"], st[t75]["fp"], st[t75]["fn"])
-            ap = float(np.mean([_f1(st[t]["tp"], st[t]["fp"], st[t]["fn"]) for t in AP_IOU_THRESHOLDS]))
+            ap = float(
+                np.mean([_f1(st[t]["tp"], st[t]["fp"], st[t]["fn"]) for t in AP_IOU_THRESHOLDS])
+            )
             sq = float(np.mean(st[t05]["ious"])) if st[t05]["ious"] else 0.0
             n_gt = st[t05]["tp"] + st[t05]["fn"]
             n_pred = st[t05]["tp"] + st[t05]["fp"]
@@ -318,9 +320,13 @@ def main() -> int:
     p.add_argument("--countries", nargs="*", default=None)
     p.add_argument("--conf", type=float, default=0.005)
     p.add_argument("--iou", type=float, default=0.5)
-    p.add_argument("--imgsz", type=int, default=512)  # DelineateAnything ckpts trained at 512 (square)
+    p.add_argument(
+        "--imgsz", type=int, default=512
+    )  # DelineateAnything ckpts trained at 512 (square)
     p.add_argument("--rgb-ceiling", type=float, default=RGB_REFL_CEILING)
-    p.add_argument("--area-bins", type=str, default=None, help="e.g. 0.5,2 (small/medium/large edges)")
+    p.add_argument(
+        "--area-bins", type=str, default=None, help="e.g. 0.5,2 (small/medium/large edges)"
+    )
     p.add_argument("--pixel-size-m", type=float, default=None, help="GSD for area; planet 3, s2 10")
     p.add_argument("--save-rgb-sample", type=Path, default=None, help="save first-patch RGB PNG")
     p.add_argument("--hf-repo", type=str, default="torchgeo/delineate-anything")
@@ -347,10 +353,23 @@ def main() -> int:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     cols = [
-        "model", "country", "n_patches", "pq_sq", "pq_rq", "pq", "ap_5_95",
-        "pixel_level_iou", "n_pred_mean", "n_gt_mean", "polygon_count_delta_mean",
-        "polygon_count_delta_median", "boundary_error_m_mean", "boundary_error_m_p95",
-        "conf", "iou", "imgsz",
+        "model",
+        "country",
+        "n_patches",
+        "pq_sq",
+        "pq_rq",
+        "pq",
+        "ap_5_95",
+        "pixel_level_iou",
+        "n_pred_mean",
+        "n_gt_mean",
+        "polygon_count_delta_mean",
+        "polygon_count_delta_median",
+        "boundary_error_m_mean",
+        "boundary_error_m_p95",
+        "conf",
+        "iou",
+        "imgsz",
     ]
     if not args.out.exists():
         with args.out.open("w") as f:
@@ -360,7 +379,10 @@ def main() -> int:
     tag = f"{model_stem}@{args.dataset_backend}_conf{args.conf}_iou{args.iou}_sz{args.imgsz}"
 
     bin_stats = (
-        {b: {t: {"tp": 0, "fp": 0, "fn": 0, "ious": []} for t in AP_IOU_THRESHOLDS} for b in AREA_BIN_LABELS}
+        {
+            b: {t: {"tp": 0, "fp": 0, "fn": 0, "ious": []} for t in AP_IOU_THRESHOLDS}
+            for b in AREA_BIN_LABELS
+        }
         if area_edges
         else None
     )
@@ -371,9 +393,20 @@ def main() -> int:
         print(f"=== {country} ({args.split}) ===")
         try:
             m = evaluate_country_yolo(
-                yolo, country, args.root, args.split, args.num_workers, args.conf,
-                args.iou, args.imgsz, device, args.dataset_backend, args.rgb_ceiling,
-                bin_stats, pixel_area_ha, area_edges,
+                yolo,
+                country,
+                args.root,
+                args.split,
+                args.num_workers,
+                args.conf,
+                args.iou,
+                args.imgsz,
+                device,
+                args.dataset_backend,
+                args.rgb_ceiling,
+                bin_stats,
+                pixel_area_ha,
+                area_edges,
                 rgb_sample_path=(args.save_rgb_sample if ci == 0 else None),
             )
         except FileNotFoundError as e:
@@ -381,12 +414,23 @@ def main() -> int:
             continue
 
         row = [
-            tag, country, str(m["n_patches"]),
-            f"{m['pq_sq']:.6f}", f"{m['pq_rq']:.6f}", f"{m['pq']:.6f}", f"{m['ap_5_95']:.6f}",
-            f"{m['pixel_level_iou']:.6f}", f"{m['n_pred_mean']:.4f}", f"{m['n_gt_mean']:.4f}",
-            f"{m['polygon_count_delta_mean']:.4f}", f"{m['polygon_count_delta_median']:.4f}",
-            f"{m['boundary_error_m_mean']:.4f}", f"{m['boundary_error_m_p95']:.4f}",
-            f"{args.conf}", f"{args.iou}", f"{args.imgsz}",
+            tag,
+            country,
+            str(m["n_patches"]),
+            f"{m['pq_sq']:.6f}",
+            f"{m['pq_rq']:.6f}",
+            f"{m['pq']:.6f}",
+            f"{m['ap_5_95']:.6f}",
+            f"{m['pixel_level_iou']:.6f}",
+            f"{m['n_pred_mean']:.4f}",
+            f"{m['n_gt_mean']:.4f}",
+            f"{m['polygon_count_delta_mean']:.4f}",
+            f"{m['polygon_count_delta_median']:.4f}",
+            f"{m['boundary_error_m_mean']:.4f}",
+            f"{m['boundary_error_m_p95']:.4f}",
+            f"{args.conf}",
+            f"{args.iou}",
+            f"{args.imgsz}",
         ]
         with args.out.open("a") as f:
             f.write(",".join(row) + "\n")

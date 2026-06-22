@@ -223,7 +223,9 @@ def main() -> int:
     p.add_argument("--ckpt-s2", default="logs/best_checkpoints/s2_efnet7_best.ckpt")
     p.add_argument("--top-n", type=int, default=5)
     p.add_argument("--min-n-gt", type=int, default=8)
-    p.add_argument("--sq-size", type=int, default=512, help="Square-crop+resize each panel to this.")
+    p.add_argument(
+        "--sq-size", type=int, default=512, help="Square-crop+resize each panel to this."
+    )
     p.add_argument("--window", default="a")
     p.add_argument("--out", default="paper/figs/improvement_examples.pdf")
     p.add_argument("--png", default="logs/improvement_examples.png")

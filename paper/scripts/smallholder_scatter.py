@@ -63,9 +63,7 @@ def main():
     # the CSV, which came from our original (un-released) B3 checkpoint.
     pq_pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[
         ["country", "pq"]
-    ].rename(
-        columns={"pq": "pq_pl"}
-    )
+    ].rename(columns={"pq": "pq_pl"})
     pq_s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[
         ["country", "pq"]
     ].rename(columns={"pq": "pq_s2"})

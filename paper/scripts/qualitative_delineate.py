@@ -148,7 +148,9 @@ def main() -> None:
     p.add_argument("--cell-size", type=int, default=SQUARE_SIZE)
     p.add_argument("--cell-h", type=float, default=1.05)
     p.add_argument("--cell-w", type=float, default=1.05)
-    p.add_argument("--imgsz", type=int, default=512)  # DelineateAnything ckpts trained at 512 (square)
+    p.add_argument(
+        "--imgsz", type=int, default=512
+    )  # DelineateAnything ckpts trained at 512 (square)
     p.add_argument("--conf", type=float, default=0.005)
     p.add_argument("--iou", type=float, default=0.5)
     args = p.parse_args()

@@ -48,9 +48,7 @@ def main() -> None:
     rows.append(r"\toprule")
     rows.append(r"Model & Backbone & Pix IoU & Obj F1 \\")
     rows.append(r"\midrule")
-    rows.append(
-        r"\multicolumn{4}{l}{\textit{FTW-PRUE, released by \cite{muhawenayo2026prue}}} \\"
-    )
+    rows.append(r"\multicolumn{4}{l}{\textit{FTW-PRUE, released by \cite{muhawenayo2026prue}}} \\")
     for model, backbone, iou, f1 in RELEASED_FULL:
         bold = backbone == "B7"
         f1s = rf"\textbf{{{f1 * 100:.1f}}}" if bold else f"{f1 * 100:.1f}"
