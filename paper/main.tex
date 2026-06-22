@@ -235,7 +235,7 @@ each reported number is reproducible from a config.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). Methods $\times$ imagery: zero-shot DelineateAnything (YOLO11x) and DelineateAnything-S (YOLO11n)~\cite{lavreniuk2025delineate} on both sensors, and the PRUE recipe~\cite{muhawenayo2026prue} as FTW-PRUE+ (Sentinel-2) and FTP-PRUE+ (PlanetScope, ours). Polygon metrics are on vectorized field polygons (\Cref{app:metrics}), macro-averaged over countries; $|\Delta N|/N$ (normalized polygon-count error) and boundary error are lower-is-better. Pixel IoU is a secondary protocol-continuity metric. $^{\dagger}$Pixel IoU is computed on each row's native raster and is \emph{not} comparable across sensor resolution (3\,m vs 10\,m); the polygon metrics and meter-scale boundary error are. Right block: PQ by GT field-area bin (Small $<0.5$, Medium $0.5$--$2$, Large $>2$\,ha), micro-pooled over fields (so it differs from the macro PQ at left); full RQ/PQ/AP by bin in \Cref{tab:area_bins}. Best per column \textbf{bold}; presence-only Kenya excluded. $^{*}$Off-the-shelf, no FTW fine-tuning (\Cref{app:qualitative_delineate}). Sentinel-2 object metrics use the upsampled ($\text{resize\_factor}{=}2$) PRUE eval; boundary chamfer at each model's native grid (\Cref{app:upsampled_s2}). PQ/SQ/RQ/F1 and pixel IoU $\times 100$; boundary error in meters.}
+    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). Methods $\times$ imagery: zero-shot DelineateAnything (YOLO11x) and DelineateAnything-S (YOLO11n)~\cite{lavreniuk2025delineate} on both sensors, and the PRUE recipe~\cite{muhawenayo2026prue} as FTW-PRUE+ (Sentinel-2) and FTP-PRUE+ (PlanetScope, ours). Polygon metrics are on vectorized field polygons (\Cref{app:metrics}), macro-averaged over countries; $|\Delta N|/N$ (normalized polygon-count error) and boundary error are lower-is-better. Pixel IoU is a secondary protocol-continuity metric. $^{\dagger}$Pixel IoU is computed on each row's native raster and is \emph{not} comparable across sensor resolution (3\,m vs 10\,m); the polygon metrics and meter-scale boundary error are. Right block: PQ by GT field-area bin (Small $<0.5$, Medium $0.5$--$2$, Large $>2$\,ha), micro-pooled over fields (so it differs from the macro PQ at left); full RQ/PQ/AP by bin in \Cref{tab:area_bins}. Best per column \textbf{bold}; presence-only Kenya excluded. $^{*}$Off-the-shelf, no FTW fine-tuning. Sentinel-2 object metrics use the upsampled ($\text{resize\_factor}{=}2$) PRUE eval; boundary chamfer at each model's native grid (\Cref{app:upsampled_s2}). PQ/SQ/RQ/F1 and pixel IoU $\times 100$; boundary error in meters.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -1000,17 +1000,5 @@ protocol used for every other row.)
     \caption{\textbf{Additional post-processed instance samples} (D4 TTA + watershed; companion to \Cref{fig:qualitative}). Seven more dense-smallholder patches. Each color = a distinct field instance.}
     \label{fig:qualitative_post_appx}
 \end{figure*}
-
-\section{DelineateAnything qualitative comparison}
-\label{app:qualitative_delineate}
-
-\Cref{fig:qualitative_delineate} compares the FTP-PRUE+ model against the off-the-shelf DelineateAnything~\cite{lavreniuk2025delineate} checkpoint (YOLO11x-seg, RGB uint8 (window A, clip(refl/3000)$\cdot$255), no FTW fine-tuning, canonical inference: conf $=0.005$, NMS IoU $=0.5$, FP16, \texttt{max\_det} raised to $2000$ for dense smallholder patches). We omit their 2500m$^{2}$ minimum-area filter so Cambodia/Vietnam smallholders are not excluded by construction. FTP-PRUE+ over-segments in dense parcel grids (watershed seeds at the field-boundary ring trigger too readily); DelineateAnything systematically returns far fewer instances than there are fields. The qualitative picture matches \Cref{tab:polygon_metrics}: DelineateAnything's SQ rivals our trained models on the masks it does produce, but RQ is low because it misses most fields.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figs/qualitative_delineate.pdf}
-    \caption{\textbf{FTP-PRUE+ (ours) vs DelineateAnything.} Same four dense-smallholder rows as \Cref{fig:qualitative}. Columns: Planet RGB, GT instances, FTP-PRUE+ (TTA + watershed), DelineateAnything (YOLO11x-seg, RGB uint8, canonical inference settings; no FTW or PlanetScope fine-tuning). Each color = a distinct field instance.}
-    \label{fig:qualitative_delineate}
-\end{figure}
 
 \end{document}
