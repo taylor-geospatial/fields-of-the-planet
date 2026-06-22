@@ -84,8 +84,10 @@ def _yolo_instances(
     yolo: YOLO, rgb_u8: np.ndarray, imgsz: int, conf: float, iou: float, device: torch.device
 ) -> np.ndarray:
     H, W = rgb_u8.shape[:2]
+    # ultralytics treats a numpy source as BGR and flips to RGB in preprocess;
+    # pass BGR so the model receives true RGB (else R/B swap).
     r = yolo.predict(
-        source=rgb_u8,
+        source=rgb_u8[..., ::-1],
         imgsz=imgsz,
         conf=conf,
         iou=iou,
@@ -146,7 +148,7 @@ def main() -> None:
     p.add_argument("--cell-size", type=int, default=SQUARE_SIZE)
     p.add_argument("--cell-h", type=float, default=1.05)
     p.add_argument("--cell-w", type=float, default=1.05)
-    p.add_argument("--imgsz", type=int, default=1024)
+    p.add_argument("--imgsz", type=int, default=512)  # DelineateAnything ckpts trained at 512 (square)
     p.add_argument("--conf", type=float, default=0.005)
     p.add_argument("--iou", type=float, default=0.5)
     args = p.parse_args()

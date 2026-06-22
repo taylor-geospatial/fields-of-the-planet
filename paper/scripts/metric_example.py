@@ -322,6 +322,7 @@ def main() -> int:
     # [0,1] metrics shown x100 at 1 decimal (matching the paper tables);
     # chamfer in meters; |dN| an integer count.
     metric_rows = [
+        ("pixel IoU", "pix_iou", "{:.1f}", 100.0),
         ("Obj F1@.5", "objf1", "{:.1f}", 100.0),
         ("PQ", "pq", "{:.1f}", 100.0),
         ("SQ", "sq", "{:.1f}", 100.0),
@@ -329,7 +330,6 @@ def main() -> int:
         ("F1 .5:.95", "ap", "{:.1f}", 100.0),
         ("chamfer m", "bnd_m", "{:.1f}", 1.0),
         ("|dN|", "dN", "{:d}", 1.0),
-        ("pixel IoU", "pix_iou", "{:.1f}", 100.0),
     ]
 
     def _fmt(value: float, spec: str, scale: float) -> str:
@@ -356,7 +356,7 @@ def main() -> int:
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(5.3)
     for (rr, cc), cell in tbl.get_celld().items():
-        cell.set_edgecolor("#cfc8b8")
+        cell.set_edgecolor(tg_style.BROWN)
         cell.set_linewidth(0.4)
         cell.get_text().set_color(tg_style.BROWN)
         cell.get_text().set_ha("center")

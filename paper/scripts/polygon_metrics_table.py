@@ -1,15 +1,15 @@
 """Generate ``paper/figs/polygon_metrics.tex`` (``tab:polygon_metrics``).
 
-Dense-label held-out macro-average (HELDOUT_10_DENSE: the 11 held-out
-countries minus kenya) of panoptic-quality, F1, normalized polygon-count
-error, and meter-scale boundary error for each (imagery, recipe)
-configuration, plus PQ broken down by GT field-area bin (small/medium/large).
-Sources: ``logs/polygon_metrics/<stem>.csv`` and ``logs/area_bins/<stem>.csv.bins.csv``.
+Dense-label held-out macro-average (HELDOUT_10_DENSE) of polygon metrics, the
+secondary pixel IoU, and PQ by GT field-area bin, for each method:
 
-Kenya's labels are presence-only (background untrusted), so its supervised
-polygon metrics are not comparable and it is excluded from the macro; see
-the per-country table for the presence-only stress-test row. Boundary-error
-entries for kenya are NaN in the source CSVs regardless.
+* DelineateAnything / DelineateAnything-S (YOLO11x / YOLO11n), zero-shot, on
+  both Planet (3 m) and S2 (10 m); sensor is folded into the method name.
+* FTW-PRUE+ B3/B7 (Sentinel-2) and FTP-PRUE+ B3/B7 (PlanetScope, ours).
+
+Each row pulls polygon metrics + |dN|/N from its polygon CSV, the boundary
+chamfer at its native grid, pixel IoU from its post-processing CSV, and PQ by
+area bin from its ``*.bins.csv``. Sources are listed per row below.
 
 Run::
 
@@ -24,151 +24,132 @@ from _aggregate import HELDOUT_10_DENSE, load_and_filter
 HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "polygon_metrics.tex"
-SRC = REPO / "logs" / "polygon_metrics"
+PM = REPO / "logs" / "polygon_metrics"
 AREA = REPO / "logs" / "area_bins"
-
-# The B3-full row is the released checkpoint (retrained Jun 2026, epoch 92);
-# its metrics come from the reproduction eval rather than the original run.
+PP = REPO / "logs" / "postproc_ablation"
 REPRO = REPO / "logs" / "repro_eval"
 
-# (model, backbone, csv path, midrule-before, bold-row, boundary-csv, area-stem).
-# Full-data split only. S2 rows: PQ/SQ/RQ/F1/|dN| come from the upsample-512
-# eval (resize_factor=2, how the PRUE checkpoints are run), but boundary error
-# is taken from the NATIVE-grid eval -- the meter chamfer is grid-sensitive and
-# the finer upsample grid inflates it (see app:upsampled_s2), so reporting it at
-# each model's native grid is the like-for-like comparison. boundary-csv=None
-# means use the row's own CSV for boundary too. area-stem=None means the model
-# has no area-binned eval (DelineateAnything).
+_DA = r"~\cite{lavreniuk2025delineate}"
+_PRUE = r"~\cite{muhawenayo2026prue}"
+
+# Each row: display name, backbone, polygon-metrics CSV, area-bins CSV,
+# pixel-IoU CSV (pixel_level_iou col), boundary CSV (None = use polygon CSV),
+# bold-backbone, midrule-before.
 ROWS = [
-    ("DelineateAnything$^{*}$", "YOLO11", SRC / "delineate_anything_conf0005.csv",
-     False, False, None, None),
-    ("FTW-PRUE+", "B3", SRC / "s2_b3_augmax_full_upsampled_22.csv", True, False,
-     SRC / "s2_b3_augmax_full_native256.csv", "s2_b3"),
-    ("FTW-PRUE+", "B7", SRC / "s2_upsampled_b7_augmax_full_22.csv", False, False,
-     SRC / "s2_b7_augmax_full_native256.csv", "s2_b7"),
-    ("FTP-PRUE+", "B3", REPRO / "polygon_metrics.csv", False, True, None, "planet_b3"),
+    (rf"DelineateAnything (S2)$^{{*}}${_DA}", "YOLO11x",
+     PM / "delineate_x_s2.csv", PM / "delineate_x_s2.csv.bins.csv", PM / "delineate_x_s2.csv", None, False, False),
+    (rf"DelineateAnything-S (S2)$^{{*}}${_DA}", "YOLO11n",
+     PM / "delineate_s_s2.csv", PM / "delineate_s_s2.csv.bins.csv", PM / "delineate_s_s2.csv", None, False, False),
+    (rf"DelineateAnything (Planet)$^{{*}}${_DA}", "YOLO11x",
+     PM / "delineate_x_planet.csv", PM / "delineate_x_planet.csv.bins.csv", PM / "delineate_x_planet.csv", None, False, False),
+    (rf"DelineateAnything-S (Planet)$^{{*}}${_DA}", "YOLO11n",
+     PM / "delineate_s_planet.csv", PM / "delineate_s_planet.csv.bins.csv", PM / "delineate_s_planet.csv", None, False, False),
+    (rf"FTW-PRUE+ (S2){_PRUE}", "B3",
+     PM / "s2_b3_augmax_full_upsampled_22.csv", AREA / "s2_b3.csv.bins.csv",
+     PP / "s2_b3_augmax_full_upsampled_ws_tta.csv", PM / "s2_b3_augmax_full_native256.csv", False, True),
+    (rf"FTW-PRUE+ (S2){_PRUE}", "B7",
+     PM / "s2_upsampled_b7_augmax_full_22.csv", AREA / "s2_b7.csv.bins.csv",
+     PP / "s2_b7_augmax_full_upsampled_ws_tta.csv", PM / "s2_b7_augmax_full_native256.csv", False, False),
+    (r"\textbf{FTP-PRUE+ (Planet, ours)}", "B3",
+     REPRO / "polygon_metrics.csv", AREA / "planet_b3.csv.bins.csv",
+     REPRO / "pp_ws_tta.csv", None, True, True),
+    (r"\textbf{FTP-PRUE+ (Planet, ours)}", "B7",
+     AREA / "planet_b7.csv", AREA / "planet_b7.csv.bins.csv",
+     PP / "planet_b7_augmax_full_ws_tta.csv", None, True, False),
 ]
 
-COLS = (
-    "pq",
-    "pq_sq",
-    "pq_rq",
-    "ap_5_95",
-    "polygon_count_delta_norm",
-    "boundary_error_m_mean",
-    "boundary_error_m_p95",
-)
+POLY_COLS = ("pq", "pq_sq", "pq_rq", "ap_5_95")
+BND_COLS = ("boundary_error_m_mean", "boundary_error_m_p95")
 AREA_BINS = ("small", "medium", "large")
 
 
-def _area_pq(stem: str) -> dict[str, float]:
-    """Micro-pooled PQ per field-area bin for one model (or NaNs if absent)."""
-    if stem is None:
-        return {b: float("nan") for b in AREA_BINS}
-    d = pd.read_csv(AREA / f"{stem}.csv.bins.csv").set_index("bin")
+def _macro(csv: Path, col: str) -> float:
+    sub = load_and_filter(csv, HELDOUT_10_DENSE)
+    if len(sub) != len(HELDOUT_10_DENSE):
+        raise RuntimeError(f"{csv}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries")
+    return float(sub[col].mean(skipna=True))
+
+
+def _norm_count(csv: Path) -> float:
+    sub = load_and_filter(csv, HELDOUT_10_DENSE)
+    return float((sub["polygon_count_delta_mean"] / sub["n_gt_mean"]).mean())
+
+
+def _area_pq(csv: Path) -> dict[str, float]:
+    d = pd.read_csv(csv).set_index("bin")
     return {b: float(d.loc[b, "pq"]) for b in AREA_BINS}
 
 
 def main() -> None:
-    bnd_cols = ("boundary_error_m_mean", "boundary_error_m_p95")
-    aggregates: list[dict[str, float]] = []
-    for _, _, csv_path, _, _, bnd_csv, area_stem in ROWS:
-        sub = load_and_filter(csv_path, HELDOUT_10_DENSE)
-        if len(sub) != len(HELDOUT_10_DENSE):
-            raise RuntimeError(
-                f"{csv_path}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries"
-            )
-        agg = {
-            c: float(sub[c].mean(skipna=True))
-            for c in COLS
-            if c != "polygon_count_delta_norm"
-        }
-        # Normalized polygon-count error: per-country mean |dN| divided by the
-        # per-country mean GT count, then macro-averaged. |dN| alone scales with
-        # parcel density (Cambodia's ~600 parcels/patch dominate the raw mean),
-        # so the normalized form is the density-invariant over/under-seg metric.
-        agg["polygon_count_delta_norm"] = float(
-            (sub["polygon_count_delta_mean"] / sub["n_gt_mean"]).mean()
-        )
-        bsub = sub
-        if bnd_csv is not None:
-            bsub = load_and_filter(bnd_csv, HELDOUT_10_DENSE)
-            if len(bsub) != len(HELDOUT_10_DENSE):
-                raise RuntimeError(f"{bnd_csv}: boundary macro over {len(bsub)} countries")
-            for c in bnd_cols:
-                agg[c] = float(bsub[c].mean(skipna=True))
-        agg["_bnd_n"] = int(bsub["boundary_error_m_mean"].notna().sum())
-        # PQ by GT field-area bin (micro-pooled over fields; see tab:area_bins).
-        for b, v in _area_pq(area_stem).items():
+    aggs: list[dict[str, float]] = []
+    for _, _, poly, area_csv, pix_csv, bnd_csv, _, _ in ROWS:
+        agg = {c: _macro(poly, c) for c in POLY_COLS}
+        agg["dN_norm"] = _norm_count(poly)
+        bnd = bnd_csv if bnd_csv is not None else poly
+        for c in BND_COLS:
+            agg[c] = _macro(bnd, c)
+        agg["pixel_iou"] = _macro(pix_csv, "pixel_level_iou")
+        for b, v in _area_pq(area_csv).items():
             agg[f"pq_{b}"] = v
-        aggregates.append(agg)
+        aggs.append(agg)
 
-    # Best per column (higher-is-better for PQ/SQ/RQ/F1 and the area-PQ bins;
-    # lower-is-better for |dN|/N and boundary errors).
     area_cols = tuple(f"pq_{b}" for b in AREA_BINS)
-    higher_better = {"pq", "pq_sq", "pq_rq", "ap_5_95", *area_cols}
-    all_cols = (*COLS, *area_cols)
-    best: dict[str, float] = {}
-    for c in all_cols:
-        vals = [a[c] for a in aggregates if a[c] == a[c]]  # skip NaN
-        best[c] = (max(vals) if c in higher_better else min(vals)) if vals else float("nan")
+    metric_cols = (*POLY_COLS, "dN_norm", *BND_COLS, "pixel_iou", *area_cols)
+    higher_better = {"pq", "pq_sq", "pq_rq", "ap_5_95", "pixel_iou", *area_cols}
+    best = {
+        c: (max if c in higher_better else min)(a[c] for a in aggs if a[c] == a[c])
+        for c in metric_cols
+    }
 
-    # [0,1] metrics (PQ/SQ/RQ/F1, area PQ) are shown x100 at 1 decimal; the
-    # normalized count error and meter-scale boundary errors keep natural units.
-    def cell(v: float, c: str, decimals: int = 1, scale: float = 100.0) -> str:
-        if v != v:  # NaN -> no area eval for this model
+    def cell(v: float, c: str, dec: int, scale: float) -> str:
+        if v != v:
             return "--"
-        s = f"{v * scale:.{decimals}f}"
-        if abs(v - best[c]) < 1e-9:
-            s = rf"\textbf{{{s}}}"
-        return s
+        s = f"{v * scale:.{dec}f}"
+        return rf"\textbf{{{s}}}" if abs(v - best[c]) < 1e-9 else s
 
-    def row_line(model: str, backbone: str, bold: bool, agg: dict[str, float]) -> str:
-        m, b = (
-            (rf"\textbf{{{x}}}" for x in (model, backbone)) if bold else (model, backbone)
-        )
+    def row_line(name: str, bb: str, bold_bb: bool, agg: dict[str, float]) -> str:
+        bb_s = rf"\textbf{{{bb}}}" if bold_bb else bb
         return (
-            f"{m} & {b} & "
-            f"{cell(agg['pq'], 'pq')} & {cell(agg['pq_sq'], 'pq_sq')} & "
-            f"{cell(agg['pq_rq'], 'pq_rq')} & {cell(agg['ap_5_95'], 'ap_5_95')} & "
-            f"{cell(agg['polygon_count_delta_norm'], 'polygon_count_delta_norm', 2, 1.0)} & "
-            f"{cell(agg['boundary_error_m_mean'], 'boundary_error_m_mean', 1, 1.0)} & "
-            f"{cell(agg['boundary_error_m_p95'], 'boundary_error_m_p95', 1, 1.0)} & "
-            f"{cell(agg['pq_small'], 'pq_small')} & {cell(agg['pq_medium'], 'pq_medium')} & "
-            f"{cell(agg['pq_large'], 'pq_large')} \\\\"
+            f"{name} & {bb_s} & "
+            f"{cell(agg['pq'], 'pq', 1, 100)} & {cell(agg['pq_sq'], 'pq_sq', 1, 100)} & "
+            f"{cell(agg['pq_rq'], 'pq_rq', 1, 100)} & {cell(agg['ap_5_95'], 'ap_5_95', 1, 100)} & "
+            f"{cell(agg['dN_norm'], 'dN_norm', 2, 1)} & "
+            f"{cell(agg['boundary_error_m_mean'], 'boundary_error_m_mean', 1, 1)} & "
+            f"{cell(agg['boundary_error_m_p95'], 'boundary_error_m_p95', 1, 1)} & "
+            f"{cell(agg['pixel_iou'], 'pixel_iou', 1, 100)} & "
+            f"{cell(agg['pq_small'], 'pq_small', 1, 100)} & "
+            f"{cell(agg['pq_medium'], 'pq_medium', 1, 100)} & "
+            f"{cell(agg['pq_large'], 'pq_large', 1, 100)} \\\\"
         )
 
-    lines: list[str] = []
-    lines.append(r"\footnotesize")
-    lines.append(r"\setlength{\tabcolsep}{3pt}")
-    lines.append(r"\begin{tabular}{@{}l l ccc c c cc ccc@{}}")
-    lines.append(r"\toprule")
-    lines.append(
-        r"& & \multicolumn{3}{c}{Panoptic} & & & "
-        r"\multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} & "
-        r"\multicolumn{3}{c}{\makecell{PQ by GT area}} \\"
-    )
-    lines.append(r"\cmidrule(lr){3-5} \cmidrule(lr){8-9} \cmidrule(lr){10-12}")
-    lines.append(
-        r"Model & Backbone & PQ & SQ & \makecell{RQ\\($=$F1$_{.5}$)} & "
+    lines = [
+        r"\scriptsize",
+        r"\setlength{\tabcolsep}{3pt}",
+        r"\begin{tabular}{@{}l l ccc c c cc c ccc@{}}",
+        r"\toprule",
+        r" & & \multicolumn{3}{c}{Panoptic} & & & "
+        r"\multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} & & "
+        r"\multicolumn{3}{c}{\makecell{PQ by GT area}} \\",
+        r"\cmidrule(lr){3-5} \cmidrule(lr){8-9} \cmidrule(lr){11-13}",
+        r"Method & Bb. & PQ & SQ & \makecell{RQ\\($=$F1$_{.5}$)} & "
         r"F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$} & mean & p95 & "
-        r"Sm. & Med. & Lg. \\"
-    )
-    lines.append(r"\midrule")
-    for (model, backbone, _, sep, bold, _, _), agg in zip(ROWS, aggregates):
+        r"\makecell{Pixel\\IoU$^{\dagger}$} & Sm. & Med. & Lg. \\",
+        r"\midrule",
+    ]
+    for (name, bb, _poly, _a, _p, _b, bold_bb, sep), agg in zip(ROWS, aggs):
         if sep:
             lines.append(r"\midrule")
-        lines.append(row_line(model, backbone, bold, agg))
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{tabular}")
+        lines.append(row_line(name, bb, bold_bb, agg))
+    lines += [r"\bottomrule", r"\end{tabular}"]
 
     OUT.write_text("\n".join(lines) + "\n")
     print(f"wrote {OUT}")
-    for (model, backbone, _, _, _, _, _), agg in zip(ROWS, aggregates):
+    for (name, bb, *_), agg in zip(ROWS, aggs):
+        plain = name.replace(r"\textbf{", "").replace("}", "").split("~")[0].replace("$^{*}$", "")
         print(
-            f"  {model} {backbone}: PQ={agg['pq']:.3f} "
-            f"|dN|/N={agg['polygon_count_delta_norm']:.3f} "
-            f"PQ[s/m/l]={agg['pq_small']:.3f}/{agg['pq_medium']:.3f}/{agg['pq_large']:.3f}"
+            f"  {plain:30s} {bb:7s} PQ={agg['pq'] * 100:5.1f} "
+            f"pixIoU={agg['pixel_iou'] * 100:5.1f} |dN|/N={agg['dN_norm']:.2f} "
+            f"PQ[s/m/l]={agg['pq_small'] * 100:.1f}/{agg['pq_medium'] * 100:.1f}/{agg['pq_large'] * 100:.1f}"
         )
 
 

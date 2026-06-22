@@ -235,7 +235,7 @@ each reported number is reproducible from a config.
 \begin{table*}[t]
     \centering
     \scriptsize
-    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). FTW-PRUE+ / FTP-PRUE+: the PRUE recipe~\cite{muhawenayo2026prue} on FTW (Sentinel-2) vs FTP (PlanetScope), EfficientNet-B3 unless the Backbone column says otherwise. Left block: metrics on vectorized field polygons (\Cref{app:metrics}), macro-averaged over countries; $|\Delta N|/N$ (normalized polygon-count error) and boundary error are lower-is-better. Right block: PQ split by GT field-area bin (Small $<0.5$, Medium $0.5$--$2$, Large $>2$\,ha), micro-pooled over fields, so it differs from the macro PQ at left; the full RQ/PQ/AP breakdown by bin is in \Cref{tab:area_bins}. Best per column in \textbf{bold}; presence-only Kenya excluded. $^{*}$DelineateAnything~\cite{lavreniuk2025delineate}: off-the-shelf YOLO11, no FTW fine-tuning or area eval (\Cref{app:qualitative_delineate}). Sentinel-2 object metrics use the upsampled ($\text{resize\_factor}{=}2$) PRUE eval; boundary chamfer is at each model's native grid (\Cref{app:upsampled_s2}). PQ/SQ/RQ/F1 $\times 100$; boundary error in meters.}
+    \caption{\textbf{Main polygon-level results on the dense held-out split} (10 countries, WS\,+\,TTA). Methods $\times$ imagery: zero-shot DelineateAnything (YOLO11x) and DelineateAnything-S (YOLO11n)~\cite{lavreniuk2025delineate} on both sensors, and the PRUE recipe~\cite{muhawenayo2026prue} as FTW-PRUE+ (Sentinel-2) and FTP-PRUE+ (PlanetScope, ours). Polygon metrics are on vectorized field polygons (\Cref{app:metrics}), macro-averaged over countries; $|\Delta N|/N$ (normalized polygon-count error) and boundary error are lower-is-better. Pixel IoU is a secondary protocol-continuity metric. $^{\dagger}$Pixel IoU is computed on each row's native raster and is \emph{not} comparable across sensor resolution (3\,m vs 10\,m); the polygon metrics and meter-scale boundary error are. Right block: PQ by GT field-area bin (Small $<0.5$, Medium $0.5$--$2$, Large $>2$\,ha), micro-pooled over fields (so it differs from the macro PQ at left); full RQ/PQ/AP by bin in \Cref{tab:area_bins}. Best per column \textbf{bold}; presence-only Kenya excluded. $^{*}$Off-the-shelf, no FTW fine-tuning (\Cref{app:qualitative_delineate}). Sentinel-2 object metrics use the upsampled ($\text{resize\_factor}{=}2$) PRUE eval; boundary chamfer at each model's native grid (\Cref{app:upsampled_s2}). PQ/SQ/RQ/F1 and pixel IoU $\times 100$; boundary error in meters.}
     \label{tab:polygon_metrics}
     \input{figs/polygon_metrics.tex}
 \end{table*}
@@ -368,7 +368,7 @@ PRUE protocol~\cite{muhawenayo2026prue}.
     right: the image, the FTP-PRUE+ predicted field mask, and that mask vectorized
     and matched to ground-truth parcels by IoU (green = matched, red = unmatched,
     gray = GT); the table lists per-patch metrics. In the bottom row pixel IoU
-    stays high ($72$) while object F1 collapses ($27$) because the dense parcels
+    stays high ($73$) while object F1 collapses ($29$) because the dense parcels
     fragment into many unmatched polygons --- a failure the polygon metrics
     penalize but pixel IoU cannot see.}
     \label{fig:metric_example}
@@ -738,12 +738,15 @@ range read. A second \texttt{:activate} call typically returned a working URL,
 so the pipeline includes an automatic reactivation pass; this recovered 99\% of
 the affected patches.
 
-\section{Dataset scope}
+\section{Dataset scope and per-tile UDM2 quality}
 \label{app:scope}
+\label{app:udm2_country}
 
 \begin{table}[h]
 \centering
-\caption{\textbf{Dataset scope.} FTW contains 24 countries and 25 labeled regions because Corsica is released separately from mainland France. Each FTW patch has two seasonal windows. \emph{Success rate} is the fraction of (patch, window) targets with a successfully extracted PlanetScope image.}
+\begin{minipage}[t]{0.54\linewidth}
+\centering
+\captionof{table}{\textbf{Dataset scope.} FTW contains 24 countries and 25 labeled regions because Corsica is released separately from mainland France. Each FTW patch has two seasonal windows. \emph{Success rate} is the fraction of (patch, window) targets with a successfully extracted PlanetScope image.}
 \label{tab:scope}
 \small
 \begin{tabular}{lr}
@@ -770,14 +773,10 @@ Successfully matched pairs      & 133{,}168 \\
 Total dataset size              & 102\,GB \\
 \bottomrule
 \end{tabular}
-\end{table}
-
-\section{Per-country UDM2 quality}
-\label{app:udm2_country}
-
-\begin{table}[h]
+\end{minipage}\hfill
+\begin{minipage}[t]{0.43\linewidth}
 \centering
-\caption{\textbf{Per-tile UDM2 coverage.} For each UDM2 class, the percentage of the 129{,}490 (patch, window) tiles with UDM2 statistics whose flagged area exceeds a coverage threshold. Tiles are near-fully clear: $95.9\%$ are $\ge\!50\%$ clear. Degraded tiles ($\ge\!50\%$ of the window flagged cloud / shadow / haze / unusable; the bolded column) become resampling candidates.}
+\captionof{table}{\textbf{Per-tile UDM2 coverage.} For each UDM2 class, the percentage of the 129{,}490 (patch, window) tiles with UDM2 statistics whose flagged area exceeds a coverage threshold. Tiles are near-fully clear: $95.9\%$ are $\ge\!50\%$ clear. Degraded tiles ($\ge\!50\%$ of the window flagged cloud / shadow / haze / unusable; the bolded column) become resampling candidates.}
 \label{tab:udm2}
 \small
 \begin{tabular}{l S[table-format=2.1] S[table-format=2.1] S[table-format=2.1]}
@@ -792,6 +791,7 @@ Total dataset size              & 102\,GB \\
 \bottomrule
 \end{tabular}
 \par\vspace{2pt}\footnotesize \% of (patch, window) tiles; each tile's class area as a fraction of the window.
+\end{minipage}
 \end{table}
 
 Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release: the lowest rates are Portugal (48.5\%), the Netherlands (79.1\%), and Cambodia (80.4\%); Brazil and Croatia exceed 99\%. Smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
@@ -887,28 +887,28 @@ the 10-country dense held-out set referenced from the main text.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.7\linewidth]{figs/per_country_pq_objf1.pdf}
-    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7; same per-region $\Delta$PQ as \Cref{fig:per_country_bars}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
-    \label{fig:per_country_objf1_appx}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.6\linewidth]{figs/smallholder_scatter.pdf}
-    \caption{\textbf{PQ gain vs.\ field size.}
-    Per-region median FTW polygon area (hectares, log scale; EPSG:6933
-    equal-area) vs $\Delta$\,PQ (FTP-PRUE+ WS+TTA $-$
-    FTW-PRUE+ (B7)) across the 23 test regions
-    ($n=22$: the 23 PQ head-to-head regions minus Brazil, which has no
-    per-region field-size estimate). Positive $y$ = Planet wins.
-    Countries $<\!2$\,ha median (sienna, \cite{lowder2016farms}) are
-    smallholder; remainder olive. Pearson $r=+0.45$, Spearman
-    $\rho=+0.47$: against the corrected S2-B7 baseline the gain now correlates
-    \emph{positively} with field size. Biggest gains are mid-size fields
-    (Netherlands $+22.0$, Lithuania $+16.3$); the smallest-field tropical
-    regions are losses (Cambodia $-7.3$, Vietnam $-0.3$) as is large-regular
-    Germany ($-6.8$).}
-    \label{fig:smallholder_scatter}
+    \begin{minipage}[t]{0.63\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/per_country_pq_objf1.pdf}
+        \captionof{figure}{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7; same per-region $\Delta$PQ as \Cref{fig:per_country_bars}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
+        \label{fig:per_country_objf1_appx}
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.35\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/smallholder_scatter.pdf}
+        \captionof{figure}{\textbf{PQ gain vs.\ field size.}
+        Per-region median FTW polygon area (hectares, log scale; EPSG:6933
+        equal-area) vs $\Delta$\,PQ (FTP-PRUE+ WS+TTA $-$ FTW-PRUE+ (B7)) across
+        the 23 test regions ($n=22$: minus Brazil, which has no per-region
+        field-size estimate). Positive $y$ = Planet wins. Countries $<\!2$\,ha
+        median (sienna, \cite{lowder2016farms}) are smallholder; remainder
+        olive. Pearson $r=+0.45$, Spearman $\rho=+0.47$: against the corrected
+        S2-B7 baseline the gain correlates \emph{positively} with field size.
+        Biggest gains are mid-size fields (Netherlands $+22.0$, Lithuania
+        $+16.3$); smallest-field tropical regions are losses (Cambodia $-7.3$,
+        Vietnam $-0.3$) as is large-regular Germany ($-6.8$).}
+        \label{fig:smallholder_scatter}
+    \end{minipage}
 \end{figure}
 
 \section{Upsampled-Sentinel-2 control}

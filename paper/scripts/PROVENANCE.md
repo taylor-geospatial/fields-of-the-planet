@@ -17,7 +17,7 @@ each model's native grid.
 
 | Float | Generator | Source CSV(s) |
 |---|---|---|
-| `tab:polygon_metrics` | `polygon_metrics_table.py` | `logs/polygon_metrics/{delineate_anything_conf0005,s2_b3_augmax_full_upsampled_22,s2_upsampled_b7_augmax_full_22}.csv` (+ `*_native256.csv` for boundary); `logs/repro_eval/polygon_metrics.csv` (FTP B3) |
+| `tab:polygon_metrics` | `polygon_metrics_table.py` | Polygon metrics + `|dN|/N`: DelineateAnything (x/s)×(planet/s2) from `logs/polygon_metrics/delineate_{x,s}_{planet,s2}.csv`; FTW-PRUE+ B3/B7 from `logs/polygon_metrics/{s2_b3_augmax_full_upsampled_22,s2_upsampled_b7_augmax_full_22}.csv` (+ `*_native256.csv` for boundary); FTP-PRUE+ B3 from `logs/repro_eval/polygon_metrics.csv`, B7 from `logs/area_bins/planet_b7.csv`. Pixel IoU (`pixel_level_iou`): delineate from its own CSV; FTW/FTP from `logs/postproc_ablation/{s2_b3,s2_b7}_augmax_full_upsampled_ws_tta.csv`, `logs/repro_eval/pp_ws_tta.csv`, `logs/postproc_ablation/planet_b7_augmax_full_ws_tta.csv`. PQ-by-area from each row's `*.bins.csv` (delineate alongside its polygon CSV; FTW/FTP under `logs/area_bins/`). Delineate evals: `scripts/eval/eval_delineate_anything.py` (large `torchgeo/delineate-anything` yolo11x; small `torchgeo/delineate-anything-s` yolo11n; RGB clip(refl/3000); planet RGB=[2,1,0], s2 RGB=[0,1,2]). |
 | `tab:area_bins` | `area_bins_table.py` | `logs/area_bins/{planet_b3,s2_b7,s2_b3}.csv.bins.csv` |
 | `tab:heldout` | `heldout_results_table.py` | `logs/postproc_ablation/s2_{b3,b7}_augmax_full_upsampled_{nows_notta,nows_tta,ws_notta,ws_tta}.csv`; `logs/repro_eval/pp_*.csv` (FTP) |
 | `tab:heldout_pc` | `heldout_per_country_table.py` | `logs/postproc_ablation/s2_b3_augmax_full_upsampled_ws_tta.csv`; `logs/repro_eval/pp_ws_tta.csv` |

@@ -401,7 +401,10 @@ def main() -> int:
     # hparams don't match the constructor (TypeError/KeyError) or the state_dict
     # keys don't align (RuntimeError). Narrow to those so a genuine bug in the
     # matching class still raises instead of being silently swallowed.
-    except (RuntimeError, KeyError, TypeError) as e:
+    # argparse.ArgumentError: jsonargparse rejects the ckpt's saved class_path
+    # when it is not this task class (e.g. a plain FTWPlanetSegTask checkpoint),
+    # which is also just a "wrong task class" signal -> fall through.
+    except (RuntimeError, KeyError, TypeError, argparse.ArgumentError) as e:
         print(f"not FrameFieldSegTask ({type(e).__name__}); trying next task class")
     if task is None:
         try:
@@ -409,7 +412,7 @@ def main() -> int:
 
             task = SDFSegTask.load_from_checkpoint(str(args.ckpt), map_location="cpu")
             print("loaded as SDFSegTask")
-        except (RuntimeError, KeyError, TypeError) as e:
+        except (RuntimeError, KeyError, TypeError, argparse.ArgumentError) as e:
             print(f"not SDFSegTask ({type(e).__name__}); falling back to semantic seg")
             task = CustomSemanticSegmentationTask.load_from_checkpoint(
                 str(args.ckpt), map_location="cpu"
