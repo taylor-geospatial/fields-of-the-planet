@@ -281,10 +281,10 @@ def main():
         "--rows",
         nargs="+",
         default=[
-            "croatia:g10-3_00071_11:a",
-            "slovenia:g13_00033_1:a",
-            "austria:g83_00031_18:a",
-            "lithuania:g11_00088_0:a",
+            "lithuania:g11_00062_5:a",
+            "latvia:g31_00052_15:a",
+            "belgium:g2_00021_11:a",
+            "lithuania:g8_00052_15:a",
         ],
     )
     p.add_argument("--out", default="paper/figs/qualitative_main.pdf")
