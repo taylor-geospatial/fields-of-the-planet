@@ -28,6 +28,10 @@ IMGSZ="${IMGSZ:-512}"
 SPLIT="${SPLIT:-test}"
 COUNTRIES="${COUNTRIES:-}"
 SAMPLE="${SAMPLE:-}"
+# True-GT scoring (object metrics + size bins vs the true FTW polygons in UTM,
+# comparable to the PRUE+ rows). Set GTPOLY + GSD to enable.
+GTPOLY="${GTPOLY:-}"
+GSD="${GSD:-}"
 
 EXTRA=()
 if [[ -n "$COUNTRIES" ]]; then
@@ -36,6 +40,12 @@ if [[ -n "$COUNTRIES" ]]; then
 fi
 if [[ -n "$SAMPLE" ]]; then
     EXTRA+=( --save-rgb-sample "$SAMPLE" )
+fi
+if [[ -n "$GTPOLY" ]]; then
+    EXTRA+=( --gt-polygons-root "$GTPOLY" )
+fi
+if [[ -n "$GSD" ]]; then
+    EXTRA+=( --score-gsd-m "$GSD" )
 fi
 
 mkdir -p "$(dirname "$OUT")"

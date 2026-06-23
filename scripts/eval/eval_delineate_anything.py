@@ -41,9 +41,12 @@ from polygon_metrics_eval import (
     GSD_M,
     _area_bin,
     _boundary_pixels,
+    _cap_pred_to_gsd,
+    _eval_grid,
     _extract_shapes,
     _match_shapes,
     _symmetric_chamfer,
+    _true_gt_utm,
 )
 from postprocess_eval import COUNTRIES
 from shapely.ops import unary_union
@@ -110,10 +113,17 @@ def evaluate_country_yolo(
     pixel_area_ha: float,
     area_edges: tuple | None,
     rgb_sample_path: Path | None = None,
+    gt_polygons_root: str | None = None,
+    planet_window: str = "a",
+    score_gsd_m: float | None = None,
 ) -> dict[str, float]:
     ds = _make_dataset(backend, root, country, split)
     dl = DataLoader(ds, batch_size=1, shuffle=False, num_workers=num_workers, pin_memory=False)
     gsd_m = GSD_M[backend]
+    # True-GT scoring: match against the true FTW polygons in metric UTM space
+    # (prediction capped to the sensor's native ground resolution), mirroring
+    # polygon_metrics_eval so DA rows are comparable to the PRUE+ rows.
+    gsd_mode = score_gsd_m is not None and gt_polygons_root is not None
 
     counts = {t: [0, 0, 0] for t in AP_IOU_THRESHOLDS}
     matched_ious_05: list[float] = []
@@ -125,7 +135,7 @@ def evaluate_country_yolo(
     pix_union = 0
     n_patches = 0
 
-    for batch in tqdm(dl, desc=country, leave=False):
+    for idx, batch in enumerate(tqdm(dl, desc=country, leave=False)):
         image = batch["image"][0].cpu().numpy().astype(np.float32)  # (8, H, W) raw DN
         mask = batch["mask"][0].cpu().numpy().astype(np.int64)
         H, W = mask.shape
@@ -182,12 +192,27 @@ def evaluate_country_yolo(
                     continue
                 pred_shapes.append(geoms[0] if len(geoms) == 1 else unary_union(geoms))
 
-        n_patches += 1
-        n_pred_per_patch.append(len(pred_shapes))
-        n_gt_per_patch.append(len(gt_shapes))
-        polygon_deltas.append(abs(len(pred_shapes) - len(gt_shapes)))
+        # Object-level scoring shapes. In GSD mode, match the TRUE FTW polygons
+        # (UTM) against the prediction capped to the sensor's native ground
+        # resolution; otherwise use the rasterized-GT pixel shapes.
+        gt_true_areas = None
+        obj_pixel_area_ha = pixel_area_ha
+        if gsd_mode:
+            patch_id, eval_crs, eval_tr, _ = _eval_grid(
+                ds, idx, country, backend, root, planet_window, None
+            )
+            gt_obj, gt_true_areas, utm_crs = _true_gt_utm(gt_polygons_root, country, patch_id)
+            pred_obj = _cap_pred_to_gsd(pred_shapes, eval_tr, eval_crs, utm_crs, score_gsd_m)
+            obj_pixel_area_ha = 1e-4  # UTM m^2 -> ha
+        else:
+            gt_obj, pred_obj = gt_shapes, pred_shapes
 
-        m = _match_shapes(gt_shapes, pred_shapes, AP_IOU_THRESHOLDS)
+        n_patches += 1
+        n_pred_per_patch.append(len(pred_obj))
+        n_gt_per_patch.append(len(gt_obj))
+        polygon_deltas.append(abs(len(pred_obj) - len(gt_obj)))
+
+        m = _match_shapes(gt_obj, pred_obj, AP_IOU_THRESHOLDS)
         for t, (tps, fps, fns) in m["per_t"].items():
             counts[t][0] += tps
             counts[t][1] += fps
@@ -213,6 +238,11 @@ def evaluate_country_yolo(
 
         for i, j, iou in m["matched_pairs_low"]:
             matched_ious_05.append(iou)
+            if gsd_mode:
+                # Object IoUs (hence SQ) live in UTM; the boundary chamfer for the
+                # table comes from the rasterized-GT native-grid run, so skip it
+                # here. SQ is scale-free and still accumulates above.
+                continue
             pred_mask = rasterio.features.rasterize(
                 [pred_shapes[j]], out_shape=pred_bin.shape, dtype=np.uint8
             )
@@ -225,8 +255,11 @@ def evaluate_country_yolo(
 
         # Per-area-bin x per-IoU-threshold accumulation (mirrors polygon_metrics_eval).
         if bin_stats is not None:
-            gt_bins = [_area_bin(g.area * pixel_area_ha, area_edges) for g in gt_shapes]
-            pred_bins = [_area_bin(p.area * pixel_area_ha, area_edges) for p in pred_shapes]
+            if gt_true_areas is not None:
+                gt_bins = [_area_bin(a, area_edges) for a in gt_true_areas]
+            else:
+                gt_bins = [_area_bin(g.area * pixel_area_ha, area_edges) for g in gt_obj]
+            pred_bins = [_area_bin(p.area * obj_pixel_area_ha, area_edges) for p in pred_obj]
             for t in AP_IOU_THRESHOLDS:
                 matched_gt = {i: iou for i, j, iou in m["pairs_per_t"][t]}
                 matched_pred = {j for _, j, _ in m["pairs_per_t"][t]}
@@ -331,12 +364,36 @@ def main() -> int:
     p.add_argument("--save-rgb-sample", type=Path, default=None, help="save first-patch RGB PNG")
     p.add_argument("--hf-repo", type=str, default="torchgeo/delineate-anything")
     p.add_argument("--hf-file", type=str, default="delineate_anything_rgb_yolo11x-88ede029.pt")
+    p.add_argument(
+        "--gt-polygons-root",
+        type=str,
+        default=None,
+        help="Root of per-patch true FTW polygons (UTM parquet, e.g. data/ftw_polygons_clipped); "
+        "enables true-GT scoring comparable to the PRUE+ rows.",
+    )
+    p.add_argument(
+        "--score-gsd-m",
+        type=float,
+        default=None,
+        help="Cap predictions to this ground resolution before matching (planet 3, s2 10); "
+        "requires --gt-polygons-root. Object metrics + size bins use true polygons in UTM.",
+    )
+    p.add_argument(
+        "--planet-window",
+        type=str,
+        default="a",
+        choices=["a", "b"],
+        help="Planet window whose grid defines the eval CRS/transform (geometry is identical "
+        "across windows for a patch).",
+    )
     args = p.parse_args()
 
     area_edges = tuple(float(x) for x in args.area_bins.split(",")) if args.area_bins else None
     pixel_area_ha = (args.pixel_size_m**2) / 1e4 if args.pixel_size_m else 0.0
     if area_edges and not args.pixel_size_m:
         p.error("--area-bins requires --pixel-size-m")
+    if args.score_gsd_m is not None and args.gt_polygons_root is None:
+        p.error("--score-gsd-m requires --gt-polygons-root")
 
     device = torch.device(
         f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu"
@@ -408,6 +465,9 @@ def main() -> int:
                 pixel_area_ha,
                 area_edges,
                 rgb_sample_path=(args.save_rgb_sample if ci == 0 else None),
+                gt_polygons_root=args.gt_polygons_root,
+                planet_window=args.planet_window,
+                score_gsd_m=args.score_gsd_m,
             )
         except FileNotFoundError as e:
             print(f"  skip {country}: {e}")
