@@ -353,6 +353,17 @@ object-detection scores, but only genuine higher-resolution imagery delivers
 meter-scale boundary precision. We report boundary chamfer alongside the object
 metrics; per-country numbers and the full setup are in \Cref{app:upsampled_s2}.
 
+Breaking this by field size (\Cref{tab:resolution_ablation}, scored against true
+polygons at each sensor's native ground resolution, macro-averaged over the dense
+regions) sharpens the picture. Upsampling Sentinel-2 recovers part of the small-
+and medium-field gap (PQ $7.5\!\to\!11.8$ and $28.4\!\to\!33.7$), but real $3$m
+PlanetScope leads at every size. On large fields upsampling helps not at all
+($36.1$ vs native $37.7$) --- they are already resolvable at $10$m --- so the
+entire large-field gap to PlanetScope ($52.0$) is genuine resolution, not output
+grid. The relative gap is largest on the smallest parcels ($2.1\times$ native
+$10$m): you can interpolate a field's interior but not the sub-pixel boundaries
+that separate adjacent smallholder parcels.
+
 \begin{table}[t]
     \centering
     \small
@@ -378,6 +389,19 @@ metrics; per-country numbers and the full setup are in \Cref{app:upsampled_s2}.
     Planet ($512$, native $3$m)   & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{7.4}$ \\
     \bottomrule
     \end{tabular}
+\end{table}
+
+\begin{table}[t]
+    \centering
+    \caption{\textbf{Real resolution vs.\ upsampling, by field size.} PQ scored
+    against the true FTW polygons at each sensor's native ground resolution,
+    macro-averaged over the 10 dense held-out regions. Upsampling Sentinel-2 to
+    $3$m recovers part of the small/medium gap, but real $3$m pixels lead at every
+    size; on large fields upsampling does nothing (they are already resolvable at
+    $10$m), so that gap is pure resolution. You can interpolate a field interior,
+    not the sub-pixel boundaries between small parcels.}
+    \label{tab:resolution_ablation}
+    \input{figs/resolution_ablation.tex}
 \end{table}
 
 \paragraph{Per-region head-to-head.}
