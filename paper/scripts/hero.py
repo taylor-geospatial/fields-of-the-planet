@@ -1,8 +1,10 @@
-"""Hero gallery: FTW patches as (S2, Planet, label) triplets for the page-1 hero.
+"""Hero gallery: FTW patches as (S2, Planet, GT polygons) triplets for the hero.
 
 Each triplet shows the FTW Sentinel-2 chip (10 m), the matched PlanetScope SR
-image (3 m), and the 3-class field label, rendered as a 3-rows x 3-triplets
-banner spanning both columns.
+image (3 m), and the ground-truth field boundaries as ACTUAL FTW vector polygons
+(``data/ftw_polygons/<country>.parquet`` reprojected + clipped to the patch, not
+the rasterized label), rendered as a 3-rows x 3-triplets banner spanning both
+columns.
 
 Geometry: FTW S2 chips are stored in EPSG:4326 while Planet patches are in
 native UTM, so the S2 chip is reprojected onto the Planet grid. That reprojection
@@ -12,8 +14,8 @@ also fixes the non-square patch aspect) before upsampling to a fixed size. The S
 chip is resampled nearest so its coarse 10 m pixels stay visibly blocky next to
 the sharp 3 m Planet image; the label is nearest to preserve class ids.
 
-Display uses a constant-divisor reflectance clip (refl / 3000, clipped to [0, 1])
-with the same divisor on every channel, preserving true color balance across
+Display uses a constant-divisor reflectance clip (refl / NORM_DIVISOR, clipped to
+[0, 1]) with the same divisor on every channel, preserving true color balance across
 scenes of varying brightness (dark smallholder paddies vs bright European
 fields). The label uses the shared Taylor Geospatial palette (see ``tg_style``). No logos: the
 paper is a double-blind submission.
@@ -26,11 +28,14 @@ smallholder scenes for contrast, seven European fields). Override with --patches
 import argparse
 from pathlib import Path
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 import tg_style
 from rasterio.warp import Resampling, reproject
+from shapely.affinity import affine_transform
+from shapely.geometry import box
 from skimage.transform import resize
 
 # Match the paper body face (Nimbus Roman = URW Times clone) for the column
@@ -45,7 +50,14 @@ SQUARE_PX = 512
 # constant divisor preserves true color balance; the earlier per-channel
 # percentile stretch normalized each band independently and shifted the
 # white balance (the "looks BGR/oddly normalized" artifact).
-NORM_DIVISOR = 3000.0
+NORM_DIVISOR = 2500.0
+
+# Per-patch PlanetScope divisor overrides. PlanetScope SR runs darker than S2
+# for some scenes (e.g. Cambodia paddies), so a few patches need a lower divisor
+# on the Planet panel only; S2 stays on NORM_DIVISOR. Keyed by (country, patch_id).
+PLANET_DIVISOR = {
+    ("cambodia", "g33_0000000000-0000000000"): 1100.0,
+}
 
 DEFAULT_PATCHES = (
     ("cambodia", "g33_0000000000-0000000000", "a"),
@@ -90,21 +102,62 @@ def _resize(img: np.ndarray, order: int) -> np.ndarray:
     return resize(img, shape, order=order, preserve_range=True, anti_aliasing=(order > 0))
 
 
+def _label_polygons(
+    country: str,
+    planet_crs,
+    planet_transform,
+    planet_bounds,
+    crop: tuple[int, int, int, int],
+    ftw_polygons_root: Path,
+) -> list:
+    """Actual FTW field polygons for the patch, mapped into the display frame.
+
+    Reads the country's original vector boundaries
+    (``data/ftw_polygons/<country>.parquet``, EPSG:4326), reprojects to the
+    Planet patch CRS, clips to the patch, then applies the inverse Planet affine
+    (UTM -> full pixel grid) and the same valid-square crop + resize the image
+    panels use. This shows the real vector parcels, not the rasterized label.
+    """
+    ppath = ftw_polygons_root / f"{country}.parquet"
+    if not ppath.exists():
+        return []
+    polys = gpd.read_parquet(ppath).to_crs(planet_crs)
+    polys = polys[polys.intersects(box(*planet_bounds))]
+    inv = ~planet_transform
+    utm_to_px = [inv.a, inv.b, inv.d, inv.e, inv.c, inv.f]
+    y0, _y1, x0, _x1 = crop
+    s = SQUARE_PX / (_y1 - y0)
+    crop_resize = [s, 0, 0, s, -x0 * s, -y0 * s]
+    geoms = []
+    for g in polys.geometry:
+        if g is None or g.is_empty:
+            continue
+        geoms.append(affine_transform(affine_transform(g, utm_to_px), crop_resize))
+    return geoms
+
+
 def _load_triplet(
-    country: str, pid: str, window: str, planet_root: Path, ftw_root: Path
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (s2_rgb, planet_rgb, label), all SQUARE_PX and cropped to the same
-    valid square so the three panels stay spatially aligned."""
+    country: str,
+    pid: str,
+    window: str,
+    planet_root: Path,
+    ftw_root: Path,
+    ftw_polygons_root: Path,
+    s2_divisor: float = NORM_DIVISOR,
+    planet_divisor: float = NORM_DIVISOR,
+) -> tuple[np.ndarray, np.ndarray, list]:
+    """Return (s2_rgb, planet_rgb, label_polys), the images at SQUARE_PX and the
+    GT polygons in display coords, all cropped to the same valid square so the
+    three panels stay spatially aligned. The two divisors set each sensor's
+    reflectance clip (Planet can need a lower divisor on dark scenes)."""
     sr = planet_root / country / f"window_{window}" / f"{pid}.tif"
     s2 = ftw_root / country / "s2_images" / f"window_{window}" / f"{pid}.tif"
-    lbl_path = planet_root / country / "labels" / f"{pid}.tif"
 
     with rasterio.open(sr) as p:
         planet = np.transpose(p.read([3, 2, 1]), (1, 2, 0))
         dst_crs, dst_transform = p.crs, p.transform
+        dst_bounds = p.bounds
         h, w = p.height, p.width
-    with rasterio.open(lbl_path) as s:
-        label = s.read(1)
     with rasterio.open(s2) as s:
         bands = s.read([1, 2, 3])
         s2_grid = np.zeros((3, h, w), dtype=bands.dtype)
@@ -130,11 +183,14 @@ def _load_triplet(
         )
     s2_grid = np.transpose(s2_grid, (1, 2, 0))
 
-    y0, y1, x0, x1 = _largest_valid_square(valid > 0.5)
-    s2_rgb = _resize(_stretch(s2_grid[y0:y1, x0:x1]), order=0)
-    planet_rgb = _resize(_stretch(planet[y0:y1, x0:x1]), order=1)
-    label_sq = _resize(label[y0:y1, x0:x1], order=0).astype(np.uint8)
-    return s2_rgb, planet_rgb, label_sq
+    crop = _largest_valid_square(valid > 0.5)
+    y0, y1, x0, x1 = crop
+    s2_rgb = _resize(_stretch(s2_grid[y0:y1, x0:x1], s2_divisor), order=0)
+    planet_rgb = _resize(_stretch(planet[y0:y1, x0:x1], planet_divisor), order=1)
+    label_polys = _label_polygons(
+        country, dst_crs, dst_transform, dst_bounds, crop, ftw_polygons_root
+    )
+    return s2_rgb, planet_rgb, label_polys
 
 
 def _parse_patch(spec: str) -> tuple[str, str, str]:
@@ -146,6 +202,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--planet-root", type=Path, default=Path("../data/planet"))
     p.add_argument("--ftw-root", type=Path, default=Path("../data/ftw"))
+    p.add_argument("--ftw-polygons-root", type=Path, default=Path("../data/ftw_polygons"))
     p.add_argument("--out", type=Path, default=Path("hero.pdf"))
     p.add_argument("--triplets-per-row", type=int, default=3)
     p.add_argument(
@@ -167,7 +224,6 @@ def main() -> int:
     _fig, axes = plt.subplots(n_rows, tpr * 3, figsize=(tpr * 3 * 1.1, n_rows * 1.1 + 0.12))
     if n_rows == 1:
         axes = axes.reshape(1, -1)
-    label_cmap = tg_style.label_cmap()
 
     for r in range(n_rows):
         for t in range(tpr):
@@ -185,19 +241,33 @@ def main() -> int:
                     axes[r, base + c].axis("off")
                 continue
             country, pid, w = picks[idx]
-            s2_rgb, planet_rgb, label = _load_triplet(
-                country, pid, w, args.planet_root, args.ftw_root
+            planet_div = PLANET_DIVISOR.get((country, pid), NORM_DIVISOR)
+            s2_rgb, planet_rgb, label_polys = _load_triplet(
+                country,
+                pid,
+                w,
+                args.planet_root,
+                args.ftw_root,
+                args.ftw_polygons_root,
+                NORM_DIVISOR,
+                planet_div,
             )
             axes[r, base + 0].imshow(s2_rgb)
             axes[r, base + 1].imshow(planet_rgb)
-            axes[r, base + 2].imshow(
-                label, cmap=label_cmap, vmin=0, vmax=2, interpolation="nearest"
-            )
+            ax_lbl = axes[r, base + 2]
+            ax_lbl.set_facecolor(tg_style.IVORY)
+            if label_polys:
+                gpd.GeoDataFrame(geometry=label_polys).plot(
+                    ax=ax_lbl, facecolor=tg_style.GREEN, edgecolor=tg_style.BROWN, linewidth=0.3
+                )
+            ax_lbl.set_xlim(0, SQUARE_PX)
+            ax_lbl.set_ylim(SQUARE_PX, 0)
+            ax_lbl.set_aspect("equal")
             if r == 0:
                 tkw = {"fontsize": 10, "pad": 3, "color": tg_style.BROWN}
                 axes[r, base + 0].set_title("S2 (10 m)", **tkw)
                 axes[r, base + 1].set_title("Planet (3 m)", **tkw)
-                axes[r, base + 2].set_title("Label", **tkw)
+                axes[r, base + 2].set_title("Label polygons", **tkw)
             print(f"{country:12s} {pid}_{w}")
 
     plt.tight_layout(pad=0.1, h_pad=0.0, w_pad=0.0)

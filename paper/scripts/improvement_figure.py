@@ -5,13 +5,22 @@ ranks by ``delta_obj_f1 = planet_obj_f1 - s2_obj_f1``, picks the top patches
 with delta>0 and enough GT fields (``--min-n-gt``), and renders one row per
 patch:
 
-  S2 RGB (10 m -> Planet grid) | Planet RGB (3 m) | GT instances |
-  S2 prediction instances      | Planet prediction instances
+  S2 RGB (10 m -> Planet grid) | Planet RGB (3 m) |
+  GT mask | GT polygons | S2 mask | S2 polygons | Planet mask | Planet polygons
 
-Each row is annotated with the country and the two Obj F1 values + delta.
+Each entity (GT, each model) is shown as its instance mask AND the polygons
+vectorized from that exact mask. Each row is annotated with the country and the
+two Obj F1 values + delta.
+
+The GT polygons column draws the ACTUAL FTW vector parcels
+(``clip_polygons_per_patch.py``, mapped from UTM into the display frame), not the
+rasterized mask. The prediction polygon columns vectorize the post-processed
+(TTA + watershed) field mask ``inst > 0`` with ``rasterio.features.shapes``
+(GDAL polygonize / 4-connected components, the *same* extraction the PQ metric
+scores), unsmoothed -- the staircase edges are the literal vectorizer output.
 
 Both models are re-run here (TTA + watershed) using the exact eval functions
-so the rendered instances match the CSV metrics. Needs a GPU -> run via
+so the rendered polygons match the CSV metrics. Needs a GPU -> run via
 ``hpc/per_patch_eval.sbatch``-style sbatch, never the login node.
 """
 
@@ -19,6 +28,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,9 +38,12 @@ import tg_style
 import torch
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 from matplotlib.colors import ListedColormap
+from rasterio.features import shapes as rio_shapes
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import label as cc_label
+from shapely.affinity import affine_transform
+from shapely.geometry import shape as shapely_shape
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts" / "eval"))
@@ -74,6 +87,58 @@ def _instance_cmap(n):
 def _instance_render(inst):
     n = int(inst.max())
     return _instance_cmap(n)(inst)[..., :3]
+
+
+def _polygonize_field_mask(field):
+    """Connected-component polygons of a binary field mask via
+    ``rasterio.features.shapes`` (GDAL polygonize, 4-connected) -- the exact
+    extraction the PQ metric scores. Pass ``inst > 0`` for predictions or
+    ``gt == 1`` for ground truth; adjacent fields vectorize as distinct polygons.
+    """
+    binary = np.asarray(field).astype(np.uint8)
+    geoms = [shapely_shape(g) for g, v in rio_shapes(binary) if v == 1]
+    return gpd.GeoDataFrame(geometry=geoms)
+
+
+def _plot_polys(ax, geoms, size):
+    """Draw field polygons on an ivory card (brown edges), square pixel frame."""
+    geoms = list(geoms)
+    ax.set_facecolor(tg_style.IVORY)
+    if geoms:
+        gpd.GeoDataFrame(geometry=geoms).plot(
+            ax=ax, facecolor=tg_style.GREEN, edgecolor=tg_style.BROWN, linewidth=0.3
+        )
+    ax.set_xlim(0, size)
+    ax.set_ylim(size, 0)
+    ax.set_aspect("equal")
+
+
+def _draw_field_polygons(ax, field, size):
+    """Vectorize a binary field mask (connected components) and draw it."""
+    _plot_polys(ax, _polygonize_field_mask(field).geometry, size)
+
+
+def _true_gt_polys_display(country, pid, window, full_h, full_w, sq, root="data"):
+    """Actual FTW field polygons for a patch, mapped into the square-cropped,
+    resized display frame -- the real vector parcels, not the rasterized mask.
+    """
+    ppath = Path(root) / "ftw_polygons_clipped" / country / f"{pid}.parquet"
+    if not ppath.exists():
+        return []
+    tif = Path(root) / "planet" / country / f"window_{window}" / f"{pid}.tif"
+    with rasterio.open(tif) as src:
+        inv = ~src.transform
+    utm_to_px = [inv.a, inv.b, inv.d, inv.e, inv.c, inv.f]
+    side = min(full_h, full_w)
+    x0, y0 = (full_w - side) // 2, (full_h - side) // 2
+    s = sq / side
+    crop_resize = [s, 0, 0, s, -x0 * s, -y0 * s]
+    geoms = []
+    for g in gpd.read_parquet(ppath).geometry:
+        if g is None or g.is_empty:
+            continue
+        geoms.append(affine_transform(affine_transform(g, utm_to_px), crop_resize))
+    return geoms
 
 
 def _square_crop(arr):
@@ -256,6 +321,9 @@ def main() -> int:
         inst_pl, gt_np = _predict_instances_planet(task_pl, model_pl, country, pid)
         inst_s2 = _predict_instances_s2_on_planet_grid(task_s2, model_s2, country, pid)
         gt_inst = _gt_instances(gt_np)
+        gt_polys = _true_gt_polys_display(
+            country, pid, args.window, gt_np.shape[0], gt_np.shape[1], sq
+        )
         rows.append(
             {
                 "country": country,
@@ -263,6 +331,7 @@ def main() -> int:
                 "rgb_s2": _resize_square(rgb_s2, sq),
                 "rgb_pl": _resize_square(rgb_pl, sq),
                 "gt": _resize_square(gt_inst, sq),
+                "gt_polys": gt_polys,
                 "inst_s2": _resize_square(inst_s2, sq),
                 "inst_pl": _resize_square(inst_pl, sq),
                 "f1_pl": r["obj_f1_pl"],
@@ -272,13 +341,17 @@ def main() -> int:
         )
 
     n = len(rows)
-    cols = 5
+    cols = 8
+    # Each entity (GT, each model) shows its instance mask AND its polygons.
     col_titles = [
         "Sentinel-2 (10 m)",
         "PlanetScope (3 m)",
-        "Ground truth",
-        "S2 prediction\nFTW-PRUE+ (B7)",
-        "Planet prediction\nFTP-PRUE+",
+        "GT mask",
+        "GT polygons",
+        "S2 mask\nFTW-PRUE+ (B7)",
+        "S2 polygons\nFTW-PRUE+ (B7)",
+        "Planet mask\nFTP-PRUE+",
+        "Planet polygons\nFTP-PRUE+",
     ]
     fig, axes = plt.subplots(
         n, cols, figsize=(cols * 1.5, n * 1.62), gridspec_kw={"wspace": 0.02, "hspace": 0.05}
@@ -290,8 +363,11 @@ def main() -> int:
         axes[i, 0].imshow(row["rgb_s2"])
         axes[i, 1].imshow(row["rgb_pl"])
         axes[i, 2].imshow(_instance_render(row["gt"]))
-        axes[i, 3].imshow(_instance_render(row["inst_s2"]))
-        axes[i, 4].imshow(_instance_render(row["inst_pl"]))
+        _plot_polys(axes[i, 3], row["gt_polys"], row["gt"].shape[0])
+        axes[i, 4].imshow(_instance_render(row["inst_s2"]))
+        _draw_field_polygons(axes[i, 5], row["inst_s2"] > 0, row["inst_s2"].shape[0])
+        axes[i, 6].imshow(_instance_render(row["inst_pl"]))
+        _draw_field_polygons(axes[i, 7], row["inst_pl"] > 0, row["inst_pl"].shape[0])
         for ax in axes[i]:
             ax.set_xticks([])
             ax.set_yticks([])

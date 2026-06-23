@@ -1,17 +1,25 @@
-"""Qualitative v8: combined raw-mask + TTA+watershed instance comparison.
+"""Qualitative v8: raw-mask + vectorized field-polygon comparison.
 
-7 columns x N rows:
-  Planet RGB | S2 RGB | GT mask | FTP-PRUE raw | FTW-PRUE (B7) raw |
-  FTP-PRUE (TTA+WS) instances | FTW-PRUE (B7) (TTA+WS) instances
+8 columns x N rows -- each entity shown as a mask AND its vectorized polygons:
+  Planet RGB | S2 RGB | GT mask | GT polygons |
+  FTP-PRUE mask | FTP-PRUE polygons | FTW-PRUE (B7) mask | FTW-PRUE (B7) polygons
 
-Same square-cropped, season-matched layout as v6/v7.  Raw mask cells render
-green = field, black = bg + boundary.  Instance cells use a perturbed
-\\texttt{tab20} colormap; black = background.
+Same square-cropped, season-matched layout as v6/v7.  GT mask renders green =
+field, brown = bg + boundary; prediction masks are post-processed (D4 TTA +
+watershed) instance maps (perturbed tab20, brown bg).  The GT *polygons* column
+draws the ACTUAL FTW vector parcels (``clip_polygons_per_patch.py``, mapped from
+UTM into the display frame) -- not the rasterized mask polygonized.  The
+prediction polygon cells vectorize the adjacent mask with
+``rasterio.features.shapes`` (GDAL polygonize / 4-connected components, the
+*same* extraction the PQ metric scores), ``inst > 0``, unsmoothed -- so each
+predicted mask sits beside its literal polygonization and is read against the
+true GT parcels; 3 m vs 10 m fidelity is directly visible.
 """
 
 import argparse
 from pathlib import Path
 
+import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,9 +29,12 @@ import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
 from matplotlib.colors import ListedColormap
+from rasterio.features import shapes as rio_shapes
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import label as cc_label
+from shapely.affinity import affine_transform
+from shapely.geometry import shape as shapely_shape
 from skimage.morphology import h_maxima
 from skimage.segmentation import watershed
 
@@ -98,6 +109,67 @@ def _instance_render(inst):
     n = int(inst.max())
     cmap = _instance_cmap(n)
     return cmap(inst)[..., :3]
+
+
+def _polygonize_field_mask(field):
+    """Connected-component polygons of a binary field mask.
+
+    ``rasterio.features.shapes`` is GDAL polygonize (4-connected components) --
+    the exact extraction the PQ metric scores
+    (``polygon_metrics_eval._extract_shapes``). Pass ``inst > 0`` for
+    post-processed predictions (watershed already inserted 1-px gaps between
+    adjacent parcels) or ``gt == 1`` for ground truth (the boundary class
+    separates parcels). Either way adjacent fields vectorize as distinct polygons.
+    """
+    binary = np.asarray(field).astype(np.uint8)
+    geoms = [shapely_shape(g) for g, v in rio_shapes(binary) if v == 1]
+    return gpd.GeoDataFrame(geometry=geoms)
+
+
+def _plot_polys(ax, geoms, size):
+    """Draw field polygons on an ivory card, brown parcel edges, in a square
+    pixel frame (y increasing downward) that matches the imshow cells."""
+    geoms = list(geoms)
+    ax.set_facecolor(tg_style.IVORY)
+    if geoms:
+        gpd.GeoDataFrame(geometry=geoms).plot(
+            ax=ax, facecolor=tg_style.GREEN, edgecolor=tg_style.BROWN, linewidth=0.35
+        )
+    ax.set_xlim(0, size)
+    ax.set_ylim(size, 0)
+    ax.set_aspect("equal")
+
+
+def _draw_field_polygons(ax, field, size):
+    """Vectorize a binary field mask (connected components) and draw it."""
+    _plot_polys(ax, _polygonize_field_mask(field).geometry, size)
+
+
+def _true_gt_polys_display(country, pid, window, full_h, full_w, sq, root="data"):
+    """Actual FTW field polygons for a patch, mapped into the square-cropped,
+    resized display frame -- the real vector parcels, not the rasterized GT mask.
+
+    Reads the per-patch GeoParquet from ``clip_polygons_per_patch.py`` (Planet
+    UTM CRS), applies the inverse Planet ``window_a`` affine (UTM -> full pixel
+    grid), then the same center square-crop + resize the image cells use.
+    """
+    ppath = Path(root) / "ftw_polygons_clipped" / country / f"{pid}.parquet"
+    if not ppath.exists():
+        return []
+    tif = Path(root) / "planet" / country / f"window_{window}" / f"{pid}.tif"
+    with rasterio.open(tif) as src:
+        inv = ~src.transform
+    utm_to_px = [inv.a, inv.b, inv.d, inv.e, inv.c, inv.f]
+    side = min(full_h, full_w)
+    x0, y0 = (full_w - side) // 2, (full_h - side) // 2
+    s = sq / side
+    crop_resize = [s, 0, 0, s, -x0 * s, -y0 * s]
+    geoms = []
+    for g in gpd.read_parquet(ppath).geometry:
+        if g is None or g.is_empty:
+            continue
+        geoms.append(affine_transform(affine_transform(g, utm_to_px), crop_resize))
+    return geoms
 
 
 def _pad32(x, value=0.0, min_size=512):
@@ -307,22 +379,24 @@ def main():
         x8, gt_full = _load_planet(country, pid)
         rgb_pl = _planet_rgb_for_window(country, pid, window)
         rgb_s2 = _s2_rgb_for_window(country, pid, window)
-        # Planet: raw argmax + TTA argmax -> watershed instances.
-        raw_pl, tta_pl = _predict_raw_and_tta(model_pl, x8, device, scale=PLANET_SR_SCALE)
+        # Planet: TTA argmax -> watershed instances.
+        _, tta_pl = _predict_raw_and_tta(model_pl, x8, device, scale=PLANET_SR_SCALE)
         inst_pl = _watershed_instances(tta_pl)
-        # S2: raw + instances, both reprojected to Planet grid.
-        raw_s2, inst_s2 = _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device)
+        # S2: watershed instances reprojected to Planet grid.
+        _, inst_s2 = _predict_s2_raw_inst_to_planet_grid(model_s2, country, pid, device)
         inst_gt = _gt_instances(gt_full)
         sq = args.cell_size
         rgb_pl_s = _resize_nn(_stretch(_square_crop(rgb_pl)), sq)
         rgb_s2_s = _resize_nn(_stretch(_square_crop(rgb_s2)), sq)
         gt_s = _resize_nn(_square_crop(gt_full).astype(np.uint8), sq)
-        raw_pl_s = _resize_nn(_square_crop(raw_pl), sq)
-        raw_s2_s = _resize_nn(_square_crop(raw_s2), sq)
         inst_pl_s = _resize_nn(_square_crop(inst_pl), sq)
         inst_s2_s = _resize_nn(_square_crop(inst_s2), sq)
+        gt_polys = _true_gt_polys_display(
+            country, pid, window, gt_full.shape[0], gt_full.shape[1], sq
+        )
         print(
-            f"    instances: gt={int(inst_gt.max())} planet={int(inst_pl.max())} s2={int(inst_s2.max())}"
+            f"    instances: gt={int(inst_gt.max())} planet={int(inst_pl.max())} "
+            f"s2={int(inst_s2.max())} | true gt polys={len(gt_polys)}"
         )
         rows.append(
             (
@@ -332,15 +406,14 @@ def main():
                 rgb_pl_s,
                 rgb_s2_s,
                 gt_s,
-                raw_pl_s,
-                raw_s2_s,
+                gt_polys,
                 inst_pl_s,
                 inst_s2_s,
             )
         )
 
     n = len(rows)
-    cols = 7
+    cols = 8
     _fig, axes = plt.subplots(
         n,
         cols,
@@ -349,14 +422,17 @@ def main():
     )
     if n == 1:
         axes = axes[None, :]
+    # Each entity (GT, each model) shows its post-processed mask AND the polygons
+    # vectorized from that exact mask.
     col_titles = [
         "Input\nPlanet RGB",
         "Input\nS2 RGB",
-        "Reference\nGround truth",
-        "Raw mask\nFTP-PRUE+",
-        "Raw mask\nFTW-PRUE+ (B7)",
-        "Post-proc\nFTP-PRUE+",
-        "Post-proc\nFTW-PRUE+ (B7)",
+        "GT\nmask",
+        "GT\npolygons",
+        "FTP-PRUE+\nmask",
+        "FTP-PRUE+\npolygons",
+        "FTW-PRUE+ (B7)\nmask",
+        "FTW-PRUE+ (B7)\npolygons",
     ]
     for i, (
         country,
@@ -365,18 +441,18 @@ def main():
         rgb_pl,
         rgb_s2,
         gt,
-        raw_pl,
-        raw_s2,
+        gt_polys,
         inst_pl,
         inst_s2,
     ) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)
         axes[i, 1].imshow(rgb_s2)
         axes[i, 2].imshow(_hard_mask_render(gt))
-        axes[i, 3].imshow(_hard_mask_render(raw_pl))
-        axes[i, 4].imshow(_hard_mask_render(raw_s2))
-        axes[i, 5].imshow(_instance_render(inst_pl))
+        _plot_polys(axes[i, 3], gt_polys, gt.shape[0])
+        axes[i, 4].imshow(_instance_render(inst_pl))
+        _draw_field_polygons(axes[i, 5], inst_pl > 0, inst_pl.shape[0])
         axes[i, 6].imshow(_instance_render(inst_s2))
+        _draw_field_polygons(axes[i, 7], inst_s2 > 0, inst_s2.shape[0])
         for ax in axes[i]:
             ax.set_xticks([])
             ax.set_yticks([])
