@@ -5,6 +5,11 @@ drift from the canonical eval CSVs in ``logs/``. Handwritten tables
 (tab:scope, tab:udm2, tab:upsampled_s2[_main]) are not produced here; their
 sources are documented in ``PROVENANCE.md``.
 
+The two true-GT/native-GSD tables (tab:resolution_ablation,
+tab:representation_ceiling) were previously hand-transcribed from their CSVs;
+they now have generators here so every \\input table is script-built from one
+canonical source.
+
 Run from the repo root::
 
     uv run --no-sync python paper/scripts/build_tables.py
@@ -20,6 +25,8 @@ HERE = Path(__file__).parent
 # its own source CSV(s).
 GENERATORS = [
     ("polygon_metrics_table.py", "polygon_metrics.tex"),
+    ("resolution_ablation_table.py", "resolution_ablation.tex"),
+    ("representation_ceiling_table.py", "representation_ceiling.tex"),
     ("heldout_results_table.py", "heldout_results.tex"),
     ("heldout_per_country_table.py", "heldout_per_country.tex"),
     ("full_data_table.py", "full_data_compare.tex"),

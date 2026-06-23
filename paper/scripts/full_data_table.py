@@ -21,7 +21,6 @@ from _aggregate import HELDOUT_10_DENSE, macro_avg
 HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "full_data_compare.tex"
-SRC = REPO / "logs" / "fulldata_eval"
 REPRO = REPO / "logs" / "repro_eval"  # released B3-full checkpoint reproduction eval
 
 # Released FTW PRUE numbers (hand-copied from muhawenayo2026prue; rows kept as

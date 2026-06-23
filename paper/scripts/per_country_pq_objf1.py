@@ -23,7 +23,7 @@ Panel 3 -- Delta small-field PQ (<0.5 ha GT fields), same true-GT protocol as Pa
     logs/area_bins_per_country/planet_b3_full23_small_truegt.csv
     vs logs/area_bins_per_country/s2_b7_full23_small_truegt_gsd10.csv
 
-Styling copied from per_country_bars.py (tg_style palette/fonts).
+Styling via the shared tg_style palette/fonts.
 """
 
 import argparse
