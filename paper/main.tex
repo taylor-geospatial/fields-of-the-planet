@@ -118,10 +118,8 @@ which separates touching parcels that a binary mask would merge.
 \textbf{Scope and licenses.} FTP covers 66{,}584 of the 70{,}484 FTW patches
 (we keep only patches with a PlanetScope match for both seasonal windows),
 materializing 102\,GB from 6{,}113 scenes ($\sim$22 windows per scene);
-\Cref{tab:scope} gives the full scope. The dataset and trained models are
-released under \textbf{CC-BY-NC 4.0}, inheriting Planet's non-commercial terms;
-labels additionally carry their per-region FTW licenses (exposed in the release
-index), and the access-pipeline code is MIT licensed.
+\Cref{tab:scope} gives the full scope. The dataset and trained models are released on Huggingface under \textbf{CC-BY-NC 4.0}, inheriting Planet's non-commercial terms;
+labels additionally carry their per-region FTW licenses. We release the training and evaluation code under a MIT license.
 
 \section{Per-patch quality analysis}
 \label{sec:quality}
@@ -212,6 +210,20 @@ comparison uses the same recipe and selection rule on both sides.
 
 \subsection{Main result}
 
+\begin{table*}[t]
+    \centering
+    \caption{\textbf{Polygon metrics by field-area bin and IoU threshold --- the
+    $3$m advantage is largest on small fields.} Fields are binned by GT polygon
+    area (Small $<0.5$, Medium $0.5$--$2$, Large $>2$\,ha) and micro-pooled
+    over the 10 dense held-out countries. RQ$_{.5}$ is object F1 at
+    IoU\,$=0.5$ (detection); PQ\,$=$\,SQ$\times$RQ; AP is averaged over
+    IoU\,$[.5{:}.95]$ (localization). Each model is scored against its
+    own-sensor GT (definitions in \Cref{app:metrics}). Best per column in
+    \textbf{bold}; shown $\times100$.}
+    \label{tab:area_bins}
+    \input{figs/area_bins.tex}
+\end{table*}
+
 \Cref{tab:polygon_metrics} isolates the dataset effect under a fixed
 architecture and recipe. At matched EfficientNet-B3, replacing Sentinel-2 with
 FTP improves every polygon metric and more than halves the mean boundary error
@@ -237,6 +249,20 @@ head-to-head comparison (full table in \Cref{tab:full_data}).
     \label{fig:aug_ablation}
 \end{figure}
 
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figs/metric_example.pdf}
+    \caption{\textbf{Why we score polygons, not pixels.} Two held-out
+    PlanetScope patches --- a strong case (top) and a hard one (bottom). Left to
+    right: the image, the FTP-PRUE+ predicted field mask, and that mask vectorized
+    and matched to ground-truth parcels by IoU (green = matched, red = unmatched,
+    gray = GT); the table lists per-patch metrics. In the bottom row pixel IoU
+    stays high ($73$) while object F1 collapses ($29$) because the dense parcels
+    fragment into many unmatched polygons --- a failure the polygon metrics
+    penalize but pixel IoU cannot see.}
+    \label{fig:metric_example}
+\end{figure}
 Augmentation was the largest PlanetScope recipe lever
 (\Cref{fig:aug_ablation}). The sweep has three stages: the released PRUE
 normalization/crop augmentations ($29.1 \rightarrow 31.9$ Obj F1), window swap
@@ -279,20 +305,6 @@ baseline.
 
 \subsection{Metric choice}
 \label{sec:polygon-first}
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=\linewidth]{figs/metric_example.pdf}
-    \caption{\textbf{Why we score polygons, not pixels.} Two held-out
-    PlanetScope patches --- a strong case (top) and a hard one (bottom). Left to
-    right: the image, the FTP-PRUE+ predicted field mask, and that mask vectorized
-    and matched to ground-truth parcels by IoU (green = matched, red = unmatched,
-    gray = GT); the table lists per-patch metrics. In the bottom row pixel IoU
-    stays high ($73$) while object F1 collapses ($29$) because the dense parcels
-    fragment into many unmatched polygons --- a failure the polygon metrics
-    penalize but pixel IoU cannot see.}
-    \label{fig:metric_example}
-\end{figure}
 
 Field-boundary outputs are consumed as vectorized parcels, not rasters. We
 therefore score the fixed
@@ -351,12 +363,16 @@ Across the 23 test regions with complete polygon-metric outputs (all FTW
 regions except presence-only Kenya and label-sparse India), macro-average PQ is
 $37.9$ for PlanetScope and $32.3$ for FTW-PRUE+ (B7) under the same recipe, a
 $+5.6$\,pp PlanetScope win. Figure~\ref{fig:per_country_bars} unpacks this into
-per-region deltas. PlanetScope wins on $18/23$ regions, a directional
-consistency check across regions (two-sided sign test vs.\ a $50\%$ win rate,
-$p \approx 1.1\times10^{-2}$), not an out-of-distribution generalization test:
-under the PRUE protocol every region contributes both train and test chips. All
-configurations use a single seed (\texttt{seed\_everything}\,$=7$), so we report
-point estimates and do not claim seed-level significance.
+per-region deltas and contrasts them with FTW's pixel-instance object F1.
+PlanetScope wins on $18/23$ regions by polygon PQ but $11/22$ by
+pixel-instance object F1, so the pixel-instance metric understates the
+resolution benefit surfaced by polygon metrics. The PQ win count is a
+directional consistency check across regions (two-sided sign test vs.\ a
+$50\%$ win rate, $p \approx 1.1\times10^{-2}$), not an out-of-distribution
+generalization test: under the PRUE protocol every region contributes both
+train and test chips. All configurations use a single seed
+(\texttt{seed\_everything}\,$=7$), so we report point estimates and do not
+claim seed-level significance.
 
 The largest gains are mid-size European regions. The five losses are Cambodia,
 Germany, Portugal, Slovenia, and Vietnam, with the last three within $1.6$\,pp
@@ -385,23 +401,54 @@ is an \emph{end-to-end} comparison: it folds together the $10$m label-grid
 representation loss and the model's detection difficulty --- the
 quantity a deployed pipeline delivers, not a matched-object score.
 
+
+\begin{figure*}[t!]
+    \centering
+    \begin{minipage}[t]{0.49\linewidth}
+        \vspace{0pt}
+        \centering
+        \includegraphics[width=\linewidth]{figs/per_country_pq_split.pdf}
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.49\linewidth}
+        \vspace{0pt}
+        \centering
+        \includegraphics[width=\linewidth]{figs/per_country_objf1_split.pdf}
+    \end{minipage}
+    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under
+    polygon PQ and FTW pixel-instance object F1.} Left: polygon PQ for
+    FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7 under the same PRUE+ recipe. Right: the
+    FTW-official pixel-instance object F1 from the released PRUE checkpoints
+    \cite{muhawenayo2026prue}; Brazil is marked n/a because its PlanetScope
+    pixel-instance evaluation is missing. Polygon PQ favors PlanetScope on
+    $18/23$ regions; pixel-instance object F1 favors PlanetScope on $11/22$.}
+    \label{fig:per_country_bars}
+\end{figure*}
+
+
+\begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figs/improvement_examples.pdf}
+    \caption{\textbf{Where the 3m imagery helps most.} The five held-out
+    patches with the largest per-patch object-F1 improvement
+    (FTP-PRUE+ $-$ FTW-PRUE+ (B7), both WS+TTA). Columns:
+    Sentinel-2 (10m), PlanetScope (3m), ground-truth field instances, the
+    S2-model prediction, and the Planet-model prediction (each color is a
+    distinct field instance). Per-patch object F1 is annotated at left.
+    In every case the S2 model leaves large gaps or merges neighbours while the
+    Planet model recovers the dense parcel structure.}
+    \label{fig:improvement}
+\end{figure*}
+
 \paragraph{Where higher resolution helps most.}
 The held-out patches with the largest per-patch object-F1 gain are dense
 smallholder scenes where the 10m model collapses adjacent parcels into blobs
 (per-patch object F1 $8$--$31$) while the 3m model recovers the parcel grid
-($69$--$100$); these per-patch extremes are shown in \Cref{fig:improvement}
-(appendix).
+($69$--$100$); these per-patch extremes are shown in \Cref{fig:improvement}.
+
 
 % tab:heldout_pc (per-country pixel IoU on 11 held-out countries) is
 % moved to the supplementary appendix; macro pixel IoU is in
 % \Cref{tab:full_data}.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figs/per_country_bars.pdf}
-\caption{\textbf{Per-region $\Delta$ PQ across the 23 test regions} (FTP-PRUE+ $-$ FTW-PRUE+ (B7)). Wins (olive) and losses (sienna). Planet wins PQ on $18$ of $23$ regions; the five losses are Cambodia, Germany, Portugal, Vietnam, and Slovenia (the last three within $1.6$\,pp of a tie). $\Delta$\,Obj\,F1 per region is in \Cref{app:per_country_objf1}.}
-    \label{fig:per_country_bars}
-\end{figure}
 
 \subsection{Ablation summary}
 
@@ -590,22 +637,6 @@ field. Because area in hectares is grid-invariant, the bins are comparable
 across sensors even though the $10$m and $3$m label rasterizations resolve
 different numbers of small fields.
 
-\begin{table*}[h]
-    \centering
-    \caption{\textbf{Polygon metrics by field-area bin and IoU threshold --- the
-    $3$m advantage is largest on small fields.} Full breakdown behind the
-    ``PQ by GT area'' columns of \Cref{tab:polygon_metrics}. Micro-pooled over
-    fields across the 10 dense held-out countries (so the ``All'' column differs
-    from the macro-averaged headline of \Cref{tab:polygon_metrics}); fields
-    binned by GT polygon area (Small $<0.5$, Medium $0.5$--$2$, Large
-    $>2$\,ha). RQ$_{.5}$ is object F1 at IoU\,$=0.5$ (detection);
-    PQ\,$=$\,SQ$\times$RQ; AP is averaged over IoU\,$[.5{:}.95]$ (localization).
-    Each model is scored against its own-sensor GT (definitions in
-    \Cref{app:metrics}). Best per column in \textbf{bold}; shown $\times100$.}
-    \label{tab:area_bins}
-    \input{figs/area_bins.tex}
-\end{table*}
-
 \section{Dataset scope and per-tile UDM2 quality}
 \label{app:scope}
 \label{app:udm2_country}
@@ -683,7 +714,7 @@ the 10-country dense held-out set referenced from the main text.
     listed as reference (their numbers are on the FTW
     PRUE test split, not held-out only;
     see~\Cref{tab:full_data} for the held-out macro of our own runs).
-    Best per row in bold. Obj F1 and pixel IoU are shown $\times 100$.}
+    Best per row in bold. Obj F1 and pixel IoU are shown.}
     \label{tab:heldout}
     \input{figs/heldout_results.tex}
 \end{table*}
@@ -691,7 +722,7 @@ the 10-country dense held-out set referenced from the main text.
 \begin{table}[h]
     \centering
     \small
-\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows are published values on the PRUE test split. Our rows are 10-country dense held-out macro summaries for context only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary. Pixel IoU and Obj F1 are shown $\times 100$.}
+\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows are published values on the PRUE test split. Our rows are 10-country dense held-out macro summaries for context only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary. Pixel IoU and Obj F1 are shown.}
     \label{tab:full_data}
     \input{figs/full_data_compare.tex}
 \end{table}
@@ -762,30 +793,6 @@ dilation by $0\text{--}2$\,px, $p=0.5$).
     \input{figs/heldout_per_country.tex}
 \end{table*}
 
-\section{\texorpdfstring{Per-region $\Delta$PQ vs.\ $\Delta$Obj F1 (23 test regions)}{Per-region Delta PQ vs. Delta Obj F1 (23 test regions)}}
-\label{app:per_country_objf1}
-
-\Cref{fig:per_country_objf1_appx} places per-region $\Delta$ PQ next to
-$\Delta$ Obj F1 under the same region order. Here Obj F1 is the FTW-official
-pixel-instance metric reported by the released PRUE models~\cite{muhawenayo2026prue},
-\emph{not} the polygon recognition quality of \Cref{tab:polygon_metrics}. The
-two metrics rank regions differently: on pixel-instance object F1 Planet wins
-$11$ of $22$ regions (Brazil lacks a PlanetScope Obj F1 eval but is present in
-the polygon-PQ comparison), with Germany ($-7.1$), France ($-3.5$), and Cambodia
-($-8.6$) the largest losses. On polygon PQ, Planet wins $18$ of $23$
-(\Cref{fig:per_country_bars}). The pixel-instance metric is recall-sensitive and
-grid-dependent, so it understates the resolution benefit surfaced by the polygon
-metrics. The Cambodia loss reflects the monsoon-season imagery degradation
-described in \Cref{sec:limitations}; against the corrected S2-B7 baseline,
-Cambodia is also a PQ loss ($-7.3$\,pp).
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.85\linewidth]{figs/per_country_pq_objf1.pdf}
-    \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under two metrics, same region order.} Left: polygon PQ (our FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7; same per-region $\Delta$PQ as \Cref{fig:per_country_bars}). Right: the FTW-official pixel-instance object F1 from the released PRUE checkpoints~\cite{muhawenayo2026prue} (released FTW-PRUE). Polygon PQ favors PlanetScope on $18/23$ regions; the noisier pixel-instance F1 on only $11/22$ (discussion in text).}
-    \label{fig:per_country_objf1_appx}
-\end{figure}
-
 \section{Upsampled-Sentinel-2 control}
 \label{app:upsampled_s2}
 
@@ -846,20 +853,6 @@ plateau, and we evaluate its best-val/loss checkpoint as in the other rows.
 \Cref{fig:qualitative_appx,fig:qualitative_post_appx} show seven additional
 dense-smallholder rows each, non-overlapping with the main-paper examples
 (\Cref{fig:qualitative}).
-
-\begin{figure*}[h]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figs/improvement_examples.pdf}
-    \caption{\textbf{Where the 3m imagery helps most.} The five held-out
-    patches with the largest per-patch object-F1 improvement
-    (FTP-PRUE+ $-$ FTW-PRUE+ (B7), both WS+TTA). Columns:
-    Sentinel-2 (10m), PlanetScope (3m), ground-truth field instances, the
-    S2-model prediction, and the Planet-model prediction (each color is a
-    distinct field instance). Per-patch object F1 is annotated at left.
-    In every case the S2 model leaves large gaps or merges neighbours while the
-    Planet model recovers the dense parcel structure.}
-    \label{fig:improvement}
-\end{figure*}
 
 \begin{figure*}[h]
     \centering
