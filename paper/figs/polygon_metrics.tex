@@ -1,20 +1,20 @@
 \scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}l l ccc c c cc c ccc@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l l ccc c c cc c@{}}
 \toprule
- & & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} & & \multicolumn{3}{c}{\makecell{PQ by GT field-area bin}} \\
-\cmidrule(lr){3-5} \cmidrule(lr){8-9} \cmidrule(lr){11-13}
-Method & Bb. & PQ & SQ & RQ$_{.5}$ & F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$} & mean & p95 & \makecell{Pixel\\IoU$^{\dagger}$} & PQ$_\mathrm{s}$ & PQ$_\mathrm{m}$ & PQ$_\mathrm{l}$ \\
+ & & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} & \\
+\cmidrule(lr){3-5} \cmidrule(lr){8-9}
+Method & Bb. & PQ & SQ & RQ$_{.5}$ & F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$} & mean & p95 & \makecell{Pixel\\IoU$^{\dagger}$} \\
 \midrule
-DelineateAnything (S2)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11x & 13.0 & 68.9 & 18.0 & 9.1 & 0.66 & 34.1 & 88.6 & 32.3 & 0.2 & 3.9 & 18.9 \\
-DelineateAnything-S (S2)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11n & 10.9 & 69.7 & 15.2 & 7.5 & 1.02 & 35.3 & 95.3 & 37.5 & 0.4 & 5.7 & 14.0 \\
-DelineateAnything (Planet)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11x & 16.6 & 72.2 & 22.1 & 12.4 & 0.55 & 13.7 & 37.8 & 51.1 & 4.4 & 16.5 & 27.0 \\
-DelineateAnything-S (Planet)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11n & 13.0 & 71.4 & 17.7 & 9.3 & 2.03 & 13.2 & 34.2 & 40.7 & 7.4 & 13.5 & 17.4 \\
+DelineateAnything (S2)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11x & 13.0 & 68.9 & 18.0 & 9.1 & 0.66 & 34.1 & 88.6 & 32.3 \\
+DelineateAnything-S (S2)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11n & 10.9 & 69.7 & 15.2 & 7.5 & 1.02 & 35.3 & 95.3 & 37.5 \\
+DelineateAnything (Planet)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11x & 16.6 & 72.2 & 22.1 & 12.4 & 0.55 & 13.7 & 37.8 & 51.1 \\
+DelineateAnything-S (Planet)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11n & 13.0 & 71.4 & 17.7 & 9.3 & 2.03 & 13.2 & 34.2 & 40.7 \\
 \midrule
-FTW-PRUE+ (S2)~\cite{muhawenayo2026prue} & B3 & 27.4 & 75.8 & 34.9 & 21.6 & 0.45 & 18.6 & 54.7 & 61.8 & 4.5 & 26.0 & 44.7 \\
-FTW-PRUE+ (S2)~\cite{muhawenayo2026prue} & B7 & 32.4 & 77.8 & 40.7 & 26.2 & 0.44 & 14.4 & 43.4 & 63.6 & 6.6 & 33.2 & 50.2 \\
+FTW-PRUE+ (S2)~\cite{muhawenayo2026prue} & B3 & 27.4 & 75.8 & 34.9 & 21.6 & 0.45 & 18.6 & 54.7 & 61.8 \\
+FTW-PRUE+ (S2)~\cite{muhawenayo2026prue} & B7 & 32.4 & 77.8 & 40.7 & 26.2 & 0.44 & 14.4 & 43.4 & 63.6 \\
 \midrule
-\textbf{FTP-PRUE+ (Planet, ours)} & \textbf{B3} & \textbf{36.0} & \textbf{77.9} & 45.2 & \textbf{29.1} & 0.42 & \textbf{7.4} & \textbf{22.8} & 68.8 & \textbf{18.4} & 50.3 & \textbf{66.7} \\
-\textbf{FTP-PRUE+ (Planet, ours)} & \textbf{B7} & 36.0 & 77.4 & \textbf{45.2} & 29.1 & \textbf{0.41} & 7.4 & 22.8 & \textbf{74.2} & 17.4 & \textbf{51.0} & 66.0 \\
+\textbf{FTP-PRUE+ (Planet, ours)} & \textbf{B3} & \textbf{36.0} & \textbf{77.9} & 45.2 & \textbf{29.1} & 0.42 & \textbf{7.4} & \textbf{22.8} & 68.8 \\
+\textbf{FTP-PRUE+ (Planet, ours)} & \textbf{B7} & 36.0 & 77.4 & \textbf{45.2} & 29.1 & \textbf{0.41} & 7.4 & 22.8 & \textbf{74.2} \\
 \bottomrule
 \end{tabular}
