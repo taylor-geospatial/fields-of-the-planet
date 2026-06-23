@@ -205,8 +205,8 @@ identical splits on both sensors. Kenya is the
 and leaves surrounding land unlabeled, so its background class is untrusted
 and supervised pixel/object metrics computed against it are not comparable
 across models. We therefore report all held-out macro-averages over the 10
-dense-label countries, and Kenya appears only as a clearly marked
-presence-only row (\Cref{tab:heldout_pc}, \Cref{sec:limitations}). Portugal
+dense-label countries and exclude Kenya, which is discussed separately
+(\Cref{sec:limitations}). Portugal
 has trusted labels but remains a hard transfer case (terraced micro-fields
 near the PlanetScope GSD); it stays in all metrics and is discussed in
 \Cref{sec:limitations}.
@@ -246,7 +246,7 @@ RQ column of \Cref{tab:polygon_metrics} --- close to the best released S2
 model's 47.0 (FTW-PRUE B7~\cite{muhawenayo2026prue}) despite a far smaller
 backbone. The two use different evaluation sets and instance extractions
 (watershed vs.\ connected components), so this is context rather than a
-head-to-head comparison (full table in \Cref{tab:full_data}).
+head-to-head comparison (full table in \Cref{tab:heldout}).
 
 \subsection{Augmentations}
 
@@ -309,8 +309,8 @@ baseline.
 
 
 % tab:heldout (full 4-postproc x 4-config sweep) lives in the supplementary
-% appendix; the headline numbers are in tab:full_data and tab:polygon_metrics
-% in the main text. See \Cref{tab:heldout} (appendix).
+% appendix; the headline numbers are in tab:polygon_metrics in the main text.
+% See \Cref{tab:heldout} (appendix).
 
 \subsection{Resolution and field-size analysis}
 \label{sec:polygon-first}
@@ -496,10 +496,6 @@ smallholder scenes where the 10m model collapses adjacent parcels into blobs
 ($69$--$100$); these per-patch extremes are shown in \Cref{fig:improvement}.
 
 
-% tab:heldout_pc (per-country pixel IoU on 11 held-out countries) is
-% moved to the supplementary appendix; macro pixel IoU is in
-% \Cref{tab:full_data}.
-
 \subsection{Ablation summary}
 
 The full lever-by-lever recipe sweep --- including the rejected clDice,
@@ -530,9 +526,8 @@ surviving subset, and the release under-represents low-density scenes in cloudy
 regions; full per-country cross-tabs ship with the index.
 
 \textbf{Hard evaluation regions.} Kenya is the only presence-only FTW region, so
-it is excluded from every supervised macro-average and reported only as a marked
-row (\Cref{tab:heldout_pc}); a cleaner comparison would also mask its unlabeled
-land during training. Portugal (terraced micro-fields near the PlanetScope GSD) is the one region
+it is excluded from every supervised macro-average; a cleaner comparison would
+also mask its unlabeled land during training. Portugal (terraced micro-fields near the PlanetScope GSD) is the one region
 where PlanetScope does not pull ahead of Sentinel-2 (\Cref{sec:polygon-first}).
 Cambodia remains a hard PlanetScope win: its FTW v2 windows overlap only
 monsoon-season coverage, giving the release's highest haze fraction and a
@@ -678,16 +673,12 @@ and $0.5$\,ha splits the dominant sub-hectare mass (median field $=0.41$\,ha).
 Areas are computed in each tile's UTM projection, which is metric and
 grid-invariant, so a parcel falls in the same bin regardless of sensor (a
 web-Mercator area would be inflated by up to $3.9\times$ at Swedish
-latitudes). Predictions are scored against the \emph{true} FTW
-vector parcels---not a rasterized label mask---at each sensor's \emph{native}
-ground resolution: the Sentinel-2 prediction is capped to its genuine $10$\,m
-grid before matching, so upsampling cannot manufacture sub-pixel boundaries the
-sensor never resolved. \Cref{tab:resolution_ablation} reports
+latitudes). \Cref{tab:resolution_ablation} reports
 $\mathrm{PQ}=\mathrm{SQ}\times\mathrm{RQ}_{.5}$ per bin, macro-averaged over the
-ten dense-label held-out countries (each country weighted equally, so a single
-parcel-dense region cannot dominate). The three rows isolate the value of real
-resolution: native $10$\,m Sentinel-2, the same model upsampled to $\sim3$\,m
-(PRUE protocol), and real $3$\,m PlanetScope.
+ten dense-label held-out countries and scored against the \emph{true} FTW
+polygons at each sensor's \emph{native} resolution (\Cref{sec:polygon-first}):
+native $10$\,m Sentinel-2, the same model upsampled to $\sim3$\,m, and real
+$3$\,m PlanetScope.
 
 \section{Dataset scope and per-tile UDM2 quality}
 \label{app:scope}
@@ -745,7 +736,7 @@ Total dataset size              & 102\,GB \\
 \end{minipage}
 \end{table}
 
-Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release: the lowest rates are Portugal (48.5\%), the Netherlands (79.1\%), and Cambodia (80.4\%); Brazil and Croatia exceed 99\%. Smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
+Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release; smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
 
 \section{Held-out post-processing sweep}
 \label{app:heldout_sweep}
@@ -762,22 +753,12 @@ the 10-country dense held-out set referenced from the main text.
     and/or D4 TTA) for the B3 and B7 PRUE+ models per imagery
     source. Presence-only
     Kenya is excluded from all supervised macro-averages; Portugal is
-    retained. The released PRUE (S2) checkpoints are
-    listed as reference (their numbers are on the FTW
-    PRUE test split, not held-out only;
-    see~\Cref{tab:full_data} for the held-out macro of our own runs).
+    retained. The released FTW-PRUE (S2) rows are published values on the FTW
+    PRUE test split, not held-out macros.
     Best per row in bold. Obj F1 and pixel IoU are shown.}
     \label{tab:heldout}
     \input{figs/heldout_results.tex}
 \end{table*}
-
-\begin{table}[h]
-    \centering
-    \small
-\caption{\textbf{Comparison to released PRUE S2 checkpoints~\cite{muhawenayo2026prue}.} Released rows are published values on the PRUE test split. Our rows are 10-country dense held-out macro summaries for context only (presence-only Kenya excluded; see \Cref{sec:limitations}). Pixel IoU is secondary. Pixel IoU and Obj F1 are shown.}
-    \label{tab:full_data}
-    \input{figs/full_data_compare.tex}
-\end{table}
 
 \paragraph{PRUE+ augmentation settings.}
 PRUE+ keeps the released PRUE preprocessing augmentations
@@ -826,50 +807,23 @@ dilation by $0\text{--}2$\,px, $p=0.5$).
     \end{tabular}
 \end{table}
 
-\section{Per-region pixel IoU on the held-out regions}
-\label{app:heldout_pc}
-
-\Cref{tab:heldout_pc} breaks the protocol-continuity pixel IoU in
-\Cref{tab:full_data} down by region.
-
-\begin{table*}[h]
-    \centering
-    \scriptsize
-    \caption{\textbf{Per-region pixel IoU on the held-out regions.}
-    FTW-PRUE+ (B3) vs FTP-PRUE+ + watershed + D4 TTA
-    (main Planet row). Both models use the same PRUE per-region chip splits.
-    Kenya is
-    presence-only, so its supervised pixel/object metrics are omitted
-    and the macro row averages the 10 dense-label regions only. IoU and Obj F1 are shown $\times 100$.}
-    \label{tab:heldout_pc}
-    \input{figs/heldout_per_country.tex}
-\end{table*}
-
 \section{Upsampled-Sentinel-2 control}
 \label{app:upsampled_s2}
 
 The upsampled-Sentinel-2 control isolates genuine resolution from the evaluation
-grid. We retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery bilinearly
+grid: we retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery bilinearly
 upsampled to PlanetScope's $512\times512$ ($3$m) grid with the identical PRUE+
-recipe, same field of view, and no new image information, then score it through
-the full polygon pipeline (\Cref{tab:upsampled_s2}). The finer output grid
-recovers roughly $60\%$ of the PQ and object-F1 gap to native PlanetScope and
-brings segmentation quality to near-parity ($77.5$ vs $77.9$): for the parcels
-it matches, the overlap is as good as $3$m imagery.
-
-Boundary precision does not follow. The mean symmetric chamfer does
-not improve --- it \emph{worsens} from $18.6$m to $28.0$m, against $7.4$m for
-native PlanetScope --- even though the upsampled predictions are scored on a
-finer $3$m grid that could in principle localize edges more precisely.
-Upsampling lets the model detect and loosely overlap more small fields, but
-their boundaries are interpolated from $10$m content and wobble; only genuine
-$3$m imagery recovers meter-scale boundary accuracy. The absolute chamfer is
-inflated by large-field countries (e.g.\ South Africa $44$m, Germany $39$m),
-but the direction --- worse than native S2 despite a finer scoring grid --- is
-consistent across configurations. Object F1 and PQ are therefore partly
-sensitive to output-grid resolution, while boundary chamfer is not; we report
-both. Training stopped at $77/100$ epochs on a converged validation-loss
-plateau, and we evaluate its best-val/loss checkpoint as in the other rows.
+recipe and no new image information, then score it through the full polygon
+pipeline (\Cref{tab:upsampled_s2}). As in the main-text analysis
+(\Cref{sec:polygon-first}), the finer grid recovers most of the object-level gap
+(PQ/RQ, with SQ reaching near-parity, $77.5$ vs $77.9$) but not the boundary
+chamfer, which \emph{worsens} from $18.6$m to $28.0$m against $7.4$m for native
+PlanetScope: boundaries interpolated from $10$m content wobble, and only genuine
+$3$m imagery recovers meter-scale edges. The absolute chamfer is inflated by
+large-field countries (e.g.\ South Africa $44$m, Germany $39$m), but the
+direction is consistent across configurations. Training stopped at $77/100$
+epochs on a converged validation-loss plateau; we evaluate its best-val/loss
+checkpoint as in the other rows.
 
 \begin{table}[h]
     \centering

@@ -28,8 +28,6 @@ GENERATORS = [
     ("resolution_ablation_table.py", "resolution_ablation.tex"),
     ("representation_ceiling_table.py", "representation_ceiling.tex"),
     ("heldout_results_table.py", "heldout_results.tex"),
-    ("heldout_per_country_table.py", "heldout_per_country.tex"),
-    ("full_data_table.py", "full_data_compare.tex"),
 ]
 
 

@@ -90,13 +90,15 @@ def main() -> None:
         r"\makecell{Pix\\IoU} \\"
     )
     rows.append(r"\midrule")
-    # Released PRUE reference number (constant from muhawenayo2026prue, on the
+    # Released PRUE reference numbers (constants from muhawenayo2026prue, on the
     # FTW full_data test split — not directly comparable to our held-out macro;
-    # kept for orientation).
+    # kept for orientation, absorbed from the former tab:full_data).
     rows.append(
-        r"FTW-PRUE & B7~\cite{muhawenayo2026prue}  & --- & --- & --- "
-        r"& 47.0$^\ddag$ & 76.0$^\ddag$ \\"
+        r"\multicolumn{7}{@{}l}{\textit{FTW-PRUE, released by \cite{muhawenayo2026prue}}} \\"
     )
+    rows.append(r"FTW-PRUE & B3 & --- & --- & --- & 43.0$^\ddag$ & 74.0$^\ddag$ \\")
+    rows.append(r"FTW-PRUE & B5 & --- & --- & --- & 46.0$^\ddag$ & 75.0$^\ddag$ \\")
+    rows.append(r"FTW-PRUE & B7 & --- & --- & --- & 47.0$^\ddag$ & 76.0$^\ddag$ \\")
     rows.append(r"\midrule")
     rows.append(r"\multicolumn{7}{@{}l}{\textit{Ours --- FTP-PRUE+}} \\")
 
@@ -136,9 +138,10 @@ def main() -> None:
     rows.append(r"\end{tabular}")
     rows.append("")
     rows.append(
-        r"\vspace{2pt}\noindent{\scriptsize $^\ddag$ Released PRUE checkpoint numbers; "
-        r"we did not re-evaluate WS/TTA combos for them. Macros exclude presence-only "
-        r"kenya (see \Cref{sec:limitations}); portugal is retained.}"
+        r"\vspace{2pt}\noindent{\scriptsize $^\ddag$ Released PRUE numbers on the FTW "
+        r"PRUE test split (not the held-out macro); WS/TTA combos were not re-evaluated "
+        r"for them. Our macros exclude presence-only kenya (see \Cref{sec:limitations}); "
+        r"portugal is retained.}"
     )
     OUT.write_text("\n".join(rows) + "\n")
     print(f"wrote {OUT}")

@@ -7,7 +7,10 @@
 \cmidrule(lr){3-6}
 Model & Backbone & \makecell{no-WS\\no-TTA} & \makecell{no-WS\\TTA} & \makecell{WS\\no-TTA} & \makecell{\textbf{WS}\\\textbf{+TTA}} & \makecell{Pix\\IoU} \\
 \midrule
-FTW-PRUE & B7~\cite{muhawenayo2026prue}  & --- & --- & --- & 47.0$^\ddag$ & 76.0$^\ddag$ \\
+\multicolumn{7}{@{}l}{\textit{FTW-PRUE, released by \cite{muhawenayo2026prue}}} \\
+FTW-PRUE & B3 & --- & --- & --- & 43.0$^\ddag$ & 74.0$^\ddag$ \\
+FTW-PRUE & B5 & --- & --- & --- & 46.0$^\ddag$ & 75.0$^\ddag$ \\
+FTW-PRUE & B7 & --- & --- & --- & 47.0$^\ddag$ & 76.0$^\ddag$ \\
 \midrule
 \multicolumn{7}{@{}l}{\textit{Ours --- FTP-PRUE+}} \\
 FTP-PRUE+ & B3 & 43.5 & 43.9 & 44.1 & \textbf{45.2} & \textbf{68.8} \\
@@ -18,4 +21,4 @@ FTW-PRUE+ & B7 & 39.9 & 39.5 & 40.4 & \textbf{40.7} & 63.6 \\
 \bottomrule
 \end{tabular}
 
-\vspace{2pt}\noindent{\scriptsize $^\ddag$ Released PRUE checkpoint numbers; we did not re-evaluate WS/TTA combos for them. Macros exclude presence-only kenya (see \Cref{sec:limitations}); portugal is retained.}
+\vspace{2pt}\noindent{\scriptsize $^\ddag$ Released PRUE numbers on the FTW PRUE test split (not the held-out macro); WS/TTA combos were not re-evaluated for them. Our macros exclude presence-only kenya (see \Cref{sec:limitations}); portugal is retained.}
