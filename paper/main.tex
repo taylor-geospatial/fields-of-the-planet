@@ -53,7 +53,7 @@ Paper ID \wacvPaperID}
 %\vspace{12pt}
 }]
 \begin{abstract}
-Fields of The World (FTW) makes global agricultural field delineation practical at scale, pairing field-boundary labels across 24 countries with public 10m Sentinel-2 imagery. But at 10m the smallest fields are often impossible to resolve as distinct parcels: rasterizing the same labels at 10m merges thousands of adjacent smallholder fields into single blobs, so a model cannot recover what the grid has already destroyed. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to FTW built from the same field polygons, splits, and training recipe, with labels rasterized to each sensor's native grid. Because downstream use is parcel-level, the benchmark scores vectorized field polygons with panoptic quality, object F1, and meter-scale boundary error rather than pixel overlap. With task, geography, labels, architecture, and recipe all fixed, training on PlanetScope instead of Sentinel-2 lifts panoptic quality from 21.0 to 35.5 (0--100 scale) and more than halves mean boundary error (18.6m to 7.4m). Breaking results down by field size exposes the bottleneck: a $10$m grid can represent only $\sim$$8\%$ of sub-$0.5$\,ha fields as distinct polygons versus $\sim$$88\%$ at $3$m, and scored against the true polygons at each sensor's native resolution PlanetScope roughly doubles Sentinel-2's small-field polygon quality---a gap that upsampling Sentinel-2 to $3$m only partly closes, since interpolation cannot recover the boundaries that separate adjacent smallholder parcels. \footnote{Code, configs, result CSVs, and dataset-access instructions for review are available at \url{https://github.com/anon/anon} (anonymized); the full dataset is released on acceptance.}
+Fields of The World (FTW) makes global agricultural field delineation practical at scale, pairing field-boundary labels across 24 countries with public 10m Sentinel-2 imagery. But at 10m the smallest fields are often impossible to resolve as distinct parcels: rasterizing the same labels at 10m merges thousands of adjacent smallholder fields into single blobs that no model can later separate. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to FTW built from the same field polygons, splits, and training recipe, with labels rasterized to each sensor's native grid. Because downstream use is parcel-level, the benchmark scores vectorized field polygons with panoptic quality, object F1, and meter-scale boundary error rather than pixel overlap. With task, geography, labels, architecture, and recipe all fixed, training on PlanetScope instead of Sentinel-2 lifts panoptic quality from 21.0 to 35.5 (0--100 scale) and more than halves mean boundary error (18.6m to 7.4m). Breaking results down by field size isolates the limit: a $10$m grid can represent only $\sim$$8\%$ of sub-$0.5$\,ha fields as distinct polygons versus $\sim$$88\%$ at $3$m, and scored against the true polygons at each sensor's native resolution PlanetScope roughly doubles Sentinel-2's small-field polygon quality, a gap that upsampling Sentinel-2 to $3$m only partly closes. \footnote{Code, configs, result CSVs, and dataset-access instructions for review are available at \url{https://github.com/anon/anon} (anonymized); the full dataset is released on acceptance.}
 \end{abstract}
 
 \section{Introduction}
@@ -160,7 +160,7 @@ stricter thresholds.
 
 Per-country usable-patch rates vary widely (Portugal 48\%, Netherlands 79\%, vs Brazil/Croatia $>$99\%); full country breakdown in \Cref{app:udm2_country}.
 
-\section{Building a strong PlanetScope baseline}
+\section{Building a PlanetScope baseline}
 \label{sec:benchmark}
 
 \begin{figure*}[t!]
@@ -172,9 +172,9 @@ Per-country usable-patch rates vary widely (Portugal 48\%, Netherlands 79\%, vs 
 
 We use PRUE~\cite{muhawenayo2026prue} as the benchmark recipe because it is the most directly comparable published FTW training setup. To isolate the imagery effect, we hold the architecture, loss, training schedule, and post-processing fixed across sensors, then compare Sentinel-2 and FTP with matched EfficientNet-B3 and EfficientNet-B7 U-Net baselines. \Cref{fig:qualitative} previews the final PlanetScope model against the S2 baseline.
 
-\paragraph{How we measure (polygons first).} A pixel-overlap score can
-look healthy while every small field in a patch is merged into its
-neighbours, the failure that higher resolution is meant to fix. We therefore
+\paragraph{Metrics: polygons before pixels.} A pixel-overlap score can
+look healthy even when every small field in a patch is merged into its
+neighbours. We therefore
 score vectorized field interiors, asking whether a predicted field becomes a
 usable parcel rather than a high-overlap raster blob.
 
@@ -299,8 +299,8 @@ models trained with PRUE+.
 
 \paragraph{Augmentations matter more than backbone scaling here.}
 Scaling B3 to B7 does not improve the dense held-out polygon metrics (PQ $35.5$
-vs $35.4$, RQ $46.2$ vs $46.1$) and slightly worsens polygon-count error.
-Across all $23$ regions, B7 is also marginally behind ($-0.2$ PQ). The largest
+vs $35.4$, RQ $46.2$ vs $46.1$). Across all $23$ regions, B7 is also marginally
+behind ($-0.2$ PQ). The largest
 B3$\to$B7 drops are in dense-smallholder regions (Cambodia $-9.3$, Rwanda
 $-6.5$, Vietnam $-5.1$\,points; distinct from the Planet$-$S2 deltas of
 \Cref{sec:polygon-first}), so we use the smaller B3 as the main PlanetScope
@@ -339,9 +339,9 @@ object-detection scores, but only genuine higher-resolution imagery delivers
 meter-scale boundary precision. We report boundary chamfer alongside the object
 metrics; per-country numbers and the full setup are in \Cref{app:upsampled_s2}.
 
-Breaking this by field size (\Cref{tab:resolution_ablation}, scored against true
-polygons at each sensor's native ground resolution, macro-averaged over the dense
-regions) sharpens the picture. Upsampling Sentinel-2 recovers part of the small-
+Breaking the gap down by field size (\Cref{tab:resolution_ablation}, scored against
+true polygons at each sensor's native ground resolution, macro-averaged over the
+dense regions) localizes the effect. Upsampling Sentinel-2 recovers part of the small-
 and medium-field gap (PQ $7.5\!\to\!11.8$ and $28.4\!\to\!33.7$), but real $3$m
 PlanetScope leads at every size. On large fields upsampling helps not at all
 ($36.1$ vs native $37.7$) --- they are already resolvable at $10$m --- so the
@@ -387,8 +387,7 @@ that separate adjacent smallholder parcels.
     macro-averaged over the 10 dense held-out regions. Upsampling Sentinel-2 to
     $3$m recovers part of the small/medium gap, but real $3$m pixels lead at every
     size; on large fields upsampling does nothing (they are already resolvable at
-    $10$m), so that gap is pure resolution. You can interpolate a field interior,
-    not the sub-pixel boundaries between small parcels.}
+    $10$m), so that gap is pure resolution.}
     \label{tab:resolution_ablation}
     \input{figs/resolution_ablation.tex}
 \end{table}
@@ -399,7 +398,7 @@ regions except presence-only Kenya and label-sparse India), and scoring both
 sensors against the true polygons at their native resolution (Planet $3$m,
 Sentinel-2 capped to $10$m, as in \Cref{tab:resolution_ablation}), macro-average
 PQ is $38.5$ for PlanetScope and $24.1$ for FTW-PRUE+ (B7) under the same recipe,
-a $+14.4$\,points PlanetScope win. Figure~\ref{fig:per_country_bars} unpacks this
+a $+14.4$\,points PlanetScope win. Figure~\ref{fig:per_country_bars} breaks this
 into per-region deltas and contrasts them with FTW's pixel-instance object F1.
 PlanetScope wins on $22/23$ regions by polygon PQ but only $11/22$ by
 pixel-instance object F1, so the pixel-instance metric understates the
@@ -416,29 +415,28 @@ favor PlanetScope is Portugal, where the two sensors tie ($-0.1$\,points).
 Germany is the narrowest PlanetScope win ($+2.0$\,points overall, but $+4.6$ on
 sub-$0.5$\,ha fields): the gain there is concentrated in small fields because the
 Planet model recognizes and localizes Germany's large parcels less well than
-S2-B7 and tends to \emph{merge} adjacent parcels rather than fragment them,
+S2-B7. It tends to \emph{merge} adjacent parcels rather than fragment them,
 predicting about half as many polygons as there are parcels. Those boundaries
 are often low-contrast cadastral lines rather than physical features, so the
 resolution advantage is smallest exactly where the boundary is not a visible
 edge.
 
-\paragraph{At the field level, the smallholder gain is real.}
+\paragraph{Field-level breakdown of the smallholder gain.}
 Per-region averages are a confound: regions mix field sizes. Binning
 \emph{individual} GT fields by area resolves it, but the binning must be
 fair across sensors. We therefore score every model against the \emph{true}
 FTW polygons (not the rasterized mask) at each sensor's \emph{native} ground
 resolution---$10$m for Sentinel-2, $3$m for PlanetScope---so a $10$m model is
 not credited for the sub-$10$m boundaries that an upsampled output grid lets it
-paint but the sensor cannot resolve (\Cref{tab:resolution_ablation}). On this
-honest footing PlanetScope leads at every size, and the relative gap is largest
+paint but the sensor cannot resolve (\Cref{tab:resolution_ablation}). Scored this
+way, PlanetScope leads at every size, and the relative gap is largest
 on the smallest parcels: real $3$m roughly doubles Sentinel-2's small-field
 polygon quality ($15.7$ vs $7.5$ PQ). Upsampling Sentinel-2 to $3$m recovers
 part of the small/medium gap ($7.5\!\to\!11.8$) but none of the large-field gap
 ($36.1$ vs native $37.7$, against PlanetScope's $52.0$)---large fields are
 already resolvable at $10$m, so that entire advantage is genuine resolution.
 This is the deployed-pipeline quantity, and it tracks the model-free
-representation limit (\Cref{tab:representation_ceiling}): you can interpolate a
-field's interior but not the boundaries that separate adjacent smallholdings.
+representation limit (\Cref{tab:representation_ceiling}).
 
 
 \begin{figure*}[t!]
@@ -534,11 +532,12 @@ regions; full per-country cross-tabs ship with the index.
 \textbf{Hard evaluation regions.} Kenya is the only presence-only FTW region, so
 it is excluded from every supervised macro-average and reported only as a marked
 row (\Cref{tab:heldout_pc}); a cleaner comparison would also mask its unlabeled
-land during training. Portugal (terraced micro-fields near the PlanetScope GSD)
-and Cambodia stay hard: Cambodia's FTW v2 windows overlap only monsoon-season
-coverage, giving the release's highest haze fraction and a
-high-precision/low-recall model that drives the Cambodia loss
-(\Cref{sec:polygon-first}).
+land during training. Portugal (terraced micro-fields near the PlanetScope GSD) is the one region
+where PlanetScope does not pull ahead of Sentinel-2 (\Cref{sec:polygon-first}).
+Cambodia remains a hard PlanetScope win: its FTW v2 windows overlap only
+monsoon-season coverage, giving the release's highest haze fraction and a
+high-precision/low-recall model, which leaves Cambodia the narrowest object
+recall among the regions PlanetScope wins.
 
 \textbf{Temporal and spectral scope.} The PlanetScope date is the closest
 cloud-free match to the FTW season midpoint (usually within two weeks), and FTP
@@ -679,7 +678,7 @@ and $0.5$\,ha splits the dominant sub-hectare mass (median field $=0.41$\,ha).
 Areas are computed in each tile's UTM projection, which is metric and
 grid-invariant, so a parcel falls in the same bin regardless of sensor (a
 web-Mercator area would be inflated by up to $3.9\times$ at Swedish
-latitudes). Crucially, predictions are scored against the \emph{true} FTW
+latitudes). Predictions are scored against the \emph{true} FTW
 vector parcels---not a rasterized label mask---at each sensor's \emph{native}
 ground resolution: the Sentinel-2 prediction is capped to its genuine $10$\,m
 grid before matching, so upsampling cannot manufacture sub-pixel boundaries the
@@ -854,11 +853,11 @@ grid. We retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery bilinearly
 upsampled to PlanetScope's $512\times512$ ($3$m) grid with the identical PRUE+
 recipe, same field of view, and no new image information, then score it through
 the full polygon pipeline (\Cref{tab:upsampled_s2}). The finer output grid
-recovers roughly $45\%$ of the PQ and object-F1 gap to native PlanetScope and
+recovers roughly $60\%$ of the PQ and object-F1 gap to native PlanetScope and
 brings segmentation quality to near-parity ($77.5$ vs $77.9$): for the parcels
 it matches, the overlap is as good as $3$m imagery.
 
-Boundary precision tells the opposite story. The mean symmetric chamfer does
+Boundary precision does not follow. The mean symmetric chamfer does
 not improve --- it \emph{worsens} from $18.6$m to $28.0$m, against $7.4$m for
 native PlanetScope --- even though the upsampled predictions are scored on a
 finer $3$m grid that could in principle localize edges more precisely.
