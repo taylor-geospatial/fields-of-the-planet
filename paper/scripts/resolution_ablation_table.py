@@ -88,8 +88,10 @@ def main() -> None:
     print(f"wrote {OUT}")
     for label, _bold, pq in pqs:
         plain = label.replace(r"\textbf{", "").replace("}", "")
-        print(f"  {plain:34s} PQ[s/m/l]={pq['small'] * 100:.1f}/"
-              f"{pq['medium'] * 100:.1f}/{pq['large'] * 100:.1f}")
+        print(
+            f"  {plain:34s} PQ[s/m/l]={pq['small'] * 100:.1f}/"
+            f"{pq['medium'] * 100:.1f}/{pq['large'] * 100:.1f}"
+        )
 
 
 if __name__ == "__main__":

@@ -59,9 +59,11 @@ def main() -> None:
     print(f"wrote {OUT}")
     for label, b, _bold in ROWS:
         plain = label.replace(r"\,", " ")
-        print(f"  {plain:24s} n={int(pooled.loc[b, 'n_true']):6d} "
-              f"3m={float(pooled.loc[b, 'recall_3m']) * 100:.1f} "
-              f"10m={float(pooled.loc[b, 'recall_10m']) * 100:.1f}")
+        print(
+            f"  {plain:24s} n={int(pooled.loc[b, 'n_true']):6d} "
+            f"3m={float(pooled.loc[b, 'recall_3m']) * 100:.1f} "
+            f"10m={float(pooled.loc[b, 'recall_10m']) * 100:.1f}"
+        )
 
 
 if __name__ == "__main__":

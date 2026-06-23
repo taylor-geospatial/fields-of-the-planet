@@ -61,8 +61,19 @@ def write_macro_summary() -> Path:
     """Per-method macro over the 10 dense held-out countries (matches Table 1)."""
     out = OUT_DIR / "macro_summary.csv"
     fields = [
-        "method", "backbone", "pq", "sq", "rq", "f1_5_95", "dN_over_N",
-        "bnd_mean_m", "bnd_p95_m", "pixel_iou", "pq_small", "pq_medium", "pq_large",
+        "method",
+        "backbone",
+        "pq",
+        "sq",
+        "rq",
+        "f1_5_95",
+        "dN_over_N",
+        "bnd_mean_m",
+        "bnd_p95_m",
+        "pixel_iou",
+        "pq_small",
+        "pq_medium",
+        "pq_large",
     ]
     if len(METHOD_LABELS) != len(ROWS):
         raise RuntimeError(f"{len(METHOD_LABELS)} labels but {len(ROWS)} table rows")
@@ -83,16 +94,23 @@ def write_macro_summary() -> Path:
             def r(v: float, nd: int = 4) -> str:
                 return "" if v != v else f"{v:.{nd}f}"
 
-            w.writerow({
-                "method": label, "backbone": backbone,
-                "pq": r(agg["pq"]), "sq": r(agg["pq_sq"]), "rq": r(agg["pq_rq"]),
-                "f1_5_95": r(agg["ap_5_95"]), "dN_over_N": r(agg["dN_norm"]),
-                "bnd_mean_m": r(agg["boundary_error_m_mean"], 2),
-                "bnd_p95_m": r(agg["boundary_error_m_p95"], 2),
-                "pixel_iou": r(agg["pixel_iou"]),
-                "pq_small": r(bins["small"]), "pq_medium": r(bins["medium"]),
-                "pq_large": r(bins["large"]),
-            })
+            w.writerow(
+                {
+                    "method": label,
+                    "backbone": backbone,
+                    "pq": r(agg["pq"]),
+                    "sq": r(agg["pq_sq"]),
+                    "rq": r(agg["pq_rq"]),
+                    "f1_5_95": r(agg["ap_5_95"]),
+                    "dN_over_N": r(agg["dN_norm"]),
+                    "bnd_mean_m": r(agg["boundary_error_m_mean"], 2),
+                    "bnd_p95_m": r(agg["boundary_error_m_p95"], 2),
+                    "pixel_iou": r(agg["pixel_iou"]),
+                    "pq_small": r(bins["small"]),
+                    "pq_medium": r(bins["medium"]),
+                    "pq_large": r(bins["large"]),
+                }
+            )
     return out
 
 
@@ -103,9 +121,21 @@ def write_per_country() -> Path:
     # a macro-only quantity in the paper, sourced from a separate run). See
     # macro_summary.csv for the macro boundary error.
     fields = [
-        "method", "backbone", "condition", "country", "n_patches", "pq", "sq", "rq",
-        "f1_5_95", "n_pred_mean", "n_gt_mean", "dN_over_N",
-        "pq_small", "pq_medium", "pq_large",
+        "method",
+        "backbone",
+        "condition",
+        "country",
+        "n_patches",
+        "pq",
+        "sq",
+        "rq",
+        "f1_5_95",
+        "n_pred_mean",
+        "n_gt_mean",
+        "dN_over_N",
+        "pq_small",
+        "pq_medium",
+        "pq_large",
     ]
     with out.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
@@ -115,17 +145,25 @@ def write_per_country() -> Path:
                 d = pd.read_csv(cpath).iloc[0]
                 b = pd.read_csv(f"{cpath}.bins.csv").set_index("bin")
                 n_gt = float(d["n_gt_mean"])
-                w.writerow({
-                    "method": method, "backbone": backbone, "condition": cond,
-                    "country": d["country"], "n_patches": int(d["n_patches"]),
-                    "pq": f"{d['pq']:.4f}", "sq": f"{d['pq_sq']:.4f}",
-                    "rq": f"{d['pq_rq']:.4f}", "f1_5_95": f"{d['ap_5_95']:.4f}",
-                    "n_pred_mean": f"{d['n_pred_mean']:.2f}", "n_gt_mean": f"{n_gt:.2f}",
-                    "dN_over_N": f"{abs(d['n_pred_mean'] - n_gt) / n_gt:.4f}",
-                    "pq_small": f"{b.loc['small', 'pq']:.4f}",
-                    "pq_medium": f"{b.loc['medium', 'pq']:.4f}",
-                    "pq_large": f"{b.loc['large', 'pq']:.4f}",
-                })
+                w.writerow(
+                    {
+                        "method": method,
+                        "backbone": backbone,
+                        "condition": cond,
+                        "country": d["country"],
+                        "n_patches": int(d["n_patches"]),
+                        "pq": f"{d['pq']:.4f}",
+                        "sq": f"{d['pq_sq']:.4f}",
+                        "rq": f"{d['pq_rq']:.4f}",
+                        "f1_5_95": f"{d['ap_5_95']:.4f}",
+                        "n_pred_mean": f"{d['n_pred_mean']:.2f}",
+                        "n_gt_mean": f"{n_gt:.2f}",
+                        "dN_over_N": f"{abs(d['n_pred_mean'] - n_gt) / n_gt:.4f}",
+                        "pq_small": f"{b.loc['small', 'pq']:.4f}",
+                        "pq_medium": f"{b.loc['medium', 'pq']:.4f}",
+                        "pq_large": f"{b.loc['large', 'pq']:.4f}",
+                    }
+                )
     return out
 
 

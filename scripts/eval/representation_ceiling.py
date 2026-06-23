@@ -11,11 +11,10 @@ model on that sensor could do, independent of model/backbone/upsampling.
 """
 
 import argparse
+import csv
 import sys
 from collections import defaultdict
 from pathlib import Path
-
-import csv
 
 import geopandas as gpd
 import numpy as np

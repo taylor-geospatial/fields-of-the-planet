@@ -347,7 +347,7 @@ though the upsampled predictions are scored on a finer grid that could in
 principle localize edges more precisely. Output-grid resolution inflates the
 object-detection scores, but only genuine higher-resolution imagery delivers
 meter-scale boundary precision. We report boundary chamfer alongside the object
-metrics; per-country numbers and the full setup are in \Cref{app:upsampled_s2}.
+metrics.
 
 Breaking the gap down by field size (\Cref{tab:resolution_ablation}) localizes
 the effect: real $3$m PlanetScope leads at every size, while upsampling
@@ -370,8 +370,7 @@ per-bin numbers and binning protocol are in the field-size breakdown below.
     share one scoring protocol (upsampled-comparable, against the rasterized
     reference); the headline \Cref{tab:polygon_metrics} instead scores against
     the true polygons at each sensor's native resolution, where the S2-B3 PQ is
-    lower ($21.0$) and the reported S2 chamfer is the native-$10$m one. Full
-    per-country table in \Cref{tab:upsampled_s2}.}
+    lower ($21.0$) and the reported S2 chamfer is the native-$10$m one.}
     \label{tab:upsampled_s2_main}
     \begin{tabular}{lcccc}
     \toprule
@@ -618,8 +617,7 @@ With the match set fixed at $\tau=0.5$,
 \mathrm{SQ}=\frac{1}{\mathrm{TP}_{0.5}}\!\!\sum_{(g,p)\in\mathcal{M}_{0.5}}\!\!\mathrm{IoU}(g,p),\qquad
 \mathrm{PQ}=\mathrm{SQ}\times\mathrm{RQ}.
 \end{equation}
-RQ is identically the object F1 at IoU\,$=0.5$ reported elsewhere in the
-paper. Substituting shows this is the original panoptic quality,
+Substituting shows this is the original panoptic quality,
 $\mathrm{PQ}=\big(\sum_{(g,p)\in\mathcal{M}_{0.5}}\mathrm{IoU}(g,p)\big)\big/\big(\mathrm{TP}_{0.5}+\tfrac12\mathrm{FP}_{0.5}+\tfrac12\mathrm{FN}_{0.5}\big)$,
 since $\mathrm{F1}_\tau=\mathrm{TP}_\tau/(\mathrm{TP}_\tau+\tfrac12\mathrm{FP}_\tau+\tfrac12\mathrm{FN}_\tau)$.
 
@@ -814,51 +812,6 @@ dilation by $0\text{--}2$\,px, $p=0.5$).
     \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Checkpoint selection}} \\
     Austria-only val vs mixed & \checkmark & {\color{earthDark}\bfseries +4\,IoU} \\
     Last vs best-by-val checkpoint & either & {\color{black!50}\bfseries $\le0.3$} \\
-    \bottomrule
-    \end{tabular}
-\end{table}
-
-\section{Upsampled-Sentinel-2 control}
-\label{app:upsampled_s2}
-
-The upsampled-Sentinel-2 control isolates genuine resolution from the evaluation
-grid: we retrain the EfficientNet-B3 S2 model on Sentinel-2 imagery bilinearly
-upsampled to PlanetScope's $512\times512$ ($3$m) grid with the identical PRUE+
-recipe and no new image information, then score it through the full polygon
-pipeline (\Cref{tab:upsampled_s2}). As in the main-text analysis
-(\Cref{sec:polygon-first}), the finer grid recovers most of the object-level gap
-(PQ/RQ, with SQ reaching near-parity, $77.5$ vs $77.9$) but not the boundary
-chamfer, which \emph{worsens} from $18.6$m to $28.0$m against $7.4$m for native
-PlanetScope: boundaries interpolated from $10$m content wobble, and only genuine
-$3$m imagery recovers meter-scale edges. The absolute chamfer is inflated by
-large-field countries (e.g.\ South Africa $44$m, Germany $39$m), but the
-direction is consistent across configurations. Training stopped at $77/100$
-epochs on a converged validation-loss plateau; we evaluate its best-val/loss
-checkpoint as in the other rows.
-
-\begin{table}[h]
-    \centering
-    \small
-    \caption{\textbf{Upsampled-Sentinel-2 control.} Full polygon metrics on the
-    10-country dense held-out set (presence-only Kenya excluded), WS\,+\,TTA, B3
-    PRUE+. The native-Planet row is reproduced from \Cref{tab:polygon_metrics};
-    the headline S2-B3 row there pairs this table's upsampled-at-eval object
-    metrics (PQ/SQ/RQ/F1) with the native-$256$ boundary chamfer (each model's
-    native grid). Boundary columns here are on each row's own output grid;
-    object-vs-boundary interpretation in text.}
-    \label{tab:upsampled_s2}
-    \setlength{\tabcolsep}{4pt}
-    \begin{tabular}{lcccccc}
-    \toprule
-    & & & & & \multicolumn{2}{c}{Bd.\ err (m)} \\
-    \cmidrule(lr){6-7}
-    Sentinel-2 grid & PQ & SQ & RQ & F1$_{[.5:.95]}$ & mean & p95 \\
-    \midrule
-    Native ($256$, $10$m)        & $23.8$ & $67.8$ & $30.8$ & $18.4$ & $18.6$ & $54.7$ \\
-    Upsampled at eval ($512$)    & $27.4$ & $75.8$ & $34.9$ & $21.6$ & $31.3$ & $96.9$ \\
-    Trained upsampled ($512$)    & $31.5$ & $77.5$ & $39.5$ & $25.5$ & $28.0$ & $90.0$ \\
-    \midrule
-    Planet ($512$, native $3$m)  & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{29.1}$ & $\mathbf{7.4}$ & $\mathbf{22.8}$ \\
     \bottomrule
     \end{tabular}
 \end{table}
