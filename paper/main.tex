@@ -395,31 +395,32 @@ that separate adjacent smallholder parcels.
 
 \paragraph{Per-region head-to-head.}
 Across the 23 test regions with complete polygon-metric outputs (all FTW
-regions except presence-only Kenya and label-sparse India), macro-average PQ is
-$37.9$ for PlanetScope and $32.3$ for FTW-PRUE+ (B7) under the same recipe, a
-$+5.6$\,points PlanetScope win. Figure~\ref{fig:per_country_bars} unpacks this into
-per-region deltas and contrasts them with FTW's pixel-instance object F1.
-PlanetScope wins on $18/23$ regions by polygon PQ but $11/22$ by
+regions except presence-only Kenya and label-sparse India), and scoring both
+sensors against the true polygons at their native resolution (Planet $3$m,
+Sentinel-2 capped to $10$m, as in \Cref{tab:resolution_ablation}), macro-average
+PQ is $38.5$ for PlanetScope and $24.1$ for FTW-PRUE+ (B7) under the same recipe,
+a $+14.4$\,points PlanetScope win. Figure~\ref{fig:per_country_bars} unpacks this
+into per-region deltas and contrasts them with FTW's pixel-instance object F1.
+PlanetScope wins on $22/23$ regions by polygon PQ but only $11/22$ by
 pixel-instance object F1, so the pixel-instance metric understates the
 resolution benefit surfaced by polygon metrics. The PQ win count is a
 directional consistency check across regions (two-sided sign test vs.\ a
-$50\%$ win rate, $p \approx 1.1\times10^{-2}$), not an out-of-distribution
+$50\%$ win rate, $p \approx 5.7\times10^{-6}$), not an out-of-distribution
 generalization test: under the PRUE protocol every region contributes both
 train and test chips. All configurations use a single seed
 (\texttt{seed\_everything}\,$=7$), so we report point estimates and do not
 claim seed-level significance.
 
-The largest gains are mid-size European regions. The five losses are Cambodia,
-Germany, Portugal, Slovenia, and Vietnam, with the last three within $1.6$\,points
-of a tie. Germany is the clearest Sentinel-2 win: at matched EfficientNet-B3 the
-two sensors are within $\sim$2.9\,points (Planet $32.2$ vs S2 $35.1$), and most of
-the larger headline gap comes from backbone capacity because B7 helps the S2
-model on Germany but not Planet. The Planet model recognizes and localizes
-Germany's large parcels less well than S2-B7 (RQ $40$ vs $46$, SQ $80$ vs
-$86$) and tends to \emph{merge} adjacent parcels rather than fragment them. It
-predicts about half as many polygons as there are parcels, while its field-area
-accuracy (pixel IoU) is comparable; the boundaries there are often
-low-contrast cadastral lines rather than physical features.
+The largest gains are mid-size European regions; the only region that does not
+favor PlanetScope is Portugal, where the two sensors tie ($-0.1$\,points).
+Germany is the narrowest PlanetScope win ($+2.0$\,points overall, but $+4.6$ on
+sub-$0.5$\,ha fields): the gain there is concentrated in small fields because the
+Planet model recognizes and localizes Germany's large parcels less well than
+S2-B7 and tends to \emph{merge} adjacent parcels rather than fragment them,
+predicting about half as many polygons as there are parcels. Those boundaries
+are often low-contrast cadastral lines rather than physical features, so the
+resolution advantage is smallest exactly where the boundary is not a visible
+edge.
 
 \paragraph{At the field level, the smallholder gain is real.}
 Per-region averages are a confound: regions mix field sizes. Binning
@@ -459,15 +460,17 @@ field's interior but not the boundaries that separate adjacent smallholdings.
     \end{minipage}
     \caption{\textbf{Per-region $\Delta$ (PlanetScope $-$ Sentinel-2) under
     small-field polygon PQ, polygon PQ, and FTW pixel-instance object F1.}
-    Left: polygon PQ restricted to $<0.5$\,ha GT fields for FTP-PRUE+ B3 vs.\
-    FTW-PRUE+ B7 under the same PRUE+ recipe; regions are sorted by this delta.
-    Center: polygon PQ over all fields. Right: the FTW-official pixel-instance
-    object F1 from the released PRUE checkpoints \cite{muhawenayo2026prue};
-    Brazil is marked n/a because its PlanetScope pixel-instance evaluation is
-    missing. Polygon PQ favors PlanetScope on $18/23$ regions and pixel-instance
-    object F1 on $11/22$, but on small fields the resolution advantage is
-    universal: PlanetScope wins all $23/23$ regions, by a median of
-    $\sim$$12$\,points.}
+    Polygon PQ panels score both sensors against the true FTW polygons at their
+    native resolution (Planet $3$m, S2 capped to $10$m), as in
+    \Cref{tab:resolution_ablation}. Left: polygon PQ restricted to $<0.5$\,ha GT
+    fields for FTP-PRUE+ B3 vs.\ FTW-PRUE+ B7 under the same PRUE+ recipe;
+    regions are sorted by this delta. Center: polygon PQ over all fields. Right:
+    the FTW-official pixel-instance object F1 from the released PRUE checkpoints
+    \cite{muhawenayo2026prue}; Brazil is marked n/a because its PlanetScope
+    pixel-instance evaluation is missing. Polygon PQ favors PlanetScope on
+    $22/23$ regions and pixel-instance object F1 on $11/22$, but on small fields
+    the resolution advantage is near-universal: PlanetScope wins $22/23$ regions
+    (Portugal ties), by a median of $\sim$$10$\,points.}
     \label{fig:per_country_bars}
 \end{figure*}
 

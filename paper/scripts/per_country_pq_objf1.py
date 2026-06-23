@@ -5,18 +5,23 @@ Delta small-field PQ). The point is that the metrics disagree by margin and brea
 polygon PQ shows a broad, consistent PlanetScope advantage; the FTW-official
 pixel-instance object F1 is far noisier and barely favors Planet (it understates
 the resolution benefit); and small-field (<0.5 ha) polygon PQ shows the largest,
-most uniform advantage -- PlanetScope wins every region -- which is the
-smallholder-resolution story sharpened to the per-region level.
+most uniform advantage -- PlanetScope wins all but one region (Portugal ties) --
+which is the smallholder-resolution story sharpened to the per-region level.
+
+Panels 1 and 3 score both sensors against the TRUE FTW vector polygons at each
+sensor's native ground resolution (Planet 3 m; Sentinel-2 capped to 10 m), the
+same honest-footing protocol as tab:resolution_ablation -- so S2 is not credited
+for sub-10 m boundaries it cannot resolve.
 
 Panel 1 -- Delta PQ (FTP-PRUE - FTW-PRUE), polygon recognition quality:
-    logs/polygon_metrics/planet_b3_augmax_full_22.csv (all-23-region B3-full augmax run)
-    vs logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv
+    logs/area_bins_per_country/planet_b3_full23_overall_truegt.csv (Planet 3 m)
+    vs logs/area_bins_per_country/s2_b7_full23_overall_truegt_gsd10.csv (S2 native 10 m)
 Panel 2 -- Delta Obj F1 (FTP-PRUE - FTW-PRUE), FTW-official pixel-instance:
     logs/fulldata_eval/planet_b3_augmax_full_ws_tta.csv (object_ws_f1; Brazil missing)
     vs logs/ftw_official/b7_*.csv (object_level_f1)
-Panel 3 -- Delta small-field PQ (<0.5 ha GT fields), same protocol as Panel 1:
-    logs/area_bins_per_country/planet_b3_full23_small.csv
-    vs logs/area_bins_per_country/s2_b7_full23_small.csv
+Panel 3 -- Delta small-field PQ (<0.5 ha GT fields), same true-GT protocol as Panel 1:
+    logs/area_bins_per_country/planet_b3_full23_small_truegt.csv
+    vs logs/area_bins_per_country/s2_b7_full23_small_truegt_gsd10.csv
 
 Styling copied from per_country_bars.py (tg_style palette/fonts).
 """
@@ -35,29 +40,29 @@ import tg_style
 # reproduces without the gitignored raw logs. d_pq_small is per-region
 # PlanetScope - S2-B7 polygon PQ on <0.5 ha GT fields (points).
 FALLBACK_DELTAS = [
-    ("cambodia", -7.3, -8.6, 5.4),
-    ("germany", -6.8, -7.1, 3.7),
-    ("portugal", -1.6, -2.2, 0.7),
-    ("slovenia", -0.3, -0.0, 10.0),
-    ("vietnam", -0.3, 1.5, 4.9),
-    ("estonia", 0.5, -3.3, 8.6),
-    ("spain", 0.9, -1.1, 7.2),
-    ("croatia", 1.6, 2.0, 14.9),
-    ("france", 3.1, -3.5, 16.2),
-    ("austria", 4.4, 0.9, 12.4),
-    ("south_africa", 4.6, 6.2, 20.2),
-    ("luxembourg", 5.0, -3.2, 17.5),
-    ("corsica", 5.1, -1.0, 3.8),
-    ("finland", 5.3, 3.4, 22.5),
-    ("sweden", 6.7, 4.5, 14.6),
-    ("belgium", 7.3, -1.7, 20.4),
-    ("rwanda", 10.6, 14.3, 4.7),
-    ("latvia", 11.2, 2.2, 13.9),
-    ("slovakia", 11.4, 2.9, 12.4),
-    ("denmark", 11.6, 5.1, 18.6),
-    ("lithuania", 16.3, 5.2, 18.2),
-    ("brazil", 18.3, np.nan, 2.4),
-    ("netherlands", 22.0, -2.8, 12.2),
+    ("finland", 21.6, 3.4, 18.3),
+    ("lithuania", 29.1, 5.2, 17.1),
+    ("netherlands", 34.2, -2.8, 17.0),
+    ("france", 18.4, -3.5, 15.2),
+    ("luxembourg", 21.3, -3.2, 15.2),
+    ("sweden", 16.6, 4.5, 12.8),
+    ("denmark", 17.0, 5.1, 10.7),
+    ("austria", 20.8, 0.9, 10.5),
+    ("belgium", 16.6, -1.7, 10.4),
+    ("slovakia", 13.2, 2.9, 10.3),
+    ("latvia", 19.7, 2.2, 10.2),
+    ("croatia", 14.0, 2.0, 10.2),
+    ("south_africa", 5.0, 6.2, 10.0),
+    ("corsica", 10.3, -1.0, 5.6),
+    ("estonia", 8.0, -3.3, 5.5),
+    ("germany", 2.0, -7.1, 4.6),
+    ("slovenia", 8.3, -0.0, 4.2),
+    ("spain", 7.1, -1.1, 4.1),
+    ("brazil", 30.9, np.nan, 3.4),
+    ("cambodia", 1.7, -8.6, 3.1),
+    ("rwanda", 11.5, 14.3, 2.1),
+    ("vietnam", 3.2, 1.5, 1.7),
+    ("portugal", -0.1, -2.2, -0.1),
 ]
 
 mpl.rcParams.update(
@@ -86,10 +91,16 @@ mpl.rcParams.update(
 
 
 def _load_pq() -> pd.DataFrame:
-    pl = pd.read_csv("logs/polygon_metrics/planet_b3_augmax_full_22.csv")[["country", "pq"]].rename(
-        columns={"pq": "pq_pl"}
-    )
-    s2 = pd.read_csv("logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv")[
+    """Per-region Delta PQ over all fields (PlanetScope 3 m - S2-B7 native 10 m).
+
+    True-GT, native-GSD scoring (same protocol as Panel 3 and
+    tab:resolution_ablation): S2 capped to 10 m so it is not credited for
+    sub-10 m boundaries it cannot resolve.
+    """
+    pl = pd.read_csv("logs/area_bins_per_country/planet_b3_full23_overall_truegt.csv")[
+        ["country", "pq"]
+    ].rename(columns={"pq": "pq_pl"})
+    s2 = pd.read_csv("logs/area_bins_per_country/s2_b7_full23_overall_truegt_gsd10.csv")[
         ["country", "pq"]
     ].rename(columns={"pq": "pq_s2"})
     m = pl.merge(s2, on="country", how="inner").copy()
@@ -116,11 +127,14 @@ def _load_objf1() -> pd.DataFrame:
 
 
 def _load_pq_small() -> pd.DataFrame:
-    """Per-region Delta PQ on <0.5 ha GT fields (PlanetScope - S2-B7)."""
-    pl = pd.read_csv("logs/area_bins_per_country/planet_b3_full23_small.csv")[
+    """Per-region Delta PQ on <0.5 ha GT fields (PlanetScope 3 m - S2-B7 native 10 m).
+
+    True-GT, native-GSD scoring (same protocol as Panel 1).
+    """
+    pl = pd.read_csv("logs/area_bins_per_country/planet_b3_full23_small_truegt.csv")[
         ["country", "pq_small"]
     ].rename(columns={"pq_small": "pq_pl"})
-    s2 = pd.read_csv("logs/area_bins_per_country/s2_b7_full23_small.csv")[
+    s2 = pd.read_csv("logs/area_bins_per_country/s2_b7_full23_small_truegt_gsd10.csv")[
         ["country", "pq_small"]
     ].rename(columns={"pq_small": "pq_s2"})
     m = pl.merge(s2, on="country", how="inner").copy()
