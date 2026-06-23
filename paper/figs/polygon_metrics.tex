@@ -1,18 +1,21 @@
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}l l ccc c c cc c ccc@{}}
+\begin{tabular}{@{}l l l ccc c c cc c ccc@{}}
 \toprule
- & & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} & & \multicolumn{3}{c}{\makecell{PQ by GT size$^{\ddagger}$}} \\
-\cmidrule(lr){3-5} \cmidrule(lr){8-9} \cmidrule(lr){11-13}
-Method & Bb. & PQ & SQ & RQ$_{.5}$ & F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$} & mean & p95 & \makecell{Pixel\\IoU$^{\dagger}$} & PQ$_\mathrm{s}$ & PQ$_\mathrm{m}$ & PQ$_\mathrm{l}$ \\
+ & & & \multicolumn{3}{c}{Panoptic} & & & \multicolumn{2}{c}{\makecell{Bd.\ err\ (m)\,$\downarrow$}} & & \multicolumn{3}{c}{PQ by GT size$^{\ddagger}$} \\
+\cmidrule(lr){4-6} \cmidrule(lr){9-10} \cmidrule(lr){12-14}
+Method & Sensor & Backbone & PQ & SQ & RQ$_{.5}$ & F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$\,$\downarrow$} & mean & p95 & \makecell{Pixel\\IoU$^{\dagger}$} & PQ$_\mathrm{s}$ & PQ$_\mathrm{m}$ & PQ$_\mathrm{l}$ \\
 \midrule
-DelineateAnything (Planet)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11x & 16.6 & 72.2 & 22.1 & 12.4 & 0.55 & 13.7 & 37.8 & 51.1 & -- & -- & -- \\
-DelineateAnything-S (Planet)$^{*}$~\cite{lavreniuk2025delineate} & YOLO11n & 13.0 & 71.4 & 17.7 & 9.3 & 2.03 & 13.2 & 34.2 & 40.7 & -- & -- & -- \\
+DelineateAnything$^{*}$~\cite{lavreniuk2025delineate} & Planet & YOLO11x & 16.6 & 72.2 & 22.1 & 12.4 & 0.55 & 13.7 & 37.8 & 51.1 & -- & -- & -- \\
+DelineateAnything-S$^{*}$~\cite{lavreniuk2025delineate} & Planet & YOLO11n & 13.0 & 71.4 & 17.7 & 9.3 & 2.03 & 13.2 & 34.2 & 40.7 & -- & -- & -- \\
 \midrule
-FTW-PRUE+ (S2)~\cite{muhawenayo2026prue} & B3 & 21.0 & 71.4 & 28.9 & 14.6 & 0.33 & 18.6 & 54.7 & 61.8 & 5.8 & 25.3 & 33.8 \\
-FTW-PRUE+ (S2)~\cite{muhawenayo2026prue} & B7 & 24.2 & 71.0 & 32.8 & 17.2 & 0.35 & 14.4 & 43.4 & 63.6 & 7.5 & 28.4 & 37.7 \\
+FTW-PRUE+~\cite{muhawenayo2026prue} & S2 & EfficientNet-B3 & 21.0 & 71.4 & 28.9 & 14.6 & 0.33 & 18.6 & 54.7 & 61.8 & 5.8 & 25.3 & 33.8 \\
+FTW-PRUE+~\cite{muhawenayo2026prue} & S2 & EfficientNet-B7 & 24.2 & 71.0 & 32.8 & 17.2 & 0.35 & 14.4 & 43.4 & 63.6 & 7.5 & 28.4 & 37.7 \\
 \midrule
-\textbf{FTP-PRUE+ (Planet, ours)} & \textbf{B3} & \textbf{35.5} & \textbf{75.7} & \textbf{46.2} & \textbf{27.1} & 0.33 & \textbf{7.4} & \textbf{22.8} & 68.8 & \textbf{15.7} & 39.2 & \textbf{52.0} \\
-\textbf{FTP-PRUE+ (Planet, ours)} & \textbf{B7} & 35.4 & 74.4 & 46.1 & 27.0 & \textbf{0.30} & \textbf{7.4} & \textbf{22.8} & \textbf{74.2} & 15.6 & \textbf{40.6} & 50.9 \\
+\textbf{FTP-PRUE+ (ours)} & \textbf{Planet} & \textbf{EfficientNet-B3} & \textbf{35.5} & \textbf{75.7} & \textbf{46.2} & \textbf{27.1} & 0.33 & \textbf{7.4} & \textbf{22.8} & 68.8 & \textbf{15.7} & 39.2 & \textbf{52.0} \\
+\textbf{FTP-PRUE+ (ours)} & \textbf{Planet} & \textbf{EfficientNet-B7} & 35.4 & 74.4 & 46.1 & 27.0 & \textbf{0.30} & \textbf{7.4} & \textbf{22.8} & \textbf{74.2} & 15.6 & \textbf{40.6} & 50.9 \\
 \bottomrule
 \end{tabular}
+
+\vspace{3pt}\noindent{\scriptsize Segmentation rows are scored against the \emph{true} FTW polygons at each sensor's native resolution (Sentinel-2 capped to its $10$m grid before matching), macro-averaged over the 10 dense-label countries; presence-only Kenya excluded. $|\Delta N|/N$ and boundary error are lower-is-better, all other metrics higher-is-better; best per column in \textbf{bold}. Definitions in \Cref{app:metrics}; the resolution ablation is \Cref{tab:resolution_ablation} and the model-free representation limit \Cref{tab:representation_ceiling}.\par
+\smallskip\noindent $^{*}$Off-the-shelf, no FTW fine-tuning; scored against the rasterized GT (not re-scored against polygons), hence no size breakdown. $^{\dagger}$Pixel IoU is computed at each sensor's native grid and is not comparable across the $3$m/$10$m resolutions. $^{\ddagger}$PQ within each GT field-size bin (small/medium/large by UTM area).}
