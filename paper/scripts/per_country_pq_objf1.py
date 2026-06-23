@@ -1,18 +1,22 @@
-"""Per-region split panels: Delta PQ (polygon) and Delta Obj F1 (pixel-instance).
+"""Per-region split panels: Delta PQ, Delta Obj F1, and Delta small-field PQ.
 
-Two aligned horizontal-bar panels share the same region order (sorted by
-Delta PQ). The point is that the two metrics disagree: polygon PQ shows a
-broad, consistent PlanetScope advantage, while the FTW-official pixel-instance
-object F1 is far noisier and barely favors Planet -- i.e. the pixel-instance
-metric understates the resolution benefit, which is why we lead with
-polygon-level metrics.
+Three aligned horizontal-bar panels share the same region order (sorted by
+Delta small-field PQ). The point is that the metrics disagree by margin and breadth:
+polygon PQ shows a broad, consistent PlanetScope advantage; the FTW-official
+pixel-instance object F1 is far noisier and barely favors Planet (it understates
+the resolution benefit); and small-field (<0.5 ha) polygon PQ shows the largest,
+most uniform advantage -- PlanetScope wins every region -- which is the
+smallholder-resolution story sharpened to the per-region level.
 
-Left panel  -- Delta PQ (FTP-PRUE - FTW-PRUE), polygon recognition quality:
+Panel 1 -- Delta PQ (FTP-PRUE - FTW-PRUE), polygon recognition quality:
     logs/polygon_metrics/planet_b3_augmax_full_22.csv (all-23-region B3-full augmax run)
     vs logs/polygon_metrics/s2_upsampled_b7_augmax_full_22.csv
-Right panel -- Delta Obj F1 (FTP-PRUE - FTW-PRUE), FTW-official pixel-instance:
+Panel 2 -- Delta Obj F1 (FTP-PRUE - FTW-PRUE), FTW-official pixel-instance:
     logs/fulldata_eval/planet_b3_augmax_full_ws_tta.csv (object_ws_f1; Brazil missing)
     vs logs/ftw_official/b7_*.csv (object_level_f1)
+Panel 3 -- Delta small-field PQ (<0.5 ha GT fields), same protocol as Panel 1:
+    logs/area_bins_per_country/planet_b3_full23_small.csv
+    vs logs/area_bins_per_country/s2_b7_full23_small.csv
 
 Styling copied from per_country_bars.py (tg_style palette/fonts).
 """
@@ -27,30 +31,33 @@ import numpy as np
 import pandas as pd
 import tg_style
 
+# (country, d_pq, d_f1, d_pq_small) -- embedded plotted deltas so the figure
+# reproduces without the gitignored raw logs. d_pq_small is per-region
+# PlanetScope - S2-B7 polygon PQ on <0.5 ha GT fields (points).
 FALLBACK_DELTAS = [
-    ("cambodia", -7.3, -8.6),
-    ("germany", -6.8, -7.1),
-    ("portugal", -1.6, -2.2),
-    ("slovenia", -0.3, -0.0),
-    ("vietnam", -0.3, 1.5),
-    ("estonia", 0.5, -3.3),
-    ("spain", 0.9, -1.1),
-    ("croatia", 1.6, 2.0),
-    ("france", 3.1, -3.5),
-    ("austria", 4.4, 0.9),
-    ("south_africa", 4.6, 6.2),
-    ("luxembourg", 5.0, -3.2),
-    ("corsica", 5.1, -1.0),
-    ("finland", 5.3, 3.4),
-    ("sweden", 6.7, 4.5),
-    ("belgium", 7.3, -1.7),
-    ("rwanda", 10.6, 14.3),
-    ("latvia", 11.2, 2.2),
-    ("slovakia", 11.4, 2.9),
-    ("denmark", 11.6, 5.1),
-    ("lithuania", 16.3, 5.2),
-    ("brazil", 18.3, np.nan),
-    ("netherlands", 22.0, -2.8),
+    ("cambodia", -7.3, -8.6, 5.4),
+    ("germany", -6.8, -7.1, 3.7),
+    ("portugal", -1.6, -2.2, 0.7),
+    ("slovenia", -0.3, -0.0, 10.0),
+    ("vietnam", -0.3, 1.5, 4.9),
+    ("estonia", 0.5, -3.3, 8.6),
+    ("spain", 0.9, -1.1, 7.2),
+    ("croatia", 1.6, 2.0, 14.9),
+    ("france", 3.1, -3.5, 16.2),
+    ("austria", 4.4, 0.9, 12.4),
+    ("south_africa", 4.6, 6.2, 20.2),
+    ("luxembourg", 5.0, -3.2, 17.5),
+    ("corsica", 5.1, -1.0, 3.8),
+    ("finland", 5.3, 3.4, 22.5),
+    ("sweden", 6.7, 4.5, 14.6),
+    ("belgium", 7.3, -1.7, 20.4),
+    ("rwanda", 10.6, 14.3, 4.7),
+    ("latvia", 11.2, 2.2, 13.9),
+    ("slovakia", 11.4, 2.9, 12.4),
+    ("denmark", 11.6, 5.1, 18.6),
+    ("lithuania", 16.3, 5.2, 18.2),
+    ("brazil", 18.3, np.nan, 2.4),
+    ("netherlands", 22.0, -2.8, 12.2),
 ]
 
 mpl.rcParams.update(
@@ -108,20 +115,33 @@ def _load_objf1() -> pd.DataFrame:
     return m[["country", "d_f1"]]
 
 
+def _load_pq_small() -> pd.DataFrame:
+    """Per-region Delta PQ on <0.5 ha GT fields (PlanetScope - S2-B7)."""
+    pl = pd.read_csv("logs/area_bins_per_country/planet_b3_full23_small.csv")[
+        ["country", "pq_small"]
+    ].rename(columns={"pq_small": "pq_pl"})
+    s2 = pd.read_csv("logs/area_bins_per_country/s2_b7_full23_small.csv")[
+        ["country", "pq_small"]
+    ].rename(columns={"pq_small": "pq_s2"})
+    m = pl.merge(s2, on="country", how="inner").copy()
+    m["d_pq_small"] = (m.pq_pl - m.pq_s2) * 100.0
+    return m[["country", "d_pq_small"]]
+
+
 def _merged_metrics() -> pd.DataFrame:
     try:
         pq = _load_pq()
         f1 = _load_objf1()
+        pqs = _load_pq_small()
+        # Outer-join so a region missing in one metric (e.g. Brazil lacks a
+        # full-data PlanetScope Obj F1) still shows in the panels where it
+        # exists, marked "n/a" elsewhere.
+        m = pq.merge(f1, on="country", how="outer").merge(pqs, on="country", how="outer")
     except (FileNotFoundError, ValueError) as exc:
         print(f"source logs unavailable ({exc}); using embedded plotted deltas")
-        m = pd.DataFrame(FALLBACK_DELTAS, columns=["country", "d_pq", "d_f1"])
-        m["country_lbl"] = m.country.str.replace("_", " ").str.title()
-        return m
-    # Shared region order: sort by Delta PQ. Outer-join so a region missing in
-    # one metric (e.g. Brazil lacks a full-data PlanetScope Obj F1) still shows
-    # in the panel where it exists, with "n/a" in the missing panel.
-    m = pq.merge(f1, on="country", how="outer")
-    m["sort_key"] = m["d_pq"].fillna(m["d_pq"].min() - 1)
+        m = pd.DataFrame(FALLBACK_DELTAS, columns=["country", "d_pq", "d_f1", "d_pq_small"])
+    # Shared region order across all panels: sort by Delta small-field PQ.
+    m["sort_key"] = m["d_pq_small"].fillna(m["d_pq_small"].min() - 1)
     m = m.sort_values("sort_key", ascending=False).reset_index(drop=True)
     m["country_lbl"] = m.country.str.replace("_", " ").str.title()
     return m
@@ -197,16 +217,19 @@ def _save_split(
 
 def _save_combined(m: pd.DataFrame, out: str) -> None:
     y = np.arange(len(m))
-    fig, (axL, axR) = plt.subplots(
-        1, 2, figsize=(5.6, 4.2), sharey=True, gridspec_kw={"wspace": 0.06}
+    fig, (axL, axM, axR) = plt.subplots(
+        1, 3, figsize=(7.2, 4.2), sharey=True, gridspec_kw={"wspace": 0.06}
     )
-    _bars(axL, y, m.d_pq.to_numpy(), r"$\Delta$ PQ (pp, polygon)")
-    _bars(axR, y, m.d_f1.to_numpy(), r"$\Delta$ Obj F1 (pp, pixel-instance)")
+    _bars(axL, y, m.d_pq_small.to_numpy(), r"$\Delta$ PQ (points, $<0.5$ ha fields)")
+    _bars(axM, y, m.d_pq.to_numpy(), r"$\Delta$ PQ (points, polygon)")
+    _bars(axR, y, m.d_f1.to_numpy(), r"$\Delta$ Obj F1 (points, pixel-instance)")
 
     axL.set_yticks(y)
     axL.set_yticklabels(m.country_lbl, fontsize=7.5)
-    axL.set_title("Polygon PQ", fontsize=8.5, color=tg_style.BROWN, pad=6)
-    axR.set_title("FTW pixel-instance Obj F1", fontsize=8.5, color=tg_style.BROWN, pad=6)
+    axL.set_title("Small-field polygon PQ", fontsize=8.5, color=tg_style.BROWN, pad=6)
+    axM.set_title("Polygon PQ", fontsize=8.5, color=tg_style.BROWN, pad=6)
+    axR.set_title("Pixel Obj F1", fontsize=8.5, color=tg_style.BROWN, pad=6)
+    axM.tick_params(axis="y", labelleft=False)
     axR.tick_params(axis="y", labelleft=False)
 
     Path(out).parent.mkdir(exist_ok=True, parents=True)
@@ -220,31 +243,44 @@ def main() -> None:
     p.add_argument("--out", default="paper/figs/per_country_pq_objf1.pdf")
     p.add_argument("--out-pq", default="paper/figs/per_country_pq_split.pdf")
     p.add_argument("--out-objf1", default="paper/figs/per_country_objf1_split.pdf")
+    p.add_argument("--out-pq-small", default="paper/figs/per_country_pq_small_split.pdf")
     args = p.parse_args()
 
     m = _merged_metrics()
     _save_combined(m, args.out)
     _save_split(
         m,
+        args.out_pq_small,
+        "d_pq_small",
+        "Small-field polygon PQ",
+        r"$\Delta$ PQ (points, $<0.5$ ha fields)",
+        show_regions=True,
+    )
+    _save_split(
+        m,
         args.out_pq,
         "d_pq",
         "Polygon PQ",
-        r"$\Delta$ PQ (pp, polygon)",
-        show_regions=True,
+        r"$\Delta$ PQ (points, polygon)",
+        show_regions=False,
     )
     _save_split(
         m,
         args.out_objf1,
         "d_f1",
-        "FTW pixel-instance Obj F1",
-        r"$\Delta$ Obj F1 (pp, pixel-instance)",
+        "Pixel Obj F1",
+        r"$\Delta$ Obj F1 (points, pixel-instance)",
         show_regions=False,
     )
     n_pq = int((m.d_pq > 0).sum())
     n_pq_tot = int(m.d_pq.notna().sum())
     n_f1 = int((m.d_f1 > 0).sum())
     n_f1_tot = int(m.d_f1.notna().sum())
-    print(f"PQ wins {n_pq}/{n_pq_tot}; ObjF1 wins {n_f1}/{n_f1_tot}")
+    n_pqs = int((m.d_pq_small > 0).sum())
+    n_pqs_tot = int(m.d_pq_small.notna().sum())
+    print(
+        f"PQ wins {n_pq}/{n_pq_tot}; ObjF1 wins {n_f1}/{n_f1_tot}; small-PQ wins {n_pqs}/{n_pqs_tot}"
+    )
 
 
 if __name__ == "__main__":
