@@ -4,12 +4,15 @@ Dense-label held-out macro-average (HELDOUT_10_DENSE) of polygon metrics, the
 secondary pixel IoU, and PQ by GT field-area bin, for each method:
 
 * DelineateAnything / DelineateAnything-S (YOLO11x / YOLO11n), zero-shot, on
-  both Planet (3 m) and S2 (10 m); sensor is folded into the method name.
+  PlanetScope; sensor is folded into the method name. These baselines retain
+  their original rasterized-GT scores and are NOT re-scored against polygons.
 * FTW-PRUE+ B3/B7 (Sentinel-2) and FTP-PRUE+ B3/B7 (PlanetScope, ours).
 
-Each row pulls polygon metrics + |dN|/N from its polygon CSV, the boundary
-chamfer at its native grid, pixel IoU from its post-processing CSV, and PQ by
-area bin from its ``*.bins.csv``. Sources are listed per row below.
+The four segmentation rows are scored against the TRUE FTW vector polygons at
+each sensor's native ground resolution (Sentinel-2 capped to 10 m via
+``--score-gsd-m 10``); those polygon metrics + PQ-by-area-bin come from the
+per-country ``logs/resolution_ablation/<condition>/`` runs (macro-averaged).
+Boundary chamfer (native grid) and pixel IoU stay on their established sources.
 
 Run::
 
@@ -25,42 +28,24 @@ HERE = Path(__file__).parent
 REPO = HERE.parent.parent
 OUT = REPO / "paper" / "figs" / "polygon_metrics.tex"
 PM = REPO / "logs" / "polygon_metrics"
-AREA = REPO / "logs" / "area_bins"
 PP = REPO / "logs" / "postproc_ablation"
 REPRO = REPO / "logs" / "repro_eval"
+# Native-GSD true-GT per-country runs (one CSV + .bins.csv per dense-10 country).
+RESABL = REPO / "logs" / "resolution_ablation"
 
 _DA = r"~\cite{lavreniuk2025delineate}"
 _PRUE = r"~\cite{muhawenayo2026prue}"
 
-# Each row: display name, backbone, polygon-metrics CSV, area-bins CSV,
-# pixel-IoU CSV (pixel_level_iou col), boundary CSV (None = use polygon CSV),
-# bold-backbone, midrule-before.
+# Each row: display name, backbone, polygon-metrics source, area-bins source,
+# pixel-IoU CSV (pixel_level_iou col), boundary CSV (None = use polygon source),
+# bold-backbone, midrule-before. A polygon/area-bins source may be a single CSV
+# (rasterized DA baselines) or a per-country DIRECTORY (native-GSD seg rows).
 ROWS = [
-    (
-        rf"DelineateAnything (S2)$^{{*}}${_DA}",
-        "YOLO11x",
-        PM / "delineate_x_s2.csv",
-        PM / "delineate_x_s2.csv.bins.csv",
-        PM / "delineate_x_s2.csv",
-        None,
-        False,
-        False,
-    ),
-    (
-        rf"DelineateAnything-S (S2)$^{{*}}${_DA}",
-        "YOLO11n",
-        PM / "delineate_s_s2.csv",
-        PM / "delineate_s_s2.csv.bins.csv",
-        PM / "delineate_s_s2.csv",
-        None,
-        False,
-        False,
-    ),
     (
         rf"DelineateAnything (Planet)$^{{*}}${_DA}",
         "YOLO11x",
         PM / "delineate_x_planet.csv",
-        PM / "delineate_x_planet.csv.bins.csv",
+        None,
         PM / "delineate_x_planet.csv",
         None,
         False,
@@ -70,7 +55,7 @@ ROWS = [
         rf"DelineateAnything-S (Planet)$^{{*}}${_DA}",
         "YOLO11n",
         PM / "delineate_s_planet.csv",
-        PM / "delineate_s_planet.csv.bins.csv",
+        None,
         PM / "delineate_s_planet.csv",
         None,
         False,
@@ -79,8 +64,8 @@ ROWS = [
     (
         rf"FTW-PRUE+ (S2){_PRUE}",
         "B3",
-        PM / "s2_b3_augmax_full_upsampled_22.csv",
-        AREA / "s2_b3.csv.bins.csv",
+        RESABL / "s2b3_10m",
+        RESABL / "s2b3_10m",
         PP / "s2_b3_augmax_full_upsampled_ws_tta.csv",
         PM / "s2_b3_augmax_full_native256.csv",
         False,
@@ -89,8 +74,8 @@ ROWS = [
     (
         rf"FTW-PRUE+ (S2){_PRUE}",
         "B7",
-        PM / "s2_upsampled_b7_augmax_full_22.csv",
-        AREA / "s2_b7.csv.bins.csv",
+        RESABL / "s2nat10",
+        RESABL / "s2nat10",
         PP / "s2_b7_augmax_full_upsampled_ws_tta.csv",
         PM / "s2_b7_augmax_full_native256.csv",
         False,
@@ -99,20 +84,20 @@ ROWS = [
     (
         r"\textbf{FTP-PRUE+ (Planet, ours)}",
         "B3",
-        REPRO / "polygon_metrics.csv",
-        AREA / "planet_b3.csv.bins.csv",
+        RESABL / "planet3m",
+        RESABL / "planet3m",
         REPRO / "pp_ws_tta.csv",
-        None,
+        REPRO / "polygon_metrics.csv",
         True,
         True,
     ),
     (
         r"\textbf{FTP-PRUE+ (Planet, ours)}",
         "B7",
-        AREA / "planet_b7.csv",
-        AREA / "planet_b7.csv.bins.csv",
+        RESABL / "planetb7_3m",
+        RESABL / "planetb7_3m",
         PP / "planet_b7_augmax_full_ws_tta.csv",
-        None,
+        REPRO / "polygon_metrics.csv",
         True,
         False,
     ),
@@ -123,20 +108,47 @@ BND_COLS = ("boundary_error_m_mean", "boundary_error_m_p95")
 AREA_BINS = ("small", "medium", "large")
 
 
-def _macro(csv: Path, col: str) -> float:
-    sub = load_and_filter(csv, HELDOUT_10_DENSE)
+def _country_csvs(d: Path) -> list[Path]:
+    files = sorted(p for p in d.glob("*.csv") if not p.name.endswith(".bins.csv"))
+    if len(files) != len(HELDOUT_10_DENSE):
+        raise RuntimeError(f"{d}: {len(files)} per-country CSVs, expected {len(HELDOUT_10_DENSE)}")
+    return files
+
+
+def _macro(src: Path, col: str) -> float:
+    if src.is_dir():
+        vals = [float(pd.read_csv(c)[col].iloc[0]) for c in _country_csvs(src)]
+        return sum(vals) / len(vals)
+    sub = load_and_filter(src, HELDOUT_10_DENSE)
     if len(sub) != len(HELDOUT_10_DENSE):
-        raise RuntimeError(f"{csv}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries")
+        raise RuntimeError(f"{src}: macro over {len(sub)}/{len(HELDOUT_10_DENSE)} countries")
     return float(sub[col].mean(skipna=True))
 
 
-def _norm_count(csv: Path) -> float:
-    sub = load_and_filter(csv, HELDOUT_10_DENSE)
+def _norm_count(src: Path) -> float:
+    if src.is_dir():
+        vals = []
+        for c in _country_csvs(src):
+            df = pd.read_csv(c)
+            vals.append(
+                abs(df["n_pred_mean"].iloc[0] - df["n_gt_mean"].iloc[0]) / df["n_gt_mean"].iloc[0]
+            )
+        return sum(vals) / len(vals)
+    sub = load_and_filter(src, HELDOUT_10_DENSE)
     return float((sub["polygon_count_delta_mean"] / sub["n_gt_mean"]).mean())
 
 
-def _area_pq(csv: Path) -> dict[str, float]:
-    d = pd.read_csv(csv).set_index("bin")
+def _area_pq(src: Path) -> dict[str, float]:
+    if src.is_dir():
+        out: dict[str, float] = {}
+        for b in AREA_BINS:
+            vals = []
+            for c in _country_csvs(src):
+                d = pd.read_csv(Path(f"{c}.bins.csv")).set_index("bin")
+                vals.append(float(d.loc[b, "pq"]))
+            out[b] = sum(vals) / len(vals)
+        return out
+    d = pd.read_csv(src).set_index("bin")
     return {b: float(d.loc[b, "pq"]) for b in AREA_BINS}
 
 
@@ -149,8 +161,12 @@ def main() -> None:
         for c in BND_COLS:
             agg[c] = _macro(bnd, c)
         agg["pixel_iou"] = _macro(pix_csv, "pixel_level_iou")
-        for b, v in _area_pq(area_csv).items():
-            agg[f"pq_{b}"] = v
+        if area_csv is None:  # baselines not re-scored against polygons
+            for b in AREA_BINS:
+                agg[f"pq_{b}"] = float("nan")
+        else:
+            for b, v in _area_pq(area_csv).items():
+                agg[f"pq_{b}"] = v
         aggs.append(agg)
 
     area_cols = tuple(f"pq_{b}" for b in AREA_BINS)
@@ -189,7 +205,7 @@ def main() -> None:
         r"\toprule",
         r" & & \multicolumn{3}{c}{Panoptic} & & & "
         r"\multicolumn{2}{c}{\makecell{Bd.\ err\ (m)}} & & "
-        r"\multicolumn{3}{c}{\makecell{PQ by GT field-area bin}} \\",
+        r"\multicolumn{3}{c}{\makecell{PQ by GT size$^{\ddagger}$}} \\",
         r"\cmidrule(lr){3-5} \cmidrule(lr){8-9} \cmidrule(lr){11-13}",
         r"Method & Bb. & PQ & SQ & RQ$_{.5}$ & "
         r"F1$_{[.5{:}.95]}$ & \makecell{$|\Delta N|/N$} & mean & p95 & "

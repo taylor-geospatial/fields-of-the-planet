@@ -20,7 +20,6 @@ HERE = Path(__file__).parent
 # its own source CSV(s).
 GENERATORS = [
     ("polygon_metrics_table.py", "polygon_metrics.tex"),
-    ("area_bins_table.py", "area_bins.tex"),
     ("heldout_results_table.py", "heldout_results.tex"),
     ("heldout_per_country_table.py", "heldout_per_country.tex"),
     ("full_data_table.py", "full_data_compare.tex"),

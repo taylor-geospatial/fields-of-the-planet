@@ -35,6 +35,13 @@ if [[ -n "${GT_ROOT:-}" ]]; then
   GT_ARGS=(--gt-polygons-root "$GT_ROOT")
   SUFFIX="_truegt"
 fi
+# Optional: cap predictions to the sensor's native ground resolution before
+# matching (e.g. SCORE_GSD=10 for Sentinel-2), so upsampling cannot manufacture
+# sub-pixel boundaries. Appends "_gsd<N>" to the suffix.
+if [[ -n "${SCORE_GSD:-}" ]]; then
+  GT_ARGS+=(--score-gsd-m "$SCORE_GSD")
+  SUFFIX="${SUFFIX}_gsd${SCORE_GSD}"
+fi
 TMPDIR="$OUTDIR/tmp_${MODEL}${SUFFIX}"
 mkdir -p "$TMPDIR"
 
@@ -56,9 +63,13 @@ case "$MODEL" in
 esac
 
 COMMON=(--watershed --tta --area-bins 0.5,2 --min-pad-size 512 --gpu 0 --num-workers 8)
+# FINAL already carries ${SUFFIX} (set in the case block); derive the overall
+# CSV from its stem so both share the same _truegt[_gsdN] suffix.
+FINAL_OVERALL="${FINAL%_small*}_overall${SUFFIX}.csv"
 
-echo "MODEL=$MODEL ckpt=$CKPT final=$FINAL"
+echo "MODEL=$MODEL ckpt=$CKPT final=$FINAL overall=$FINAL_OVERALL"
 echo "country,pq_small,ap_small,n_gt_small" > "$FINAL"
+echo "country,pq" > "$FINAL_OVERALL"
 
 for c in $COUNTRIES; do
   echo "=== $MODEL :: $c ==="
@@ -67,12 +78,16 @@ for c in $COUNTRIES; do
   uv run --no-sync python scripts/eval/polygon_metrics_eval.py \
       --ckpt "$CKPT" --out "$OUT" "${BACKEND[@]}" "${COMMON[@]}" "${GT_ARGS[@]}" --countries "$c"
 
-  # Harvest the "small" row from the per-country pooled .bins.csv.
+  # Panel 3: "small" row from the per-country pooled .bins.csv.
   # area_bins field is literally "0.5,2" (embedded comma) -> data rows have 10
   # comma-tokens: $1,$2=area_bins; $3=bin; $4=n_gt; $6=pq; $10=ap_5_95.
   awk -F, -v c="$c" '$3=="small"{printf "%s,%s,%s,%s\n", c, $6, $10, $4}' \
       "$OUT.bins.csv" >> "$FINAL"
+
+  # Panel 1: overall PQ from the per-country main CSV (header + 1 data row;
+  # columns: train_checkpoint,country,n_patches,pq_sq,pq_rq,pq,... -> pq=$6).
+  awk -F, -v c="$c" 'NR==2{printf "%s,%s\n", c, $6}' "$OUT" >> "$FINAL_OVERALL"
 done
 
-echo "done. wrote $FINAL"
-cat "$FINAL"
+echo "done. wrote $FINAL + $FINAL_OVERALL"
+cat "$FINAL"; echo; cat "$FINAL_OVERALL"

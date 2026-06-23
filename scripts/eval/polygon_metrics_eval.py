@@ -73,7 +73,7 @@ def _true_gt_shapes(
     patch_id: str,
     eval_crs,
     eval_transform,
-) -> list[shapely.geometry.base.BaseGeometry]:
+) -> tuple[list[shapely.geometry.base.BaseGeometry], list[float]]:
     """True FTW field polygons for a patch, mapped into the eval pixel grid.
 
     Reads the per-patch GeoParquet written by
@@ -168,8 +168,12 @@ def _cap_pred_to_gsd(pred_pixel_shapes, eval_transform, eval_crs, utm_crs, gsd):
     if not pred_pixel_shapes:
         return []
     mat = [
-        eval_transform.a, eval_transform.b, eval_transform.d,
-        eval_transform.e, eval_transform.c, eval_transform.f,
+        eval_transform.a,
+        eval_transform.b,
+        eval_transform.d,
+        eval_transform.e,
+        eval_transform.c,
+        eval_transform.f,
     ]
     gs = gpd.GeoSeries([affine_transform(p, mat) for p in pred_pixel_shapes], crs=eval_crs)
     if utm_crs is not None and str(eval_crs) != str(utm_crs):

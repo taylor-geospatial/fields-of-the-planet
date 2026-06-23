@@ -44,8 +44,9 @@ def clip_country(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Most patches in a country share one UTM zone, so cache the reprojected
-    # GeoDataFrame + its spatial index per EPSG to avoid reprojecting per patch.
-    reproj_cache: dict[int, tuple[gpd.GeoDataFrame, object]] = {}
+    # GeoDataFrame per EPSG to avoid reprojecting per patch (geopandas memoizes
+    # the spatial index on the frame, so .sindex stays cheap on reuse).
+    reproj_cache: dict[int, gpd.GeoDataFrame] = {}
     written = skipped = 0
 
     for pid in _test_patch_ids(country, split):
@@ -62,12 +63,11 @@ def clip_country(
             bounds = src.bounds
 
         if epsg not in reproj_cache:
-            g = polys.to_crs(epsg=epsg)
-            reproj_cache[epsg] = (g, g.sindex)
-        g_utm, sidx = reproj_cache[epsg]
+            reproj_cache[epsg] = polys.to_crs(epsg=epsg)
+        g_utm = reproj_cache[epsg]
 
         bbox = box(*bounds)
-        cand = g_utm.iloc[list(sidx.query(bbox, predicate="intersects"))]
+        cand = g_utm.iloc[list(g_utm.sindex.query(bbox, predicate="intersects"))]
         clipped = gpd.clip(cand, bbox, keep_geom_type=True)
         clipped = clipped[~clipped.geometry.is_empty & clipped.geometry.notna()].copy()
         # True planimetric area on the UTM grid (m^2 -> ha), for area-binned eval.

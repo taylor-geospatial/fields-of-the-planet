@@ -1,0 +1,39 @@
+key,current_kind,current_year,current_venue,currently_arxiv,s2_match_title,s2_year,s2_venue,s2_pub_types,swap_suggested
+kerner2024ftw,inproceedings,2025,Proceedings of the AAAI Conference on Artificial Intelligence (AI for Social Impact Track),False,,,,,no_match
+muhawenayo2026prue,inproceedings,2026,Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR),False,,,,,no_match
+persello2023ai4smallfarms,article,2023,IEEE Geoscience and Remote Sensing Letters,False,,,,,no_match
+wang2022unlocking,article,2022,Remote Sensing,False,,,,,no_match
+persello2019delineation,article,2019,Remote Sensing of Environment,False,,,,,no_match
+khallaghi2025generalization,article,2025,Remote Sensing,False,,,,,no_match
+planet2017,misc,2017,,False,,,,,no_match
+ftw-source-coop,misc,2024,,False,,,,,no_match
+girard2021ffl,inproceedings,2021,CVPR,False,,,,,no_match
+shit2021cldice,inproceedings,2021,CVPR,False,,,,,no_match
+ronneberger2015unet,inproceedings,2015,MICCAI,False,,,,,no_match
+tan2019efficientnet,inproceedings,2019,ICML,True,,,,,no_match
+kirillov2019panoptic,inproceedings,2019,CVPR,True,,,,,no_match
+lin2014coco,inproceedings,2014,ECCV,True,,,,,no_match
+yun2019cutmix,inproceedings,2019,ICCV,False,,,,,no_match
+waldner2021decode,article,2021,Remote Sensing,False,,,,,no_match
+lowder2016farms,article,2016,World Development,False,,,,,no_match
+samberg2016smallholder,article,2016,Environmental Research Letters,False,,,,,no_match
+drusch2012sentinel2,article,2012,Remote Sensing of Environment,False,,,,,no_match
+beckerreshef2020geoglam,article,2020,Remote Sensing of Environment,False,,,,,no_match
+dandrimont2021parcel,article,2021,Remote Sensing of Environment,False,,,,,no_match
+defourny2019sen2agri,article,2019,Remote Sensing of Environment,False,,,,,no_match
+loshchilov2019adamw,inproceedings,2019,International Conference on Learning Representations (ICLR),True,,,,,no_match
+micikevicius2018mixedprec,inproceedings,2018,International Conference on Learning Representations (ICLR),True,,,,,no_match
+riba2020kornia,inproceedings,2020,IEEE Winter Conference on Applications of Computer Vision (WACV),False,,,,,no_match
+cheng2021biou,inproceedings,2021,IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR),False,,,,,no_match
+bengio2009curriculum,inproceedings,2009,International Conference on Machine Learning (ICML),False,,,,,no_match
+milletari2016vnet,inproceedings,2016,International Conference on 3D Vision (3DV),False,,,,,no_match
+hayder2017bais,inproceedings,2017,IEEE Conference on Computer Vision and Pattern Recognition (CVPR),False,,,,,no_match
+wang2019tta,article,2019,Neurocomputing,False,,,,,no_match
+jadon2020losses,inproceedings,2020,IEEE Conference on Computational Intelligence in Bioinformatics and Computational Biology (CIBCB),False,,,,,no_match
+bischke2019buildings,inproceedings,2019,IEEE International Conference on Image Processing (ICIP),False,,,,,no_match
+moshkov2020tta,article,2020,Scientific Reports,False,,,,,no_match
+lavreniuk2025delineate,misc,2025,,True,,,,,no_match
+garciapedrero2017boundary,article,2017,International Journal of Remote Sensing,False,,,,,no_match
+garnot2021pastis,inproceedings,2021,IEEE/CVF International Conference on Computer Vision (ICCV),True,,,,,no_match
+pastishd,inproceedings,2024,European Conference on Computer Vision (ECCV),False,,,,,no_match
+estes2024africa,misc,2024,,True,,,,,no_match

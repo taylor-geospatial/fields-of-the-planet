@@ -40,6 +40,14 @@ case "$CONDITION" in
     CKPT="logs/best_checkpoints/s2_efnet7_best.ckpt"
     BACKEND=(--root data/ftw --dataset-backend s2 --upsample-to 512 --pixel-size-m 5 --score-gsd-m 10)
     ;;
+  planetb7_3m)
+    CKPT="logs/best_checkpoints/planet_efnet7_best.ckpt"
+    BACKEND=(--root data --dataset-backend planet --pixel-size-m 3 --score-gsd-m 3)
+    ;;
+  s2b3_10m)
+    CKPT="logs/prue/ftw_s2-unet-efnet3-crop256-s2-v3-augmax-full/ftw-s2/da62pwt1/checkpoints/epoch=42-val/loss=0.02.ckpt"
+    BACKEND=(--root data/ftw --dataset-backend s2 --upsample-to 512 --pixel-size-m 5 --score-gsd-m 10)
+    ;;
   *) echo "unknown CONDITION=$CONDITION" >&2; exit 1 ;;
 esac
 
