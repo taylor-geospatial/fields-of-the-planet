@@ -24,7 +24,9 @@ import time
 from pathlib import Path
 from typing import TypedDict
 
+import geopandas as gpd
 import numpy as np
+import rasterio
 import rasterio.features
 import shapely.geometry
 import torch
@@ -38,7 +40,9 @@ from postprocess_eval import (
     _predict_tta,
     watershed_instances,
 )
+from rasterio.transform import from_origin
 from scipy.ndimage import distance_transform_edt
+from shapely.affinity import affine_transform
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -61,6 +65,130 @@ def _extract_shapes(mask: np.ndarray) -> list[shapely.geometry.base.BaseGeometry
         if val == 1:
             shapes.append(shapely.geometry.shape(geom))
     return shapes
+
+
+def _true_gt_shapes(
+    polygons_root: str,
+    country: str,
+    patch_id: str,
+    eval_crs,
+    eval_transform,
+) -> list[shapely.geometry.base.BaseGeometry]:
+    """True FTW field polygons for a patch, mapped into the eval pixel grid.
+
+    Reads the per-patch GeoParquet written by
+    ``scripts/pipeline/clip_polygons_per_patch.py`` (geometries in the patch's
+    Planet UTM CRS, clipped to bounds), reprojects to the eval grid CRS, and
+    applies the inverse of the eval raster affine so coordinates land in the
+    same (col, row) pixel frame as the predicted shapes from ``_extract_shapes``.
+    Backend-agnostic: the same true parcels are mapped into each sensor's eval
+    grid, so Planet and S2 are scored against identical ground truth. Returns
+    ``(shapes_in_pixel_coords, true_area_ha_per_shape)``; the true areas come
+    from the UTM parquet so size bins are grid-independent.
+    """
+    ppath = Path(polygons_root) / country / f"{patch_id}.parquet"
+    if not ppath.exists():
+        return [], []
+    gdf = gpd.read_parquet(ppath).explode(index_parts=False, ignore_index=True)
+    # True planimetric area (ha) in the parquet's UTM CRS -- grid-independent, so
+    # area bins are consistent across sensors (unlike pixel-area on the eval grid).
+    true_area_ha = (gdf.geometry.area / 1e4).tolist()
+    gdf_eval = gdf
+    if gdf.crs is not None and eval_crs is not None and str(gdf.crs) != str(eval_crs):
+        gdf_eval = gdf.to_crs(eval_crs)
+    inv = ~eval_transform
+    matrix = [inv.a, inv.b, inv.d, inv.e, inv.c, inv.f]
+    shapes: list[shapely.geometry.base.BaseGeometry] = []
+    areas: list[float] = []
+    for geom, area_ha in zip(gdf_eval.geometry, true_area_ha, strict=True):
+        if geom is None or geom.is_empty:
+            continue
+        shapes.append(affine_transform(geom, matrix))
+        areas.append(area_ha)
+    return shapes, areas
+
+
+def _planet_pixel_area_ha(root, country, patch_id, window):
+    """True ground area (ha) of one Planet patch pixel, from its UTM raster."""
+    tif = Path(root) / "planet" / country / f"window_{window}" / f"{patch_id}.tif"
+    with rasterio.open(tif) as src:
+        return abs(src.transform.a * src.transform.e) / 1e4, src.width, src.height
+
+
+def _eval_grid(ds, idx, country, dataset_backend, root, planet_window, upsample_to):
+    """(patch_id, eval_crs, eval_transform, pixel_area_ha) for dataset index ``idx``.
+
+    The eval transform maps eval-grid pixels -> geo, accounting for the S2
+    256->upsample_to interpolation so true polygons land on the prediction grid.
+    ``pixel_area_ha`` is the TRUE ground area of one eval-grid pixel (from the
+    Planet patch's metric extent), so predicted-FP area bins are correct on both
+    sensors; None if the Planet patch is unavailable (caller falls back).
+    """
+    if dataset_backend == "planet":
+        patch_id = str(ds.records[idx]["patch_id"])
+        px_ha, _, _ = _planet_pixel_area_ha(root, country, patch_id, planet_window)
+        tif = Path(root) / "planet" / country / f"window_{planet_window}" / f"{patch_id}.tif"
+        with rasterio.open(tif) as src:
+            return patch_id, src.crs, src.transform, px_ha
+    fn = ds.filenames[idx]["window_a"]
+    patch_id = Path(fn).stem
+    with rasterio.open(fn) as src:
+        crs, tr, sw, sh = src.crs, src.transform, src.width, src.height
+    eval_px = upsample_to if upsample_to is not None else sw
+    if upsample_to is not None:
+        tr = tr * rasterio.Affine.scale(sw / upsample_to, sh / upsample_to)
+    # True pixel area for the S2 eval grid: the patch's metric area (from the
+    # co-registered Planet patch) spread over the square eval grid.
+    ppath = Path(root) / "planet" / country / f"window_{planet_window}" / f"{patch_id}.tif"
+    px_ha = None
+    if ppath.exists():
+        ppx_ha, pw, ph = _planet_pixel_area_ha(root, country, patch_id, planet_window)
+        px_ha = (ppx_ha * pw * ph) / (eval_px * eval_px)
+    return patch_id, crs, tr, px_ha
+
+
+def _true_gt_utm(polygons_root, country, patch_id):
+    """True FTW polygons in their UTM CRS (exploded) + area_ha (UTM) + the CRS.
+    Used for native-GSD scoring, where matching is done in metric UTM space."""
+    ppath = Path(polygons_root) / country / f"{patch_id}.parquet"
+    if not ppath.exists():
+        return [], [], None
+    gdf = gpd.read_parquet(ppath).explode(index_parts=False, ignore_index=True)
+    gdf = gdf[~gdf.geometry.is_empty & gdf.geometry.notna()].reset_index(drop=True)
+    return list(gdf.geometry), (gdf.geometry.area / 1e4).tolist(), gdf.crs
+
+
+def _cap_pred_to_gsd(pred_pixel_shapes, eval_transform, eval_crs, utm_crs, gsd):
+    """Render the predicted field polygons at a genuine ground resolution and
+    re-vectorize. Map eval-grid pixel polygons -> eval_crs -> UTM, rasterize the
+    field union at ``gsd`` m, take connected components: two predicted fields
+    merge iff the gap between them is sub-GSD (10 m cannot keep a 2 m boundary;
+    3 m can). ~identity at the model's native GSD, coarsens an upsampled one.
+    Returns polygons in UTM metres."""
+    if not pred_pixel_shapes:
+        return []
+    mat = [
+        eval_transform.a, eval_transform.b, eval_transform.d,
+        eval_transform.e, eval_transform.c, eval_transform.f,
+    ]
+    gs = gpd.GeoSeries([affine_transform(p, mat) for p in pred_pixel_shapes], crs=eval_crs)
+    if utm_crs is not None and str(eval_crs) != str(utm_crs):
+        gs = gs.to_crs(utm_crs)
+    polys = [p for p in gs.geometry if p is not None and not p.is_empty]
+    if not polys:
+        return []
+    minx, miny, maxx, maxy = gpd.GeoSeries(polys).total_bounds
+    w = max(1, int(np.ceil((maxx - minx) / gsd)))
+    h = max(1, int(np.ceil((maxy - miny) / gsd)))
+    tr = from_origin(minx, maxy, gsd, gsd)
+    binary = rasterio.features.rasterize(
+        ((p, 1) for p in polys), out_shape=(h, w), transform=tr, fill=0, dtype="uint8"
+    )
+    return [
+        shapely.geometry.shape(s)
+        for s, v in rasterio.features.shapes(binary, transform=tr)
+        if v == 1
+    ]
 
 
 AREA_BIN_LABELS = ("small", "medium", "large")
@@ -179,6 +307,9 @@ def evaluate_country(
     area_edges: tuple | None = None,
     pixel_area_ha: float = 0.0,
     bin_stats: dict[str, dict[float, _BinCell]] | None = None,
+    gt_polygons_root: str | None = None,
+    planet_window: str = "a",
+    score_gsd_m: float | None = None,
 ) -> dict[str, float]:
     if dataset_backend == "s2":
         from ftw_tools.training.datasets import FTW
@@ -214,7 +345,7 @@ def evaluate_country(
     n_gt_per_patch: list[int] = []
     n_patches = 0
 
-    for batch in tqdm(dl, desc=country, leave=False):
+    for idx, batch in enumerate(tqdm(dl, desc=country, leave=False)):
         image = batch["image"].to(device) / scale
         mask = batch["mask"].to(device)
         if upsample_to is not None:
@@ -256,10 +387,37 @@ def evaluate_country(
         else:
             pred_bin = (seg_np == 1).astype(np.uint8)
 
-        gt_bin = (gt_np == 1).astype(np.uint8)
-
-        gt_shapes = _extract_shapes(gt_bin)
-        pred_shapes = _extract_shapes(pred_bin)
+        gt_true_areas = None
+        patch_pixel_area_ha = pixel_area_ha
+        gsd_mode = score_gsd_m is not None and gt_polygons_root is not None
+        if gsd_mode:
+            # Native-GSD scoring: match in metric UTM space, with the prediction
+            # rendered at the sensor's true ground resolution (caps "super-resolved"
+            # upsampled S2 back to 10 m). GT = true polygons (UTM), binned by true area.
+            patch_id, eval_crs, eval_tr, _ = _eval_grid(
+                ds, idx, country, dataset_backend, root, planet_window, upsample_to
+            )
+            gt_shapes, gt_true_areas, utm_crs = _true_gt_utm(gt_polygons_root, country, patch_id)
+            pred_shapes = _cap_pred_to_gsd(
+                _extract_shapes(pred_bin), eval_tr, eval_crs, utm_crs, score_gsd_m
+            )
+            patch_pixel_area_ha = 1e-4  # pred shapes are UTM m^2 -> * 1e-4 = ha
+        elif gt_polygons_root is not None:
+            # True FTW vector parcels mapped into this sensor's eval grid, not
+            # connected components of the rasterized GT mask.
+            patch_id, eval_crs, eval_tr, corr_px_ha = _eval_grid(
+                ds, idx, country, dataset_backend, root, planet_window, upsample_to
+            )
+            gt_shapes, gt_true_areas = _true_gt_shapes(
+                gt_polygons_root, country, patch_id, eval_crs, eval_tr
+            )
+            if corr_px_ha is not None:
+                patch_pixel_area_ha = corr_px_ha
+            pred_shapes = _extract_shapes(pred_bin)
+        else:
+            gt_bin = (gt_np == 1).astype(np.uint8)
+            gt_shapes = _extract_shapes(gt_bin)
+            pred_shapes = _extract_shapes(pred_bin)
 
         n_patches += 1
         n_pred_per_patch.append(len(pred_shapes))
@@ -272,15 +430,19 @@ def evaluate_country(
             counts[t][1] += fps
             counts[t][2] += fns
 
-        # SQ + chamfer use the IoU>=0.5 matches.
+        # SQ + chamfer use the IoU>=0.5 matches. In gsd_mode the shapes live in
+        # metric UTM space (not pixels), so the pixel-grid chamfer is skipped; SQ
+        # (matched IoU, scale-free) is still accumulated.
         for i, j, iou in m["matched_pairs_low"]:
             matched_ious_05.append(iou)
+            if gsd_mode:
+                continue
             # Rasterize each matched shape into a tight bbox and chamfer.
             pred_mask = rasterio.features.rasterize(
                 [pred_shapes[j]], out_shape=pred_bin.shape, dtype=np.uint8
             )
             gt_mask = rasterio.features.rasterize(
-                [gt_shapes[i]], out_shape=gt_bin.shape, dtype=np.uint8
+                [gt_shapes[i]], out_shape=pred_bin.shape, dtype=np.uint8
             )
             pb = _boundary_pixels(pred_mask)
             gb = _boundary_pixels(gt_mask)
@@ -289,12 +451,17 @@ def evaluate_country(
                 chamfer_pixels.append(c)
 
         # ---- per-area-bin x per-IoU-threshold accumulation ----
-        # GT binned by GT polygon area (ha); predicted FPs by predicted area.
+        # GT binned by area (ha); predicted FPs by predicted area. With true-GT,
+        # GT uses true UTM polygon area (grid-independent) and preds use the
+        # patch's true pixel area, so bins are consistent across sensors.
         if bin_stats is not None:
             # bin_stats and area_edges are set together by the caller.
             assert area_edges is not None
-            gt_bins = [_area_bin(g.area * pixel_area_ha, area_edges) for g in gt_shapes]
-            pred_bins = [_area_bin(p.area * pixel_area_ha, area_edges) for p in pred_shapes]
+            if gt_true_areas is not None:
+                gt_bins = [_area_bin(a, area_edges) for a in gt_true_areas]
+            else:
+                gt_bins = [_area_bin(g.area * pixel_area_ha, area_edges) for g in gt_shapes]
+            pred_bins = [_area_bin(p.area * patch_pixel_area_ha, area_edges) for p in pred_shapes]
             for t in AP_IOU_THRESHOLDS:
                 matched_gt = {i: iou for i, j, iou in m["pairs_per_t"][t]}
                 matched_pred = {j for _, j, _ in m["pairs_per_t"][t]}
@@ -383,6 +550,28 @@ def main() -> int:
         default=None,
         help="Physical pixel size (m) of the eval grid, for area->ha conversion: "
         "planet native 3, s2 native 10, s2 upsample-512 5.",
+    )
+    p.add_argument(
+        "--gt-polygons-root",
+        type=str,
+        default=None,
+        help="Score against the TRUE FTW vector polygons (per-patch parquets from "
+        "clip_polygons_per_patch.py) instead of connected components of the "
+        "rasterized GT mask. Planet backend only (uses the Planet patch grid).",
+    )
+    p.add_argument(
+        "--planet-window",
+        type=str,
+        default="a",
+        help="Planet window whose raster affine maps true polygons -> pixel grid.",
+    )
+    p.add_argument(
+        "--score-gsd-m",
+        type=float,
+        default=None,
+        help="Score at this genuine ground resolution (m): the prediction is "
+        "re-rendered at this GSD before matching, capping 'super-resolved' upsampled "
+        "S2 back to its true 10 m. Requires --gt-polygons-root. ~no-op at Planet 3 m.",
     )
     args = p.parse_args()
     area_edges = tuple(float(x) for x in args.area_bins.split(",")) if args.area_bins else None
@@ -479,6 +668,9 @@ def main() -> int:
                 area_edges=area_edges,
                 pixel_area_ha=pixel_area_ha,
                 bin_stats=bin_stats,
+                gt_polygons_root=args.gt_polygons_root,
+                planet_window=args.planet_window,
+                score_gsd_m=args.score_gsd_m,
             )
         except Exception as e:
             import traceback
