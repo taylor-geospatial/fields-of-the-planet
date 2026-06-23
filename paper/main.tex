@@ -172,7 +172,7 @@ Per-country usable-patch rates vary widely (Portugal 48\%, Netherlands 79\%, vs 
 
 We use PRUE~\cite{muhawenayo2026prue} as the benchmark recipe because it is the most directly comparable published FTW training setup. To isolate the imagery effect, we hold the architecture, loss, training schedule, and post-processing fixed across sensors, then compare Sentinel-2 and FTP with matched EfficientNet-B3 and EfficientNet-B7 U-Net baselines. \Cref{fig:qualitative} previews the final PlanetScope model against the S2 baseline.
 
-\paragraph{Metrics: polygons before pixels.} A pixel-overlap score can
+\paragraph{Evaluation metrics.} A pixel-overlap score can
 look healthy even when every small field in a patch is merged into its
 neighbours. We therefore
 score vectorized field interiors, asking whether a predicted field becomes a
@@ -248,7 +248,7 @@ backbone. The two use different evaluation sets and instance extractions
 (watershed vs.\ connected components), so this is context rather than a
 head-to-head comparison (full table in \Cref{tab:full_data}).
 
-\subsection{Better augmentations}
+\subsection{Augmentations}
 
 \begin{figure}[t!]
     \centering
@@ -284,22 +284,21 @@ the same recipe, reaching 46.2 polygon RQ
 here is 45.2. Exact augmentation ranges appear with the ablation summary in the
 appendix.
 
-\subsection{Sharper boundaries}
+\subsection{Boundary post-processing}
 
-\paragraph{Watershed post-processing (+$0.4$--$0.8$\,pts Obj F1).}
+\paragraph{Watershed post-processing.}
 Marker-controlled watershed with $h$-maxima seeds on a topographic
 surface (the predicted SDF when an SDF head is present; otherwise the
 Euclidean distance transform of the predicted boundary class) gives a
-consistent gain across checkpoints.
+consistent $+0.4$--$0.8$\,pt Obj F1 gain across checkpoints.
 
-\paragraph{D4 test-time augmentation (+$0.5$--$1.1$\,pts Obj F1 once
-augmentations are on).} We use an 8-way flip+rotate ensemble~\cite{wang2019tta,moshkov2020tta}.
-D4 TTA has little effect on the no-augmentation baseline but improves
-models trained with PRUE+.
+\paragraph{D4 test-time augmentation.} We use an 8-way flip+rotate
+ensemble~\cite{wang2019tta,moshkov2020tta}. D4 TTA has little effect on the
+no-augmentation baseline but improves models trained with PRUE+ by
+$+0.5$--$1.1$\,pts Obj F1.
 
-\subsection{Stronger recipe}
+\subsection{Backbone scaling}
 
-\paragraph{Augmentations matter more than backbone scaling here.}
 Scaling B3 to B7 does not improve the dense held-out polygon metrics (PQ $35.5$
 vs $35.4$, RQ $46.2$ vs $46.1$). Across all $23$ regions, B7 is also marginally
 behind ($-0.2$ PQ). The largest
@@ -313,7 +312,7 @@ baseline.
 % appendix; the headline numbers are in tab:full_data and tab:polygon_metrics
 % in the main text. See \Cref{tab:heldout} (appendix).
 
-\subsection{Metric choice}
+\subsection{Resolution and field-size analysis}
 \label{sec:polygon-first}
 
 Field-boundary outputs are consumed as vectorized parcels, not rasters. We
@@ -427,7 +426,7 @@ that separate adjacent smallholder parcels.
     \label{fig:per_country_bars}
 \end{figure*}
 
-\paragraph{Per-region head-to-head.}
+\paragraph{Per-region comparison.}
 Across the 23 test regions with complete polygon-metric outputs (all FTW
 regions except presence-only Kenya and label-sparse India), and scoring both
 sensors against the true polygons at their native resolution (Planet $3$m,
@@ -456,7 +455,7 @@ are often low-contrast cadastral lines rather than physical features, so the
 resolution advantage is smallest exactly where the boundary is not a visible
 edge.
 
-\paragraph{Field-level breakdown of the smallholder gain.}
+\paragraph{Field-size breakdown.}
 Per-region averages are a confound: regions mix field sizes. Binning
 \emph{individual} GT fields by area resolves it, but the binning must be
 fair across sensors. We therefore score every model against the \emph{true}
@@ -490,7 +489,7 @@ representation limit (\Cref{tab:representation_ceiling}).
     \label{fig:improvement}
 \end{figure*}
 
-\paragraph{Where higher resolution helps most.}
+\paragraph{Largest per-patch improvements.}
 The held-out patches with the largest per-patch object-F1 gain are dense
 smallholder scenes where the 10m model collapses adjacent parcels into blobs
 (per-patch object F1 $8$--$31$) while the 3m model recovers the parcel grid
