@@ -1,6 +1,7 @@
 """Clip FTW field-boundary polygons to per-patch bounds.
 
-For each test patch, take the country's original FTW vector polygons
+For each patch in the chosen split (``--split all`` covers train/val/test), take
+the country's original FTW vector polygons
 (``data/ftw_polygons/<country>.parquet``, EPSG:4326), reproject to the patch's
 PlanetScope UTM grid, and clip to the patch bounds -- the same vector source and
 CRS that ``scripts/pipeline/rasterize_labels.py`` rasterizes. Writes one
@@ -22,8 +23,10 @@ from shapely.geometry import box
 KEEP_COLS = ("id", "crop_id", "crop_name", "area", "perimeter")
 
 
-def _test_patch_ids(country: str, split: str) -> list[str]:
+def _patch_ids(country: str, split: str) -> list[str]:
     chips = gpd.read_parquet(f"data/ftw/{country}/chips_{country}.parquet")
+    if split == "all":
+        return [str(a) for a in chips["aoi_id"]]
     return [str(a) for a in chips.loc[chips["split"] == split, "aoi_id"]]
 
 
@@ -49,7 +52,7 @@ def clip_country(
     reproj_cache: dict[int, gpd.GeoDataFrame] = {}
     written = skipped = 0
 
-    for pid in _test_patch_ids(country, split):
+    for pid in _patch_ids(country, split):
         out = out_dir / f"{pid}.parquet"
         if out.exists() and not overwrite:
             skipped += 1
@@ -87,7 +90,7 @@ def main() -> int:
         default=None,
         help="Subset of countries; default = every country with a polygon parquet.",
     )
-    p.add_argument("--split", default="test", choices=["test", "val", "train"])
+    p.add_argument("--split", default="test", choices=["test", "val", "train", "all"])
     p.add_argument("--window", default="a", help="Planet window whose grid defines patch bounds.")
     p.add_argument("--out-root", default="data/ftw_polygons_clipped", type=Path)
     p.add_argument("--overwrite", action="store_true")

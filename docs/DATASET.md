@@ -19,14 +19,17 @@ s3://us-west-2.opendata.source.coop/ftw/ftw-planet/
     └── vietnam.tar         # 25 region shards (24 countries; Corsica separate), ~94 GiB total
 ```
 
-Each tar is a WebDataset shard, four files per `patch_id`:
+Each tar is a WebDataset shard, five files per `patch_id`:
 
 ```
-<pid>.window_a.tif    PlanetScope SR, window A
-<pid>.window_b.tif    PlanetScope SR, window B
-<pid>.label.tif       3-class label
-<pid>.json            metadata (mirrors index row)
+<pid>.window_a.tif        PlanetScope SR, window A
+<pid>.window_b.tif        PlanetScope SR, window B
+<pid>.label.tif           3-class label
+<pid>.polygons.parquet    true FTW field polygons, clipped to the patch
+<pid>.json                metadata (mirrors index row)
 ```
+
+`<pid>.polygons.parquet` is GeoParquet of the original FTW vector field boundaries, reprojected to the patch's UTM grid and clipped to its bounds — the same vector source the `.label.tif` raster is burned from. Columns: `id`, `geometry`, `area_ha` (true planimetric area), plus any of `crop_id`/`crop_name`/`area`/`perimeter` present in the source. Patches with no fields carry an empty (0-row) GeoParquet, so every sample has the file.
 
 Tars uncompressed; inner TIFFs ZSTD-22. Stream as WebDataset shards or extract with `tar -xf <country>.tar`.
 
