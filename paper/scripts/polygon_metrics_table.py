@@ -233,7 +233,8 @@ def main() -> None:
         r"(Sentinel-2 capped to its $10$m grid before matching), macro-averaged over "
         r"the 10 dense-label countries; presence-only Kenya excluded. $|\Delta N|/N$ "
         r"and boundary error are lower-is-better, all other metrics higher-is-better; "
-        r"best per column in \textbf{bold}. Definitions in \Cref{app:metrics}; the "
+        r"boundary error is computed on matched polygons only, while missed and "
+        r"hallucinated fields affect RQ/F1. Best per column in \textbf{bold}. Definitions in \Cref{app:metrics}; the "
         r"resolution ablation is \Cref{tab:resolution_ablation} and the model-free "
         r"representation limit \Cref{tab:representation_ceiling}.\par",
         r"\smallskip\noindent $^{*}$Off-the-shelf, no FTW fine-tuning, scored "

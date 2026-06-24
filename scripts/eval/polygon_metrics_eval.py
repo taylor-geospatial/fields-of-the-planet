@@ -3,7 +3,7 @@
 Per checkpoint, per country, computes:
 
 * **PQ / SQ / RQ** (panoptic quality, IoU>=0.5 matches)
-* **AP@[0.5:0.05:0.95]** (mean F1 over IoU thresholds, single-pass)
+* **F1@[0.5:0.05:0.95]** (mean object F1 over IoU thresholds, single-pass)
 * **Polygon count delta** (|N_pred - N_gt|) per patch, mean+median
 * **Boundary error (m)** symmetric chamfer * GSD on IoU>=0.5 matches,
   mean+p95
@@ -48,7 +48,7 @@ from tqdm import tqdm
 
 from ftw_planet.datasets import PLANET_SR_SCALE, FTWPlanet
 
-# IoU thresholds for AP@[0.5:0.05:0.95]
+# IoU thresholds for F1@[0.5:0.05:0.95]; ``ap_5_95`` is the legacy CSV column.
 AP_IOU_THRESHOLDS = np.round(np.arange(0.5, 0.96, 0.05), 2).tolist()
 
 # Ground-sample distance in meters (Planet 3m, S2 10m).

@@ -34,7 +34,7 @@ table next to the published paper numbers:
 
 | Metric          | Expected |
 | --------------- | -------- |
-| PQ              | 0.360    |
+| PQ              | 0.355    |
 | Obj F1 (WS+TTA) | 0.452    |
 | Pixel IoU       | 0.688    |
 

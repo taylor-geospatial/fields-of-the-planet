@@ -31,8 +31,8 @@ and `|dN|/N` polygon-count error. Definitions: paper Appendix A.
 ## Files
 
 - **`macro_summary.csv`** — one row per method, macro-averaged over the 10 dense
-    held-out countries (= paper Table 1). Columns: `method, backbone, pq, sq, rq, f1_5_95, dN_over_N, bnd_mean_m, bnd_p95_m, pixel_iou, pq_small, pq_medium, pq_large`. The two DelineateAnything rows are zero-shot baselines retained on
-    their rasterized-GT scores (no size bins, hence blank `pq_{small,medium,large}`);
+    held-out countries (= paper Table 1). Columns: `method, backbone, pq, sq, rq, f1_5_95, dN_over_N, bnd_mean_m, bnd_p95_m, pixel_iou, pq_small, pq_medium, pq_large`. The two DelineateAnything rows are zero-shot baselines re-scored
+    against true GT polygons, with size bins pooled over the dense-10;
     pixel IoU is rasterized at each sensor's native grid and is **not** comparable
     across the 3 m / 10 m resolutions.
 - **`per_country_metrics.csv`** — per-country true-GT overall metrics plus
@@ -61,5 +61,5 @@ excluded from every supervised macro.
 | `macro_summary.csv` PQ/SQ/RQ/F1 + PQ-by-size (seg rows) | `logs/resolution_ablation/{s2b3_10m,s2nat10,planet3m,planetb7_3m}/` (true-GT, native-GSD), macro over the dense-10 |
 | `macro_summary.csv` boundary chamfer                    | `logs/polygon_metrics/s2_*_native256.csv` (S2), `logs/repro_eval/polygon_metrics.csv` (Planet)                     |
 | `macro_summary.csv` pixel IoU                           | `logs/postproc_ablation/*_ws_tta.csv`, `logs/repro_eval/pp_ws_tta.csv`                                             |
-| `macro_summary.csv` DelineateAnything rows              | `logs/polygon_metrics/delineate_{x,s}_planet.csv` (rasterized GT, not re-scored)                                   |
+| `macro_summary.csv` DelineateAnything rows              | `logs/polygon_metrics/da_{x,s}_truegt_d10.csv` (+ `.bins.csv`); boundary from `logs/polygon_metrics/delineate_{x,s}_planet.csv` |
 | `per_country_metrics.csv`                               | per-country `logs/resolution_ablation/<condition>/<country>.csv` (+ `.bins.csv`)                                   |

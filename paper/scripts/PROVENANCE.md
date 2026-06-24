@@ -22,16 +22,10 @@ each model's native grid.
 
 ### Planet B3 eval-run note
 
-The dense-10 headline (`tab:polygon_metrics`, etc.) reads the
-**most recent** Planet B3 eval, `logs/repro_eval/` (2026-06-13), giving PQ
-`36.0`. The 23-region per-region breakdown (`fig:per_country_bars`,
-per-region head-to-head prose) reads
-`logs/polygon_metrics/planet_b3_augmax_full_22.csv` (2026-05-21), the only run
-with all 23 regions; its dense-10 subset is PQ `35.6`. The two runs use the same
-`planet_efnet3_augmax_full_best.ckpt` and differ by `<=0.4` PQ on shared
-countries (eval-time settings). `35.6` is never quoted in the paper, so no
-reader-visible number depends on the difference; the 10-country (`36.0`) and
-23-region (`37.9`) macros are different country sets by construction.
+The dense-10 Table 1 true-GT/native-GSD Planet B3 PQ is `35.5`. The
+upsampled-comparable Planet row in the hand-entered control table is `36.0`.
+The 23-region per-region true-GT macro in the prose and per-region figure is
+`38.5`. These are different protocols or country sets by construction.
 
 ## Script-generated figures
 

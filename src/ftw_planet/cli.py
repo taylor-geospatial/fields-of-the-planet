@@ -22,7 +22,7 @@ EVAL_DIR = REPO / "scripts" / "eval"
 SPLITS = {"dense10": DENSE_LABEL_COUNTRIES, "full23": FULLDATA_REGIONS}
 
 # Published dense-label held-out numbers for the released PRUE-FTP-B3 checkpoint.
-REFERENCE = {"pq": 0.360, "object_ws_f1": 0.452, "pixel_level_iou": 0.688}
+REFERENCE = {"pq": 0.355, "object_ws_f1": 0.452, "pixel_level_iou": 0.688}
 
 
 def run(cmd: list[str]) -> None:

@@ -80,7 +80,7 @@ def write_macro_summary() -> Path:
     with out.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
-        for label, (_name, backbone, poly, area_csv, pix_csv, bnd_csv, _, _) in zip(
+        for label, (_name, _sensor, backbone, poly, area_csv, pix_csv, bnd_csv, _, _) in zip(
             METHOD_LABELS, ROWS
         ):
             agg = {c: _macro(poly, c) for c in POLY_COLS}

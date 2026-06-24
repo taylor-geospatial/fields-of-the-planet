@@ -1,11 +1,11 @@
 """Generate ``paper/figs/resolution_ablation.tex`` (``tab:resolution_ablation``).
 
 PQ by GT field-size bin for three conditions, scored against the TRUE FTW
-polygons at each sensor's native ground resolution and macro-averaged over the
+polygons under each row's output-grid protocol and macro-averaged over the
 10 dense held-out countries (HELDOUT_10_DENSE):
 
 * native 10 m Sentinel-2 (``s2nat10``),
-* the same model bilinearly upsampled to ~3 m (``s2up``),
+* the same model bilinearly upsampled to a 512-pixel grid (``s2up``),
 * real 3 m PlanetScope (``planet3m``).
 
 Reads the per-country ``logs/resolution_ablation/<condition>/<country>.csv.bins.csv``
@@ -36,7 +36,7 @@ AREA_BINS = ("small", "medium", "large")
 # (display label, condition dir, bold-row).
 ROWS = [
     (r"Sentinel-2 ($10$m, native)", "s2nat10", False),
-    (r"Sentinel-2 ($\to3$m, upsampled)", "s2up", False),
+    (r"Sentinel-2 ($512$, upsampled)", "s2up", False),
     (r"\textbf{PlanetScope ($3$m, real)}", "planet3m", True),
 ]
 
