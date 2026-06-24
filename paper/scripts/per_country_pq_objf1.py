@@ -223,14 +223,6 @@ def _save_split(
         # Keep invisible labels so the split PDFs have matching tight bboxes.
         ax.set_yticklabels(m.country_lbl, fontsize=7.5, color="white")
     ax.set_title(title, fontsize=8.5, color=tg_style.BROWN, pad=6)
-    # The inter-panel gap in the paper is the left gutter each split reserves for
-    # region labels (label-less panels keep an invisible copy only to match width).
-    # Bars align vertically on figure height + top/bottom alone, independent of the
-    # left margin, so the label-less panels use a thin gutter -> ~half the gap. The
-    # label panel keeps a wide gutter, but that sits at the figure's outer edge, not
-    # between panels.
-    left = 0.30 if show_regions else 0.07
-    fig.subplots_adjust(left=left, right=0.97, top=0.92, bottom=0.105)
     Path(out).parent.mkdir(exist_ok=True, parents=True)
     fig.savefig(out, dpi=300, bbox_inches=None)
     plt.close(fig)
