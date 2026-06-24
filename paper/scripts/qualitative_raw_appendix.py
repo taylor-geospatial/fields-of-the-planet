@@ -48,7 +48,7 @@ mpl.rcParams.update(
 S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
 S2_UPSAMPLE = 512  # bilinear-upsample S2 256->512 (corrected resize_factor=2 protocol)
 FIELD_GREEN = np.array(mpl.colors.to_rgb(tg_style.GREEN))  # brand green for field
-MASK_BG = np.array(mpl.colors.to_rgb("#f8f8f3"))  # ivory (brand ivory nudged toward white) for bg + boundary
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))  # brand brown for bg + boundary
 SQUARE_SIZE = 256  # final pixel size for every cell
 
 

@@ -25,7 +25,6 @@ import tg_style
 import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
-from matplotlib.colors import ListedColormap
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import distance_transform_edt
 from scipy.ndimage import label as cc_label
@@ -81,15 +80,8 @@ def _resize_nn(arr, size):
 
 
 def _instance_cmap(n):
-    """Build a categorical colormap with n+1 entries (idx 0 = black bg)."""
-    base = plt.get_cmap("tab20")(np.linspace(0, 1, 20))[:, :3]
-    rng = np.random.default_rng(7)
-    colors = np.empty((max(1, n), 3), dtype=np.float32)
-    for i in range(max(1, n)):
-        c = base[i % 20].copy()
-        c = c + rng.uniform(-0.08, 0.08, size=3)
-        colors[i] = np.clip(c, 0, 1)
-    return ListedColormap(np.vstack([MASK_BG, colors]))
+    """Categorical colormap with n+1 entries (idx 0 = background, then Glasbey)."""
+    return tg_style.instance_cmap(n, MASK_BG)
 
 
 def _instance_render(inst):

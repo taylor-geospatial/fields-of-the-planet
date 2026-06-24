@@ -27,7 +27,6 @@ import tg_style
 import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
-from matplotlib.colors import ListedColormap
 from rasterio.features import shapes as rio_shapes
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import distance_transform_edt
@@ -93,17 +92,8 @@ def _hard_mask_render(mask):
     return out
 
 
-def _random_field_colors(n, seed=7):
-    rng = np.random.default_rng(seed)
-    colors = rng.uniform(0.05, 0.9, size=(max(1, n), 3)).astype(np.float32)
-    light = colors.mean(axis=1) > 0.78
-    colors[light] *= 0.75
-    return colors
-
-
 def _instance_cmap(n):
-    colors = _random_field_colors(n)
-    return ListedColormap(np.vstack([MASK_BG, colors]))
+    return tg_style.instance_cmap(n, MASK_BG)
 
 
 def _instance_render(inst):
@@ -133,7 +123,7 @@ def _plot_polys(ax, geoms, size):
     geoms = list(geoms)
     ax.set_facecolor("white")
     if geoms:
-        colors = [tuple(c) for c in _random_field_colors(len(geoms))]
+        colors = [tuple(c) for c in tg_style.glasbey_colors(len(geoms))]
         gpd.GeoDataFrame(geometry=geoms).plot(
             ax=ax, color=colors, edgecolor="white", linewidth=0.35
         )
