@@ -3,10 +3,11 @@
 For each country, writes ``data/planet/bulk/<country>.tar`` containing
 WebDataset-style samples grouped by ``patch_id``. Per patch:
 
-    <pid>.window_a.tif    # PlanetScope SR, window A
-    <pid>.window_b.tif    # PlanetScope SR, window B
-    <pid>.label.tif       # 3-class semantic label (NBITS=2)
-    <pid>.json            # per-patch metadata row from index.parquet
+    <pid>.window_a.tif        # PlanetScope SR, window A
+    <pid>.window_b.tif        # PlanetScope SR, window B
+    <pid>.label.tif           # 3-class semantic label (NBITS=2)
+    <pid>.polygons.parquet    # GeoParquet of true FTW field polygons, clipped to patch
+    <pid>.json                # per-patch metadata row from index.parquet
 
 The tar is stored (not gzipped) — TIFFs are already ZSTD-22 compressed,
 gzip on top just burns CPU. Webdataset loaders treat each tar as a shard
@@ -44,6 +45,12 @@ log = logging.getLogger("ftw_planet.pack_tars")
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--planet-root", type=Path, default=Path("data/planet"))
+    p.add_argument(
+        "--polygons-root",
+        type=Path,
+        default=Path("data/ftw_polygons_clipped"),
+        help="Root of per-patch clipped FTW polygons (<root>/<country>/<pid>.parquet).",
+    )
     p.add_argument(
         "--index",
         type=Path,
@@ -109,7 +116,7 @@ def _add_bytes(tar: tarfile.TarFile, data: bytes, arcname: str, mtime: float) ->
 
 
 def _pack_country(
-    country: str, gdf: gpd.GeoDataFrame, planet_root: Path, out_dir: Path
+    country: str, gdf: gpd.GeoDataFrame, planet_root: Path, polygons_root: Path, out_dir: Path
 ) -> tuple[str, int, int]:
     sub = gdf[gdf["country"] == country].sort_values("patch_id")
     if len(sub) == 0:
@@ -122,6 +129,7 @@ def _pack_country(
 
     n_ok = 0
     n_missing = 0
+    n_no_poly = 0
     # mtime constant so the tar is deterministic enough across re-packs.
     mtime = datetime(2026, 1, 1).timestamp()
     with tarfile.open(tmp_path, "w") as tar:
@@ -130,7 +138,15 @@ def _pack_country(
             img_a = planet_root / row["image_a_path"]
             img_b = planet_root / row["image_b_path"]
             lbl = planet_root / row["label_path"]
+            poly = polygons_root / country / f"{pid}.parquet"
             if not (img_a.exists() and img_b.exists() and lbl.exists()):
+                n_missing += 1
+                continue
+            # Polygons are required so every published sample is consistent. A gap
+            # here means the clip step (clip_polygons_per_patch.py --split all) did
+            # not cover this patch — surface it rather than ship a partial sample.
+            if not poly.exists():
+                n_no_poly += 1
                 n_missing += 1
                 continue
             try:
@@ -140,6 +156,7 @@ def _pack_country(
                 _add_file(tar, img_a, f"{pid}.window_a.tif")
                 _add_file(tar, img_b, f"{pid}.window_b.tif")
                 _add_file(tar, lbl, f"{pid}.label.tif")
+                _add_file(tar, poly, f"{pid}.polygons.parquet")
                 _add_bytes(tar, meta_bytes, f"{pid}.json", mtime)
                 n_ok += 1
             except Exception as e:
@@ -149,12 +166,13 @@ def _pack_country(
     tmp_path.replace(out_path)
     size_mb = out_path.stat().st_size / (1024**2)
     log.info(
-        "%s: wrote %s (%d samples, %.1f MiB, %d missing)",
+        "%s: wrote %s (%d samples, %.1f MiB, %d missing, %d missing polygons)",
         country,
         out_path,
         n_ok,
         size_mb,
         n_missing,
+        n_no_poly,
     )
     return (country, n_ok, n_missing)
 
@@ -183,7 +201,10 @@ def main() -> int:
     total_ok = 0
     total_missing = 0
     with ProcessPoolExecutor(max_workers=args.workers) as ex:
-        futs = {ex.submit(_pack_country, c, gdf, args.planet_root, out_dir): c for c in countries}
+        futs = {
+            ex.submit(_pack_country, c, gdf, args.planet_root, args.polygons_root, out_dir): c
+            for c in countries
+        }
         for fut in as_completed(futs):
             _, n_ok, n_missing = fut.result()
             total_ok += n_ok
