@@ -64,7 +64,7 @@ mpl.rcParams.update(
 )
 
 S2_NORM_DIVISOR = 3000.0
-MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))
+MASK_BG = np.ones(3, dtype=np.float32)
 
 
 def _stretch(rgb, divisor=3000.0):
@@ -75,12 +75,10 @@ def _stretch(rgb, divisor=3000.0):
 
 
 def _instance_cmap(n):
-    base = plt.get_cmap("tab20")(np.linspace(0, 1, 20))[:, :3]
     rng = np.random.default_rng(7)
-    colors = np.empty((max(1, n), 3), dtype=np.float32)
-    for i in range(max(1, n)):
-        c = base[i % 20].copy() + rng.uniform(-0.08, 0.08, size=3)
-        colors[i] = np.clip(c, 0, 1)
+    colors = rng.uniform(0.05, 0.9, size=(max(1, n), 3)).astype(np.float32)
+    light = colors.mean(axis=1) > 0.78
+    colors[light] *= 0.75
     return ListedColormap(np.vstack([MASK_BG, colors]))
 
 
@@ -101,13 +99,12 @@ def _polygonize_field_mask(field):
 
 
 def _plot_polys(ax, geoms, size):
-    """Draw field polygons on an ivory card (brown edges), square pixel frame."""
+    """Draw field polygons on a white background, square pixel frame."""
     geoms = list(geoms)
-    ax.set_facecolor(tg_style.IVORY)
+    ax.set_facecolor("white")
     if geoms:
-        gpd.GeoDataFrame(geometry=geoms).plot(
-            ax=ax, facecolor=tg_style.GREEN, edgecolor=tg_style.BROWN, linewidth=0.3
-        )
+        colors = [tuple(c) for c in _instance_cmap(len(geoms)).colors[1:]]
+        gpd.GeoDataFrame(geometry=geoms).plot(ax=ax, color=colors, edgecolor="white", linewidth=0.3)
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
     ax.set_aspect("equal")
@@ -379,7 +376,16 @@ def main() -> int:
             f"$\\Delta$F1 = +{row['delta'] * 100:.1f}\n"
             f"(S2 {row['f1_s2'] * 100:.1f} $\\rightarrow$ Planet {row['f1_pl'] * 100:.1f})"
         )
-        axes[i, 0].set_ylabel(label, fontsize=6.6, fontweight="bold", linespacing=1.25)
+        axes[i, 0].set_ylabel(
+            label,
+            fontsize=6.6,
+            fontweight="bold",
+            linespacing=1.25,
+            rotation=0,
+            ha="right",
+            va="center",
+            labelpad=44,
+        )
         if i == 0:
             for j, t in enumerate(col_titles):
                 axes[i, j].set_title(t, fontsize=7.2, fontweight="bold", pad=3, linespacing=1.05)

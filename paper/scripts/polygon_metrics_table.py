@@ -235,8 +235,9 @@ def main() -> None:
         r"and boundary error are lower-is-better, all other metrics higher-is-better; "
         r"boundary error is computed on matched polygons only, while missed and "
         r"hallucinated fields affect RQ/F1. Best per column in \textbf{bold}. Definitions in \Cref{app:metrics}; the "
-        r"resolution ablation is \Cref{tab:resolution_ablation} and the model-free "
-        r"representation limit \Cref{tab:representation_ceiling}.\par",
+        r"resolution ablation is \Cref{tab:resolution_ablation}, and "
+        r"\Cref{tab:representation_ceiling} reports how many fields remain "
+        r"separable after rasterization alone.\par",
         r"\smallskip\noindent $^{*}$Off-the-shelf, no FTW fine-tuning, scored "
         r"zero-shot (PQ-by-size bins pooled over the dense-10). $^{\dagger}$Pixel IoU "
         r"is computed at each sensor's native grid and is not comparable across the "

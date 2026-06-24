@@ -76,8 +76,9 @@ def main() -> None:
         r"\toprule",
         r" & \multicolumn{3}{c}{PQ by GT field size} \\",
         r"\cmidrule(lr){2-4}",
-        r"Condition & \makecell{small\\$<0.5$} & \makecell{med.\\$0.5$--$2$} "
-        r"& \makecell{large\\$>2$} \\",
+        r"Condition & \makecell{small\\($<0.5$\,ha)} "
+        r"& \makecell{med.\\($0.5$--$2$\,ha)} "
+        r"& \makecell{large\\($>2$\,ha)} \\",
         r"\midrule",
     ]
     for label, bold, pq in pqs:

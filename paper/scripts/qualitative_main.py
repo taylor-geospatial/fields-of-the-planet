@@ -4,9 +4,8 @@
   Planet RGB | S2 RGB | GT mask | GT polygons |
   FTP-PRUE mask | FTP-PRUE polygons | FTW-PRUE (B7) mask | FTW-PRUE (B7) polygons
 
-Same square-cropped, season-matched layout as v6/v7.  GT mask renders green =
-field, brown = bg + boundary; prediction masks are post-processed (D4 TTA +
-watershed) instance maps (perturbed tab20, brown bg).  The GT *polygons* column
+Same square-cropped, season-matched layout as v6/v7.  GT and prediction masks
+use independent random RGB colors per field on a white background.  The GT *polygons* column
 draws the ACTUAL FTW vector parcels (``clip_polygons_per_patch.py``, mapped from
 UTM into the display frame) -- not the rasterized mask polygonized.  The
 prediction polygon cells vectorize the adjacent mask with
@@ -54,8 +53,7 @@ mpl.rcParams.update(
 S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
 S2_UPSAMPLE = 512  # bilinear-upsample S2 256->512 (corrected resize_factor=2 protocol)
 SQUARE_SIZE = 256
-FIELD_GREEN = np.array(mpl.colors.to_rgb(tg_style.GREEN))
-MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN))
+MASK_BG = np.ones(3, dtype=np.float32)
 
 
 def _stretch(rgb, divisor=3000.0):
@@ -88,20 +86,23 @@ def _resize_nn(arr, size):
 
 
 def _hard_mask_render(mask):
-    """Brand green for field (class 1), brand brown for everything else."""
+    """Fallback binary render: field green, white background."""
     out = np.empty((*mask.shape, 3), dtype=np.float32)
     out[:] = MASK_BG
-    out[mask == 1] = FIELD_GREEN
+    out[mask == 1] = np.array(mpl.colors.to_rgb(tg_style.GREEN))
     return out
 
 
+def _random_field_colors(n, seed=7):
+    rng = np.random.default_rng(seed)
+    colors = rng.uniform(0.05, 0.9, size=(max(1, n), 3)).astype(np.float32)
+    light = colors.mean(axis=1) > 0.78
+    colors[light] *= 0.75
+    return colors
+
+
 def _instance_cmap(n):
-    base = plt.get_cmap("tab20")(np.linspace(0, 1, 20))[:, :3]
-    rng = np.random.default_rng(7)
-    colors = np.empty((max(1, n), 3), dtype=np.float32)
-    for i in range(max(1, n)):
-        c = base[i % 20].copy() + rng.uniform(-0.08, 0.08, size=3)
-        colors[i] = np.clip(c, 0, 1)
+    colors = _random_field_colors(n)
     return ListedColormap(np.vstack([MASK_BG, colors]))
 
 
@@ -127,13 +128,14 @@ def _polygonize_field_mask(field):
 
 
 def _plot_polys(ax, geoms, size):
-    """Draw field polygons on an ivory card, brown parcel edges, in a square
-    pixel frame (y increasing downward) that matches the imshow cells."""
+    """Draw field polygons on a white background in the square pixel frame
+    (y increasing downward) that matches the imshow cells."""
     geoms = list(geoms)
-    ax.set_facecolor(tg_style.IVORY)
+    ax.set_facecolor("white")
     if geoms:
+        colors = [tuple(c) for c in _random_field_colors(len(geoms))]
         gpd.GeoDataFrame(geometry=geoms).plot(
-            ax=ax, facecolor=tg_style.GREEN, edgecolor=tg_style.BROWN, linewidth=0.35
+            ax=ax, color=colors, edgecolor="white", linewidth=0.35
         )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
@@ -388,7 +390,7 @@ def main():
         sq = args.cell_size
         rgb_pl_s = _resize_nn(_stretch(_square_crop(rgb_pl)), sq)
         rgb_s2_s = _resize_nn(_stretch(_square_crop(rgb_s2)), sq)
-        gt_s = _resize_nn(_square_crop(gt_full).astype(np.uint8), sq)
+        gt_s = _resize_nn(_square_crop(inst_gt), sq)
         inst_pl_s = _resize_nn(_square_crop(inst_pl), sq)
         inst_s2_s = _resize_nn(_square_crop(inst_s2), sq)
         gt_polys = _true_gt_polys_display(
@@ -447,7 +449,7 @@ def main():
     ) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)
         axes[i, 1].imshow(rgb_s2)
-        axes[i, 2].imshow(_hard_mask_render(gt))
+        axes[i, 2].imshow(_instance_render(gt))
         _plot_polys(axes[i, 3], gt_polys, gt.shape[0])
         axes[i, 4].imshow(_instance_render(inst_pl))
         _draw_field_polygons(axes[i, 5], inst_pl > 0, inst_pl.shape[0])
