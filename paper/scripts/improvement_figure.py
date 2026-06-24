@@ -25,6 +25,7 @@ so the rendered polygons match the CSV metrics. Needs a GPU -> run via
 """
 
 import argparse
+import colorsys
 import sys
 from pathlib import Path
 
@@ -37,7 +38,7 @@ import rasterio
 import tg_style
 import torch
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, to_rgb
 from rasterio.features import shapes as rio_shapes
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import distance_transform_edt
@@ -64,7 +65,11 @@ mpl.rcParams.update(
 )
 
 S2_NORM_DIVISOR = 3000.0
-MASK_BG = np.ones(3, dtype=np.float32)
+# Panel background: brand ivory nudged toward white (#f4f4eb -> #f8f8f3).
+IVORY_BG = np.array(to_rgb("#f8f8f3"), dtype=np.float32)
+# Single fill for the non-prediction columns (GT mask + all polygon columns):
+# only the two prediction-mask columns carry per-instance colour.
+FIELD_FILL = np.array(to_rgb(tg_style.BROWN), dtype=np.float32)
 
 
 def _stretch(rgb, divisor=3000.0):
@@ -74,17 +79,37 @@ def _stretch(rgb, divisor=3000.0):
     return np.clip(rgb.astype(np.float32) / divisor, 0.0, 1.0)
 
 
+def _coco_colors(n):
+    """COCO / Mask R-CNN instance palette: evenly spaced hues at fixed
+    saturation+value (so every colour is equally vivid -- no muddy or washed-out
+    neighbours like uniform random RGB), shuffled so adjacent instance ids land
+    on well-separated hues."""
+    n = max(1, n)
+    colors = np.array(
+        [colorsys.hsv_to_rgb(i / n, 0.85, 0.95) for i in range(n)], dtype=np.float32
+    )
+    np.random.default_rng(7).shuffle(colors)
+    return colors
+
+
 def _instance_cmap(n):
-    rng = np.random.default_rng(7)
-    colors = rng.uniform(0.05, 0.9, size=(max(1, n), 3)).astype(np.float32)
-    light = colors.mean(axis=1) > 0.78
-    colors[light] *= 0.75
-    return ListedColormap(np.vstack([MASK_BG, colors]))
+    return ListedColormap(np.vstack([IVORY_BG, _coco_colors(n)]))
 
 
 def _instance_render(inst):
+    """Per-instance COCO-coloured mask on ivory -- used only for the two
+    prediction-mask columns."""
     n = int(inst.max())
     return _instance_cmap(n)(inst)[..., :3]
+
+
+def _mono_render(inst):
+    """Single-colour field footprint on ivory (no per-instance colours), for the
+    GT-mask column."""
+    field = np.asarray(inst) > 0
+    out = np.broadcast_to(IVORY_BG, field.shape + (3,)).copy()
+    out[field] = FIELD_FILL
+    return out
 
 
 def _polygonize_field_mask(field):
@@ -99,12 +124,15 @@ def _polygonize_field_mask(field):
 
 
 def _plot_polys(ax, geoms, size):
-    """Draw field polygons on a white background, square pixel frame."""
+    """Draw field polygons as single-colour parcels on ivory, separated by thin
+    ivory edges (no per-instance colour -- only the prediction-mask columns use
+    that), square pixel frame."""
     geoms = list(geoms)
-    ax.set_facecolor("white")
+    ax.set_facecolor(tuple(IVORY_BG))
     if geoms:
-        colors = [tuple(c) for c in _instance_cmap(len(geoms)).colors[1:]]
-        gpd.GeoDataFrame(geometry=geoms).plot(ax=ax, color=colors, edgecolor="white", linewidth=0.3)
+        gpd.GeoDataFrame(geometry=geoms).plot(
+            ax=ax, color=tuple(FIELD_FILL), edgecolor=tuple(IVORY_BG), linewidth=0.4
+        )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
     ax.set_aspect("equal")
@@ -345,8 +373,8 @@ def main() -> int:
         "PlanetScope (3 m)",
         "GT mask",
         "GT polygons",
-        "S2 mask\nFTW-PRUE+ (B7)",
-        "S2 polygons\nFTW-PRUE+ (B7)",
+        "S2 mask\nFTW-PRUE+",
+        "S2 polygons\nFTW-PRUE+",
         "Planet mask\nFTP-PRUE+",
         "Planet polygons\nFTP-PRUE+",
     ]
@@ -359,7 +387,7 @@ def main() -> int:
     for i, row in enumerate(rows):
         axes[i, 0].imshow(row["rgb_s2"])
         axes[i, 1].imshow(row["rgb_pl"])
-        axes[i, 2].imshow(_instance_render(row["gt"]))
+        axes[i, 2].imshow(_mono_render(row["gt"]))
         _plot_polys(axes[i, 3], row["gt_polys"], row["gt"].shape[0])
         axes[i, 4].imshow(_instance_render(row["inst_s2"]))
         _draw_field_polygons(axes[i, 5], row["inst_s2"] > 0, row["inst_s2"].shape[0])
@@ -382,9 +410,10 @@ def main() -> int:
             fontweight="bold",
             linespacing=1.25,
             rotation=0,
-            ha="right",
+            ha="center",
             va="center",
-            labelpad=44,
+            ma="center",
+            labelpad=22,
         )
         if i == 0:
             for j, t in enumerate(col_titles):
