@@ -66,7 +66,16 @@ def clip_country(
             bounds = src.bounds
 
         if epsg not in reproj_cache:
-            reproj_cache[epsg] = polys.to_crs(epsg=epsg)
+            g = polys.to_crs(epsg=epsg)
+            # Source FTW polygons (and reprojection) can yield invalid geometries
+            # (self-intersections), which make gpd.clip raise a GEOS
+            # TopologyException. Repair the invalid ones up front so clipping has
+            # valid input; valid geometries are left untouched (cheaper than
+            # make_valid on the whole frame).
+            invalid = ~g.geometry.is_valid
+            if invalid.any():
+                g.loc[invalid, "geometry"] = g.loc[invalid, "geometry"].make_valid()
+            reproj_cache[epsg] = g
         g_utm = reproj_cache[epsg]
 
         bbox = box(*bounds)
