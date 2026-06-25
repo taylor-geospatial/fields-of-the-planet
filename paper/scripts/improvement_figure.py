@@ -1,16 +1,17 @@
 """Figure: held-out patches where higher resolution helps most.
 
 Joins the two per-patch metric CSVs (Planet B3, S2 B7) on (country, patch_id),
-ranks by ``delta_obj_f1 = planet_obj_f1 - s2_obj_f1``, picks the top patches
-with delta>0 and enough GT fields (``--min-n-gt``), and renders one row per
-patch:
+ranks by ``delta_pq = planet_pq - s2_pq`` (polygon panoptic quality, which
+rewards boundary/shape fidelity where 3m resolution helps, not just detection),
+picks the top patches with delta>0 and enough GT fields (``--min-n-gt``), and
+renders one row per patch:
 
   S2 RGB (10 m -> Planet grid) | Planet RGB (3 m) |
   GT mask | GT polygons | S2 mask | S2 polygons | Planet mask | Planet polygons
 
 Each entity (GT, each model) is shown as its instance mask AND the polygons
 vectorized from that exact mask. Each row is annotated with the country and the
-two Obj F1 values + delta.
+two PQ values + delta.
 
 The GT polygons column draws the ACTUAL FTW vector parcels
 (``clip_polygons_per_patch.py``, mapped from UTM into the display frame), not the
@@ -37,7 +38,6 @@ import rasterio
 import tg_style
 import torch
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
-from matplotlib.colors import ListedColormap
 from rasterio.features import shapes as rio_shapes
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import distance_transform_edt
@@ -64,7 +64,7 @@ mpl.rcParams.update(
 )
 
 S2_NORM_DIVISOR = 3000.0
-MASK_BG = np.ones(3, dtype=np.float32)
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN), dtype=np.float32)  # dark brand brown
 
 
 def _stretch(rgb, divisor=3000.0):
@@ -74,17 +74,14 @@ def _stretch(rgb, divisor=3000.0):
     return np.clip(rgb.astype(np.float32) / divisor, 0.0, 1.0)
 
 
-def _instance_cmap(n):
-    rng = np.random.default_rng(7)
-    colors = rng.uniform(0.05, 0.9, size=(max(1, n), 3)).astype(np.float32)
-    light = colors.mean(axis=1) > 0.78
-    colors[light] *= 0.75
-    return ListedColormap(np.vstack([MASK_BG, colors]))
-
-
-def _instance_render(inst):
-    n = int(inst.max())
-    return _instance_cmap(n)(inst)[..., :3]
+def _field_render(inst):
+    """2-class field/background view (no per-instance colors): field interior
+    green, background MASK_BG -- the mask columns show segmentation, the polygon
+    columns carry the per-instance colors."""
+    field = np.asarray(inst) > 0
+    out = np.broadcast_to(MASK_BG, field.shape + (3,)).copy()
+    out[field] = np.array(mpl.colors.to_rgb(tg_style.GREEN), dtype=np.float32)
+    return out
 
 
 def _polygonize_field_mask(field):
@@ -99,12 +96,14 @@ def _polygonize_field_mask(field):
 
 
 def _plot_polys(ax, geoms, size):
-    """Draw field polygons on a white background, square pixel frame."""
+    """Draw field polygons (Glasbey fill, bold brand-brown outline) on white."""
     geoms = list(geoms)
     ax.set_facecolor("white")
     if geoms:
-        colors = [tuple(c) for c in _instance_cmap(len(geoms)).colors[1:]]
-        gpd.GeoDataFrame(geometry=geoms).plot(ax=ax, color=colors, edgecolor="white", linewidth=0.3)
+        colors = [tuple(c) for c in tg_style.glasbey_colors(len(geoms))]
+        gpd.GeoDataFrame(geometry=geoms).plot(
+            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.5
+        )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
     ax.set_aspect("equal")
@@ -262,17 +261,37 @@ def _load_model(ckpt, device):
     return t, t.model
 
 
-def select_patches(planet_csv, s2_csv, top_n, min_n_gt):
+def select_patches(planet_csv, s2_csv, top_n, min_n_gt, exclude=(), pool=150, seed=0, patches=None):
     pl = pd.read_csv(planet_csv)
     s2 = pd.read_csv(s2_csv)
     pl["patch_id"] = pl["patch_id"].astype(str)
     s2["patch_id"] = s2["patch_id"].astype(str)
     j = pl.merge(s2, on=["country", "patch_id"], suffixes=("_pl", "_s2"))
-    j["delta_obj_f1"] = j["obj_f1_pl"] - j["obj_f1_s2"]
+    j["delta_pq"] = j["pq_pl"] - j["pq_s2"]
+    j["key"] = j["country"] + ":" + j["patch_id"]
+    # Curated set: use the explicit patches in the given order (with their metrics).
+    if patches:
+        sub = j[j["key"].isin(patches)].set_index("key")
+        return sub.loc[[p for p in patches if p in sub.index]].reset_index()
     # Use the GT count from the Planet side (both share the same label geometry,
     # but Planet GT is at native 3m resolution; n_gt should agree closely).
-    sel = j[(j["delta_obj_f1"] > 0) & (j["n_gt_pl"] >= min_n_gt)].copy()
-    return sel.sort_values("delta_obj_f1", ascending=False).head(top_n)
+    # `exclude` drops patches whose fields fall outside the center square-crop and
+    # render blank despite a high score.
+    sel = (
+        j[(j["delta_pq"] > 0) & (j["n_gt_pl"] >= min_n_gt) & (~j["key"].isin(exclude))]
+        .sort_values("delta_pq", ascending=False)
+        .head(pool)
+        .reset_index(drop=True)
+    )
+    if len(sel) <= top_n:
+        return sel
+    # Spread the picks across the top-`pool` band rather than taking the extreme
+    # top (which clusters on a few degenerate patches): split into `top_n` equal
+    # rank bins and draw one patch from each, seeded for a reproducible figure.
+    rng = np.random.default_rng(seed)
+    edges = np.linspace(0, len(sel), top_n + 1).astype(int)
+    picks = [int(rng.integers(edges[i], edges[i + 1])) for i in range(top_n)]
+    return sel.iloc[picks].copy()
 
 
 def main() -> int:
@@ -285,6 +304,26 @@ def main() -> int:
     p.add_argument("--ckpt-s2", default="logs/best_checkpoints/s2_efnet7_best.ckpt")
     p.add_argument("--top-n", type=int, default=5)
     p.add_argument("--min-n-gt", type=int, default=8)
+    p.add_argument("--pool", type=int, default=150, help="Sample from the top-PQ pool of this size.")
+    p.add_argument("--seed", type=int, default=0, help="Seed for the spaced-out pool sampling.")
+    p.add_argument(
+        "--exclude",
+        nargs="*",
+        default=["latvia:g26_00052_0"],
+        help="country:patch_id to skip (e.g. fields outside the center crop -> blank panels).",
+    )
+    p.add_argument(
+        "--patches",
+        nargs="*",
+        default=[
+            "lithuania:g11_00013_13",
+            "sweden:g6-0_00025_16",
+            "lithuania:g8_00022_9",
+            "croatia:g14-2_00096_13",
+            "croatia:g14-2_00008_10",
+        ],
+        help="Curated country:patch_id rows in order; pass empty to fall back to PQ sampling.",
+    )
     p.add_argument(
         "--sq-size", type=int, default=512, help="Square-crop+resize each panel to this."
     )
@@ -293,14 +332,23 @@ def main() -> int:
     p.add_argument("--png", default="logs/improvement_examples.png")
     args = p.parse_args()
 
-    sel = select_patches(args.planet_csv, args.s2_csv, args.top_n, args.min_n_gt)
+    sel = select_patches(
+        args.planet_csv,
+        args.s2_csv,
+        args.top_n,
+        args.min_n_gt,
+        exclude=args.exclude,
+        pool=args.pool,
+        seed=args.seed,
+        patches=args.patches,
+    )
     if sel.empty:
         raise SystemExit("no patches with delta>0 and enough GT fields; loosen --min-n-gt")
     print("selected patches:")
     for _, r in sel.iterrows():
         print(
-            f"  {r['country']}:{r['patch_id']} dF1={r['delta_obj_f1']:.3f} "
-            f"(planet={r['obj_f1_pl']:.3f} s2={r['obj_f1_s2']:.3f}) n_gt={int(r['n_gt_pl'])}"
+            f"  {r['country']}:{r['patch_id']} dPQ={r['delta_pq']:.3f} "
+            f"(planet={r['pq_pl']:.3f} s2={r['pq_s2']:.3f}) n_gt={int(r['n_gt_pl'])}"
         )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -331,9 +379,9 @@ def main() -> int:
                 "gt_polys": gt_polys,
                 "inst_s2": _resize_square(inst_s2, sq),
                 "inst_pl": _resize_square(inst_pl, sq),
-                "f1_pl": r["obj_f1_pl"],
-                "f1_s2": r["obj_f1_s2"],
-                "delta": r["delta_obj_f1"],
+                "pq_pl": r["pq_pl"],
+                "pq_s2": r["pq_s2"],
+                "delta": r["delta_pq"],
             }
         )
 
@@ -345,8 +393,8 @@ def main() -> int:
         "PlanetScope (3 m)",
         "GT mask",
         "GT polygons",
-        "S2 mask\nFTW-PRUE+ (B7)",
-        "S2 polygons\nFTW-PRUE+ (B7)",
+        "S2 mask\nFTW-PRUE+",
+        "S2 polygons\nFTW-PRUE+",
         "Planet mask\nFTP-PRUE+",
         "Planet polygons\nFTP-PRUE+",
     ]
@@ -359,11 +407,11 @@ def main() -> int:
     for i, row in enumerate(rows):
         axes[i, 0].imshow(row["rgb_s2"])
         axes[i, 1].imshow(row["rgb_pl"])
-        axes[i, 2].imshow(_instance_render(row["gt"]))
+        axes[i, 2].imshow(_field_render(row["gt"]))
         _plot_polys(axes[i, 3], row["gt_polys"], row["gt"].shape[0])
-        axes[i, 4].imshow(_instance_render(row["inst_s2"]))
+        axes[i, 4].imshow(_field_render(row["inst_s2"]))
         _draw_field_polygons(axes[i, 5], row["inst_s2"] > 0, row["inst_s2"].shape[0])
-        axes[i, 6].imshow(_instance_render(row["inst_pl"]))
+        axes[i, 6].imshow(_field_render(row["inst_pl"]))
         _draw_field_polygons(axes[i, 7], row["inst_pl"] > 0, row["inst_pl"].shape[0])
         for ax in axes[i]:
             ax.set_xticks([])
@@ -373,18 +421,23 @@ def main() -> int:
                 s.set_color(tg_style.BROWN)
         label = (
             f"{row['country'].replace('_', ' ')}\n"
-            f"$\\Delta$F1 = +{row['delta'] * 100:.1f}\n"
-            f"(S2 {row['f1_s2'] * 100:.1f} $\\rightarrow$ Planet {row['f1_pl'] * 100:.1f})"
+            f"$\\Delta$PQ = +{row['delta'] * 100:.1f}\n"
+            f"(S2 {row['pq_s2'] * 100:.1f} $\\rightarrow$ Planet {row['pq_pl'] * 100:.1f})"
         )
-        axes[i, 0].set_ylabel(
+        # Place the row label just left of the first image with axes-fraction
+        # coords (labelpad on a horizontal ylabel leaves a stubborn gap); ha=right
+        # anchors the block snug to the column, ma=center justifies the lines.
+        axes[i, 0].text(
+            -0.02,
+            0.5,
             label,
+            transform=axes[i, 0].transAxes,
             fontsize=6.6,
             fontweight="bold",
             linespacing=1.25,
-            rotation=0,
             ha="right",
             va="center",
-            labelpad=44,
+            ma="center",
         )
         if i == 0:
             for j, t in enumerate(col_titles):

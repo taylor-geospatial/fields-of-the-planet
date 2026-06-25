@@ -27,7 +27,6 @@ import tg_style
 import torch
 import torch.nn.functional as F
 from ftw_tools.training.trainers import CustomSemanticSegmentationTask
-from matplotlib.colors import ListedColormap
 from rasterio.features import shapes as rio_shapes
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import distance_transform_edt
@@ -53,7 +52,7 @@ mpl.rcParams.update(
 S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
 S2_UPSAMPLE = 512  # bilinear-upsample S2 256->512 (corrected resize_factor=2 protocol)
 SQUARE_SIZE = 256
-MASK_BG = np.ones(3, dtype=np.float32)
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN), dtype=np.float32)  # dark brand brown
 
 
 def _stretch(rgb, divisor=3000.0):
@@ -85,31 +84,14 @@ def _resize_nn(arr, size):
     return out.astype(np.float32)
 
 
-def _hard_mask_render(mask):
-    """Fallback binary render: field green, white background."""
-    out = np.empty((*mask.shape, 3), dtype=np.float32)
-    out[:] = MASK_BG
-    out[mask == 1] = np.array(mpl.colors.to_rgb(tg_style.GREEN))
+def _field_render(inst):
+    """2-class field/background view (no per-instance colors): field interior
+    green on MASK_BG -- the mask columns show segmentation, the polygon columns
+    carry the per-instance colors."""
+    field = np.asarray(inst) > 0
+    out = np.broadcast_to(MASK_BG, field.shape + (3,)).copy()
+    out[field] = np.array(mpl.colors.to_rgb(tg_style.GREEN), dtype=np.float32)
     return out
-
-
-def _random_field_colors(n, seed=7):
-    rng = np.random.default_rng(seed)
-    colors = rng.uniform(0.05, 0.9, size=(max(1, n), 3)).astype(np.float32)
-    light = colors.mean(axis=1) > 0.78
-    colors[light] *= 0.75
-    return colors
-
-
-def _instance_cmap(n):
-    colors = _random_field_colors(n)
-    return ListedColormap(np.vstack([MASK_BG, colors]))
-
-
-def _instance_render(inst):
-    n = int(inst.max())
-    cmap = _instance_cmap(n)
-    return cmap(inst)[..., :3]
 
 
 def _polygonize_field_mask(field):
@@ -133,9 +115,9 @@ def _plot_polys(ax, geoms, size):
     geoms = list(geoms)
     ax.set_facecolor("white")
     if geoms:
-        colors = [tuple(c) for c in _random_field_colors(len(geoms))]
+        colors = [tuple(c) for c in tg_style.glasbey_colors(len(geoms))]
         gpd.GeoDataFrame(geometry=geoms).plot(
-            ax=ax, color=colors, edgecolor="white", linewidth=0.35
+            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.5
         )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
@@ -433,8 +415,8 @@ def main():
         "GT\npolygons",
         "FTP-PRUE+\nmask",
         "FTP-PRUE+\npolygons",
-        "FTW-PRUE+ (B7)\nmask",
-        "FTW-PRUE+ (B7)\npolygons",
+        "FTW-PRUE+\nmask",
+        "FTW-PRUE+\npolygons",
     ]
     for i, (
         country,
@@ -449,11 +431,11 @@ def main():
     ) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)
         axes[i, 1].imshow(rgb_s2)
-        axes[i, 2].imshow(_instance_render(gt))
+        axes[i, 2].imshow(_field_render(gt))
         _plot_polys(axes[i, 3], gt_polys, gt.shape[0])
-        axes[i, 4].imshow(_instance_render(inst_pl))
+        axes[i, 4].imshow(_field_render(inst_pl))
         _draw_field_polygons(axes[i, 5], inst_pl > 0, inst_pl.shape[0])
-        axes[i, 6].imshow(_instance_render(inst_s2))
+        axes[i, 6].imshow(_field_render(inst_s2))
         _draw_field_polygons(axes[i, 7], inst_s2 > 0, inst_s2.shape[0])
         for ax in axes[i]:
             ax.set_xticks([])

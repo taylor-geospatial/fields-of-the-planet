@@ -44,6 +44,30 @@ def label_cmap() -> ListedColormap:
     return ListedColormap(LABEL_COLORS)
 
 
+def glasbey_colors(n: int):
+    """First ``n`` Glasbey colors (cycled past 256) as an (n, 3) RGB float array.
+
+    Glasbey is a large categorical palette of maximally perceptually-distinct
+    hues -- used for per-instance field coloring so adjacent fields stay
+    distinguishable without the repeats of a 10/20-color cycle. colorcet is
+    imported lazily, so only figure generation needs it installed.
+    """
+    import colorcet as cc
+    import numpy as np
+    from matplotlib.colors import to_rgb
+
+    pal = [to_rgb(c) for c in cc.glasbey]
+    return np.array([pal[i % len(pal)] for i in range(max(1, n))], dtype="float32")
+
+
+def instance_cmap(n: int, bg) -> ListedColormap:
+    """ListedColormap with ``bg`` at index 0 (label 0 = background) followed by
+    ``n`` Glasbey colors for instance labels 1..n."""
+    import numpy as np
+
+    return ListedColormap(np.vstack([np.asarray(bg, dtype="float32"), glasbey_colors(n)]))
+
+
 def apply_style() -> None:
     """Set brand colors and clean axes. Font is left to the caller so paper
     figures keep the serif body face; only color and spine styling change."""

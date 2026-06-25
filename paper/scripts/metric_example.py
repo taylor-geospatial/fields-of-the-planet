@@ -123,14 +123,11 @@ def _square_crop(arr: np.ndarray) -> np.ndarray:
 
 
 def _inst_cmap(n: int, seed: int = 0) -> mpl.colors.ListedColormap:
-    base = plt.get_cmap("tab20")(np.linspace(0, 1, 20))[:, :3]
-    rng = np.random.default_rng(seed)
-    cols = base[rng.integers(0, 20, size=max(n, 1))]
-    cols = np.clip(cols + rng.uniform(-0.08, 0.08, cols.shape), 0, 1)
-    # Background (label 0) is a soft ivory, not stark white, so any non-field
-    # area recedes instead of punching holes in the panel.
-    bg = np.array(mpl.colors.to_rgb(tg_style.IVORY))
-    return mpl.colors.ListedColormap(np.vstack([bg, cols]))
+    # Background (label 0) is a soft ivory, not stark white, so any non-field area
+    # recedes instead of punching holes; instances use the Glasbey palette. `seed`
+    # is kept for call-site compatibility (Glasbey is deterministic).
+    del seed
+    return tg_style.instance_cmap(n, mpl.colors.to_rgb(tg_style.IVORY))
 
 
 def show_instances(ax, inst: np.ndarray, title: str) -> None:
