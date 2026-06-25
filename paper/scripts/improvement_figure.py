@@ -63,7 +63,7 @@ mpl.rcParams.update(
 )
 
 S2_NORM_DIVISOR = 3000.0
-MASK_BG = np.ones(3, dtype=np.float32)
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN), dtype=np.float32)  # dark brand brown
 
 
 def _stretch(rgb, divisor=3000.0):
@@ -71,10 +71,6 @@ def _stretch(rgb, divisor=3000.0):
     channel preserves true color balance (matches hero.py). Both sensors store
     surface reflectance scaled by 1e4 (uint16)."""
     return np.clip(rgb.astype(np.float32) / divisor, 0.0, 1.0)
-
-
-def _instance_cmap(n):
-    return tg_style.instance_cmap(n, MASK_BG)
 
 
 def _field_render(inst):
@@ -99,12 +95,14 @@ def _polygonize_field_mask(field):
 
 
 def _plot_polys(ax, geoms, size):
-    """Draw field polygons on a white background, square pixel frame."""
+    """Draw field polygons (Glasbey fill, bold brand-brown outline) on white."""
     geoms = list(geoms)
     ax.set_facecolor("white")
     if geoms:
-        colors = [tuple(c) for c in _instance_cmap(len(geoms)).colors[1:]]
-        gpd.GeoDataFrame(geometry=geoms).plot(ax=ax, color=colors, edgecolor="white", linewidth=0.3)
+        colors = [tuple(c) for c in tg_style.glasbey_colors(len(geoms))]
+        gpd.GeoDataFrame(geometry=geoms).plot(
+            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.7
+        )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
     ax.set_aspect("equal")

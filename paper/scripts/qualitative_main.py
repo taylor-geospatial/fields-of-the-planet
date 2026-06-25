@@ -52,7 +52,7 @@ mpl.rcParams.update(
 S2_NORM_DIVISOR = 3000.0  # model input normalization; not a display knob
 S2_UPSAMPLE = 512  # bilinear-upsample S2 256->512 (corrected resize_factor=2 protocol)
 SQUARE_SIZE = 256
-MASK_BG = np.ones(3, dtype=np.float32)
+MASK_BG = np.array(mpl.colors.to_rgb(tg_style.BROWN), dtype=np.float32)  # dark brand brown
 
 
 def _stretch(rgb, divisor=3000.0):
@@ -94,10 +94,6 @@ def _field_render(inst):
     return out
 
 
-def _instance_cmap(n):
-    return tg_style.instance_cmap(n, MASK_BG)
-
-
 def _polygonize_field_mask(field):
     """Connected-component polygons of a binary field mask.
 
@@ -121,7 +117,7 @@ def _plot_polys(ax, geoms, size):
     if geoms:
         colors = [tuple(c) for c in tg_style.glasbey_colors(len(geoms))]
         gpd.GeoDataFrame(geometry=geoms).plot(
-            ax=ax, color=colors, edgecolor="white", linewidth=0.35
+            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.7
         )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
