@@ -84,22 +84,18 @@ def _resize_nn(arr, size):
     return out.astype(np.float32)
 
 
-def _hard_mask_render(mask):
-    """Fallback binary render: field green, white background."""
-    out = np.empty((*mask.shape, 3), dtype=np.float32)
-    out[:] = MASK_BG
-    out[mask == 1] = np.array(mpl.colors.to_rgb(tg_style.GREEN))
+def _field_render(inst):
+    """2-class field/background view (no per-instance colors): field interior
+    green on MASK_BG -- the mask columns show segmentation, the polygon columns
+    carry the per-instance colors."""
+    field = np.asarray(inst) > 0
+    out = np.broadcast_to(MASK_BG, field.shape + (3,)).copy()
+    out[field] = np.array(mpl.colors.to_rgb(tg_style.GREEN), dtype=np.float32)
     return out
 
 
 def _instance_cmap(n):
     return tg_style.instance_cmap(n, MASK_BG)
-
-
-def _instance_render(inst):
-    n = int(inst.max())
-    cmap = _instance_cmap(n)
-    return cmap(inst)[..., :3]
 
 
 def _polygonize_field_mask(field):
@@ -423,8 +419,8 @@ def main():
         "GT\npolygons",
         "FTP-PRUE+\nmask",
         "FTP-PRUE+\npolygons",
-        "FTW-PRUE+ (B7)\nmask",
-        "FTW-PRUE+ (B7)\npolygons",
+        "FTW-PRUE+\nmask",
+        "FTW-PRUE+\npolygons",
     ]
     for i, (
         country,
@@ -439,11 +435,11 @@ def main():
     ) in enumerate(rows):
         axes[i, 0].imshow(rgb_pl)
         axes[i, 1].imshow(rgb_s2)
-        axes[i, 2].imshow(_instance_render(gt))
+        axes[i, 2].imshow(_field_render(gt))
         _plot_polys(axes[i, 3], gt_polys, gt.shape[0])
-        axes[i, 4].imshow(_instance_render(inst_pl))
+        axes[i, 4].imshow(_field_render(inst_pl))
         _draw_field_polygons(axes[i, 5], inst_pl > 0, inst_pl.shape[0])
-        axes[i, 6].imshow(_instance_render(inst_s2))
+        axes[i, 6].imshow(_field_render(inst_s2))
         _draw_field_polygons(axes[i, 7], inst_s2 > 0, inst_s2.shape[0])
         for ax in axes[i]:
             ax.set_xticks([])

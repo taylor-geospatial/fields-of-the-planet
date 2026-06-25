@@ -77,9 +77,14 @@ def _instance_cmap(n):
     return tg_style.instance_cmap(n, MASK_BG)
 
 
-def _instance_render(inst):
-    n = int(inst.max())
-    return _instance_cmap(n)(inst)[..., :3]
+def _field_render(inst):
+    """2-class field/background view (no per-instance colors): field interior
+    green, background MASK_BG -- the mask columns show segmentation, the polygon
+    columns carry the per-instance colors."""
+    field = np.asarray(inst) > 0
+    out = np.broadcast_to(MASK_BG, field.shape + (3,)).copy()
+    out[field] = np.array(mpl.colors.to_rgb(tg_style.GREEN), dtype=np.float32)
+    return out
 
 
 def _polygonize_field_mask(field):
@@ -340,8 +345,8 @@ def main() -> int:
         "PlanetScope (3 m)",
         "GT mask",
         "GT polygons",
-        "S2 mask\nFTW-PRUE+ (B7)",
-        "S2 polygons\nFTW-PRUE+ (B7)",
+        "S2 mask\nFTW-PRUE+",
+        "S2 polygons\nFTW-PRUE+",
         "Planet mask\nFTP-PRUE+",
         "Planet polygons\nFTP-PRUE+",
     ]
@@ -354,11 +359,11 @@ def main() -> int:
     for i, row in enumerate(rows):
         axes[i, 0].imshow(row["rgb_s2"])
         axes[i, 1].imshow(row["rgb_pl"])
-        axes[i, 2].imshow(_instance_render(row["gt"]))
+        axes[i, 2].imshow(_field_render(row["gt"]))
         _plot_polys(axes[i, 3], row["gt_polys"], row["gt"].shape[0])
-        axes[i, 4].imshow(_instance_render(row["inst_s2"]))
+        axes[i, 4].imshow(_field_render(row["inst_s2"]))
         _draw_field_polygons(axes[i, 5], row["inst_s2"] > 0, row["inst_s2"].shape[0])
-        axes[i, 6].imshow(_instance_render(row["inst_pl"]))
+        axes[i, 6].imshow(_field_render(row["inst_pl"]))
         _draw_field_polygons(axes[i, 7], row["inst_pl"] > 0, row["inst_pl"].shape[0])
         for ax in axes[i]:
             ax.set_xticks([])
