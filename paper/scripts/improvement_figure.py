@@ -261,7 +261,7 @@ def _load_model(ckpt, device):
     return t, t.model
 
 
-def select_patches(planet_csv, s2_csv, top_n, min_n_gt, exclude=(), pool=150, seed=0):
+def select_patches(planet_csv, s2_csv, top_n, min_n_gt, exclude=(), pool=150, seed=0, patches=None):
     pl = pd.read_csv(planet_csv)
     s2 = pd.read_csv(s2_csv)
     pl["patch_id"] = pl["patch_id"].astype(str)
@@ -269,6 +269,10 @@ def select_patches(planet_csv, s2_csv, top_n, min_n_gt, exclude=(), pool=150, se
     j = pl.merge(s2, on=["country", "patch_id"], suffixes=("_pl", "_s2"))
     j["delta_pq"] = j["pq_pl"] - j["pq_s2"]
     j["key"] = j["country"] + ":" + j["patch_id"]
+    # Curated set: use the explicit patches in the given order (with their metrics).
+    if patches:
+        sub = j[j["key"].isin(patches)].set_index("key")
+        return sub.loc[[p for p in patches if p in sub.index]].reset_index()
     # Use the GT count from the Planet side (both share the same label geometry,
     # but Planet GT is at native 3m resolution; n_gt should agree closely).
     # `exclude` drops patches whose fields fall outside the center square-crop and
@@ -309,6 +313,18 @@ def main() -> int:
         help="country:patch_id to skip (e.g. fields outside the center crop -> blank panels).",
     )
     p.add_argument(
+        "--patches",
+        nargs="*",
+        default=[
+            "lithuania:g11_00013_13",
+            "sweden:g6-0_00025_16",
+            "lithuania:g8_00022_9",
+            "croatia:g14-2_00096_13",
+            "croatia:g14-2_00008_10",
+        ],
+        help="Curated country:patch_id rows in order; pass empty to fall back to PQ sampling.",
+    )
+    p.add_argument(
         "--sq-size", type=int, default=512, help="Square-crop+resize each panel to this."
     )
     p.add_argument("--window", default="a")
@@ -324,6 +340,7 @@ def main() -> int:
         exclude=args.exclude,
         pool=args.pool,
         seed=args.seed,
+        patches=args.patches,
     )
     if sel.empty:
         raise SystemExit("no patches with delta>0 and enough GT fields; loosen --min-n-gt")
