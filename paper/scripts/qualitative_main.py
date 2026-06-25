@@ -117,7 +117,7 @@ def _plot_polys(ax, geoms, size):
     if geoms:
         colors = [tuple(c) for c in tg_style.glasbey_colors(len(geoms))]
         gpd.GeoDataFrame(geometry=geoms).plot(
-            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.7
+            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.5
         )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)

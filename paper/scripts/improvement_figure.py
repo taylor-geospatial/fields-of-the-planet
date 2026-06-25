@@ -101,7 +101,7 @@ def _plot_polys(ax, geoms, size):
     if geoms:
         colors = [tuple(c) for c in tg_style.glasbey_colors(len(geoms))]
         gpd.GeoDataFrame(geometry=geoms).plot(
-            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.7
+            ax=ax, color=colors, edgecolor=tg_style.BROWN, linewidth=0.5
         )
     ax.set_xlim(0, size)
     ax.set_ylim(size, 0)
@@ -374,15 +374,20 @@ def main() -> int:
             f"$\\Delta$F1 = +{row['delta'] * 100:.1f}\n"
             f"(S2 {row['f1_s2'] * 100:.1f} $\\rightarrow$ Planet {row['f1_pl'] * 100:.1f})"
         )
-        axes[i, 0].set_ylabel(
+        # Place the row label just left of the first image with axes-fraction
+        # coords (labelpad on a horizontal ylabel leaves a stubborn gap); ha=right
+        # anchors the block snug to the column, ma=center justifies the lines.
+        axes[i, 0].text(
+            -0.02,
+            0.5,
             label,
+            transform=axes[i, 0].transAxes,
             fontsize=6.6,
             fontweight="bold",
             linespacing=1.25,
-            rotation=0,
             ha="right",
             va="center",
-            labelpad=44,
+            ma="center",
         )
         if i == 0:
             for j, t in enumerate(col_titles):
