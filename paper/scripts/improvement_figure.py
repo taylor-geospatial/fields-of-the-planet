@@ -1,16 +1,17 @@
 """Figure: held-out patches where higher resolution helps most.
 
 Joins the two per-patch metric CSVs (Planet B3, S2 B7) on (country, patch_id),
-ranks by ``delta_obj_f1 = planet_obj_f1 - s2_obj_f1``, picks the top patches
-with delta>0 and enough GT fields (``--min-n-gt``), and renders one row per
-patch:
+ranks by ``delta_pq = planet_pq - s2_pq`` (polygon panoptic quality, which
+rewards boundary/shape fidelity where 3m resolution helps, not just detection),
+picks the top patches with delta>0 and enough GT fields (``--min-n-gt``), and
+renders one row per patch:
 
   S2 RGB (10 m -> Planet grid) | Planet RGB (3 m) |
   GT mask | GT polygons | S2 mask | S2 polygons | Planet mask | Planet polygons
 
 Each entity (GT, each model) is shown as its instance mask AND the polygons
 vectorized from that exact mask. Each row is annotated with the country and the
-two Obj F1 values + delta.
+two PQ values + delta.
 
 The GT polygons column draws the ACTUAL FTW vector parcels
 (``clip_polygons_per_patch.py``, mapped from UTM into the display frame), not the
@@ -266,11 +267,11 @@ def select_patches(planet_csv, s2_csv, top_n, min_n_gt):
     pl["patch_id"] = pl["patch_id"].astype(str)
     s2["patch_id"] = s2["patch_id"].astype(str)
     j = pl.merge(s2, on=["country", "patch_id"], suffixes=("_pl", "_s2"))
-    j["delta_obj_f1"] = j["obj_f1_pl"] - j["obj_f1_s2"]
+    j["delta_pq"] = j["pq_pl"] - j["pq_s2"]
     # Use the GT count from the Planet side (both share the same label geometry,
     # but Planet GT is at native 3m resolution; n_gt should agree closely).
-    sel = j[(j["delta_obj_f1"] > 0) & (j["n_gt_pl"] >= min_n_gt)].copy()
-    return sel.sort_values("delta_obj_f1", ascending=False).head(top_n)
+    sel = j[(j["delta_pq"] > 0) & (j["n_gt_pl"] >= min_n_gt)].copy()
+    return sel.sort_values("delta_pq", ascending=False).head(top_n)
 
 
 def main() -> int:
@@ -297,8 +298,8 @@ def main() -> int:
     print("selected patches:")
     for _, r in sel.iterrows():
         print(
-            f"  {r['country']}:{r['patch_id']} dF1={r['delta_obj_f1']:.3f} "
-            f"(planet={r['obj_f1_pl']:.3f} s2={r['obj_f1_s2']:.3f}) n_gt={int(r['n_gt_pl'])}"
+            f"  {r['country']}:{r['patch_id']} dPQ={r['delta_pq']:.3f} "
+            f"(planet={r['pq_pl']:.3f} s2={r['pq_s2']:.3f}) n_gt={int(r['n_gt_pl'])}"
         )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -329,9 +330,9 @@ def main() -> int:
                 "gt_polys": gt_polys,
                 "inst_s2": _resize_square(inst_s2, sq),
                 "inst_pl": _resize_square(inst_pl, sq),
-                "f1_pl": r["obj_f1_pl"],
-                "f1_s2": r["obj_f1_s2"],
-                "delta": r["delta_obj_f1"],
+                "pq_pl": r["pq_pl"],
+                "pq_s2": r["pq_s2"],
+                "delta": r["delta_pq"],
             }
         )
 
@@ -371,8 +372,8 @@ def main() -> int:
                 s.set_color(tg_style.BROWN)
         label = (
             f"{row['country'].replace('_', ' ')}\n"
-            f"$\\Delta$F1 = +{row['delta'] * 100:.1f}\n"
-            f"(S2 {row['f1_s2'] * 100:.1f} $\\rightarrow$ Planet {row['f1_pl'] * 100:.1f})"
+            f"$\\Delta$PQ = +{row['delta'] * 100:.1f}\n"
+            f"(S2 {row['pq_s2'] * 100:.1f} $\\rightarrow$ Planet {row['pq_pl'] * 100:.1f})"
         )
         # Place the row label just left of the first image with axes-fraction
         # coords (labelpad on a horizontal ylabel leaves a stubborn gap); ha=right
