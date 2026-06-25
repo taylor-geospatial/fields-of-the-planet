@@ -261,17 +261,33 @@ def _load_model(ckpt, device):
     return t, t.model
 
 
-def select_patches(planet_csv, s2_csv, top_n, min_n_gt):
+def select_patches(planet_csv, s2_csv, top_n, min_n_gt, exclude=(), pool=150, seed=0):
     pl = pd.read_csv(planet_csv)
     s2 = pd.read_csv(s2_csv)
     pl["patch_id"] = pl["patch_id"].astype(str)
     s2["patch_id"] = s2["patch_id"].astype(str)
     j = pl.merge(s2, on=["country", "patch_id"], suffixes=("_pl", "_s2"))
     j["delta_pq"] = j["pq_pl"] - j["pq_s2"]
+    j["key"] = j["country"] + ":" + j["patch_id"]
     # Use the GT count from the Planet side (both share the same label geometry,
     # but Planet GT is at native 3m resolution; n_gt should agree closely).
-    sel = j[(j["delta_pq"] > 0) & (j["n_gt_pl"] >= min_n_gt)].copy()
-    return sel.sort_values("delta_pq", ascending=False).head(top_n)
+    # `exclude` drops patches whose fields fall outside the center square-crop and
+    # render blank despite a high score.
+    sel = (
+        j[(j["delta_pq"] > 0) & (j["n_gt_pl"] >= min_n_gt) & (~j["key"].isin(exclude))]
+        .sort_values("delta_pq", ascending=False)
+        .head(pool)
+        .reset_index(drop=True)
+    )
+    if len(sel) <= top_n:
+        return sel
+    # Spread the picks across the top-`pool` band rather than taking the extreme
+    # top (which clusters on a few degenerate patches): split into `top_n` equal
+    # rank bins and draw one patch from each, seeded for a reproducible figure.
+    rng = np.random.default_rng(seed)
+    edges = np.linspace(0, len(sel), top_n + 1).astype(int)
+    picks = [int(rng.integers(edges[i], edges[i + 1])) for i in range(top_n)]
+    return sel.iloc[picks].copy()
 
 
 def main() -> int:
@@ -284,6 +300,14 @@ def main() -> int:
     p.add_argument("--ckpt-s2", default="logs/best_checkpoints/s2_efnet7_best.ckpt")
     p.add_argument("--top-n", type=int, default=5)
     p.add_argument("--min-n-gt", type=int, default=8)
+    p.add_argument("--pool", type=int, default=150, help="Sample from the top-PQ pool of this size.")
+    p.add_argument("--seed", type=int, default=0, help="Seed for the spaced-out pool sampling.")
+    p.add_argument(
+        "--exclude",
+        nargs="*",
+        default=["latvia:g26_00052_0"],
+        help="country:patch_id to skip (e.g. fields outside the center crop -> blank panels).",
+    )
     p.add_argument(
         "--sq-size", type=int, default=512, help="Square-crop+resize each panel to this."
     )
@@ -292,7 +316,15 @@ def main() -> int:
     p.add_argument("--png", default="logs/improvement_examples.png")
     args = p.parse_args()
 
-    sel = select_patches(args.planet_csv, args.s2_csv, args.top_n, args.min_n_gt)
+    sel = select_patches(
+        args.planet_csv,
+        args.s2_csv,
+        args.top_n,
+        args.min_n_gt,
+        exclude=args.exclude,
+        pool=args.pool,
+        seed=args.seed,
+    )
     if sel.empty:
         raise SystemExit("no patches with delta>0 and enough GT fields; loosen --min-n-gt")
     print("selected patches:")
