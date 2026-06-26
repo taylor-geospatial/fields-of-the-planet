@@ -1,4 +1,4 @@
-\scriptsize
+\footnotesize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}l l l ccc c c cc c ccc@{}}
 \toprule
@@ -16,6 +16,3 @@ FTW-PRUE+~\cite{muhawenayo2026prue} & S2 & EfficientNet-B7 & 24.2 & 71.0 & 32.8 
 \textbf{FTP-PRUE+ (ours)} & \textbf{Planet} & \textbf{EfficientNet-B7} & 35.4 & 74.4 & 46.1 & 27.0 & \textbf{0.30} & \textbf{7.4} & \textbf{22.8} & \textbf{74.2} & 15.6 & \textbf{40.6} & 50.9 \\
 \bottomrule
 \end{tabular}
-
-\vspace{3pt}\noindent{\scriptsize Segmentation and baseline rows are scored against the \emph{true} FTW polygons at each sensor's native resolution (Sentinel-2 capped to its $10$m grid before matching), macro-averaged over the 10 dense-label countries; presence-only Kenya excluded. $|\Delta N|/N$ and boundary error are lower-is-better, all other metrics higher-is-better; boundary error is computed on matched polygons only, while missed and hallucinated fields affect RQ/F1. Best per column in \textbf{bold}. Definitions in \Cref{app:metrics}; the resolution ablation is \Cref{tab:resolution_ablation}, and \Cref{tab:representation_ceiling} reports how many fields remain separable after rasterization alone.\par
-\smallskip\noindent $^{*}$Off-the-shelf, no FTW fine-tuning, scored zero-shot (PQ-by-size bins pooled over the dense-10). $^{\dagger}$Pixel IoU is computed at each sensor's native grid and is not comparable across the $3$m/$10$m resolutions. $^{\ddagger}$PQ within each GT field-size bin (small/medium/large by UTM area).}
