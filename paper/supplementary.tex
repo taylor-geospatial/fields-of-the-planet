@@ -17,13 +17,8 @@
 \setlength{\belowrulesep}{0pt}
 \usepackage{xcolor}
 \usepackage{colortbl}
-% xr-hyper must load before hyperref; lets us \Cref labels defined in main.tex.
-\usepackage{xr-hyper}
 \usepackage[pagebackref,breaklinks,colorlinks]{hyperref}
 \usepackage[capitalize,noabbrev]{cleveref}
-
-% Resolve cross-references into the main paper (e.g. \Cref{tab:polygon_metrics}).
-\externaldocument{main}
 
 % Earthy greenish-brown palette (FTP theme).
 \definecolor{earthDark}{rgb}{0.30, 0.40, 0.18}
@@ -113,10 +108,10 @@ For continuity with PRUE~\cite{muhawenayo2026prue}, we also report the pixel-lev
 computed on raster masks before vectorization. Unlike the polygon metrics, pixel IoU has no notion of individual parcels.
 
 \paragraph{Aggregation.}
-Metrics are first pooled within each country: $\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ counts and matched IoUs are accumulated across patches before computing RQ, SQ, PQ, and $\mathrm{F1}_{[.5:.95]}$, while chamfer is averaged over that country's matched pairs. \Cref{tab:polygon_metrics} reports macro-averages over the ten dense-label held-out countries. If a configuration produces no matched polygons in a country, boundary error is undefined for that country and excluded from the boundary-error average; all other columns remain defined.
+Metrics are first pooled within each country: $\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ counts and matched IoUs are accumulated across patches before computing RQ, SQ, PQ, and $\mathrm{F1}_{[.5:.95]}$, while chamfer is averaged over that country's matched pairs. Main-paper Table~1 reports macro-averages over the ten dense-label held-out countries. If a configuration produces no matched polygons in a country, boundary error is undefined for that country and excluded from the boundary-error average; all other columns remain defined.
 
 \paragraph{Field-area breakdown.}
-For \Cref{tab:resolution_ablation}, ground-truth polygons are assigned by UTM area $A$ to \emph{small} ($A<0.5$\,ha), \emph{medium} ($0.5\le A<2$\,ha), or \emph{large} ($A\ge2$\,ha). The 2\,ha threshold follows the standard smallholder ceiling~\cite{lowder2016farms}, while 0.5\,ha separates the dominant sub-hectare fields in FTW. Matched true positives and false negatives are binned by ground-truth area; unmatched predictions are counted as false positives in the bin determined by their predicted area. PQ is reported per bin and macro-averaged over the ten dense-label held-out countries.
+For main-paper Table~3, ground-truth polygons are assigned by UTM area $A$ to \emph{small} ($A<0.5$\,ha), \emph{medium} ($0.5\le A<2$\,ha), or \emph{large} ($A\ge2$\,ha). The 2\,ha threshold follows the standard smallholder ceiling~\cite{lowder2016farms}, while 0.5\,ha separates the dominant sub-hectare fields in FTW. Matched true positives and false negatives are binned by ground-truth area; unmatched predictions are counted as false positives in the bin determined by their predicted area. PQ is reported per bin and macro-averaged over the ten dense-label held-out countries.
 
 
 \section{Upsampled Sentinel-2 Control}

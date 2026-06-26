@@ -245,6 +245,7 @@ __marimo__/
 *.nlo
 *.nls
 paper/main.pdf
+paper/output-subdoc/
 slides/*.pdf
 
 # Claude Code: ignore everything except project-shared skills
