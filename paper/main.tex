@@ -17,8 +17,15 @@
 \setlength{\belowrulesep}{0pt}
 \usepackage{xcolor}
 \usepackage{colortbl}
+% xr-hyper must load before hyperref; lets us \Cref labels defined in the
+% standalone supplementary.tex (its appendix tables/sections).
+\usepackage{xr-hyper}
 \usepackage[pagebackref,breaklinks,colorlinks]{hyperref}
 \usepackage[capitalize,noabbrev]{cleveref}
+
+% Resolve cross-references into the supplementary material
+% (e.g. \Cref{tab:udm2}, \Cref{app:metrics}).
+\externaldocument{supplementary}
 
 % Earthy greenish-brown palette (FTP theme).
 \definecolor{earthDark}{rgb}{0.30, 0.40, 0.18}
@@ -281,197 +288,5 @@ The evaluation metric also changes the conclusion. Pixel overlap can remain high
 \bibliographystyle{ieeenat_fullname}
 \bibliography{refs}
 }
-
-\appendix
-\onecolumn
-\section{Polygon-metric definitions}
-\label{app:metrics}
-
-All object-level metrics are computed on vector geometries for the field-interior class. Predicted masks are vectorized into polygons and scored against the original FTW ground-truth polygons; pixel IoU is computed before vectorization and reported only for continuity with the released PRUE protocol.
-
-\paragraph{Vectorization and matching.}
-For each patch, the post-processed field-interior prediction is converted into polygons $\mathcal{P}=\{p_1,\ldots,p_M\}$ and compared with the ground-truth polygons $\mathcal{G}=\{g_1,\ldots,g_N\}$. All intersections and unions use polygon areas from the vector geometries. At IoU threshold $\tau$, a predicted polygon and a ground-truth polygon are matched when
-\begin{equation}
-\mathrm{IoU}(g,p)=
-\frac{\mathrm{area}(g\cap p)}
-{\mathrm{area}(g\cup p)}
->\tau .
-\end{equation}
-For $\tau\ge0.5$, disjoint polygon interiors make the match set $\mathcal{M}_\tau$ a partial one-to-one matching. We then define $\mathrm{TP}_\tau=|\mathcal{M}_\tau|$, $\mathrm{FP}_\tau=M-\mathrm{TP}_\tau$, and $\mathrm{FN}_\tau=N-\mathrm{TP}_\tau$.
-
-\paragraph{Object F1 and panoptic quality.}
-Object F1 is reported at IoU$=0.5$ and over the COCO threshold grid $\mathcal{T}={0.5,0.55,\ldots,0.95}$~\cite{lin2014coco}:
-\begin{equation}
-\mathrm{F1}_{[.5:.95]}=
-\frac{1}{|\mathcal{T}|}
-\sum_{\tau\in\mathcal{T}}\mathrm{F1}_{\tau}.
-\end{equation}
-Panoptic quality follows Kirillov et al.~\cite{kirillov2019panoptic}. With matches fixed at $\tau=0.5$, recognition quality is $\mathrm{RQ}=\mathrm{F1}_{0.5}$, segmentation quality is the mean IoU of matched polygons,
-\begin{equation}
-\mathrm{SQ}=
-\frac{1}{\mathrm{TP}_{0.5}}
-\sum_{(g,p)\in\mathcal{M}_{0.5}}
-\mathrm{IoU}(g,p),
-\end{equation}
-and $\mathrm{PQ}=\mathrm{SQ}\times\mathrm{RQ}$. If $\mathrm{TP}_{0.5}=0$, we set $\mathrm{SQ}=0$ and $\mathrm{PQ}=0$; matched-boundary error is undefined.
-
-\paragraph{Polygon-count error.}
-Let $\bar{M}$ and $\bar{N}$ denote the mean numbers of predicted and ground-truth polygons per patch within a country. We report the normalized count discrepancy
-\begin{equation}
-|\Delta N|/N=
-\frac{|\bar{M}-\bar{N}|}{\bar{N}},
-\end{equation}
-computed per country and then macro-averaged. This is a coarse object-count check independent of IoU matching; it measures count mismatch magnitude but not whether errors come from over- or under-prediction.
-
-\paragraph{Boundary error.}
-For each matched pair $(g,p)\in\mathcal{M}_{0.5}$, we compute a symmetric boundary chamfer distance between the one-pixel-wide ground-truth and predicted boundary sets on the evaluated raster grid. Nearest-boundary distances are read from Euclidean distance transforms, averaged in both directions, and converted to meters by multiplying by the evaluated grid's ground sample distance: 3m for PlanetScope and 10m for native Sentinel-2. We report the mean and 95th percentile over matched pairs. Boundary error therefore measures localization for fields that were recovered; missed and hallucinated fields are penalized through RQ and object F1.
-
-\paragraph{Pixel IoU.}
-For continuity with PRUE~\cite{muhawenayo2026prue}, we also report the pixel-level Jaccard index for the field-interior class,
-\begin{equation}
-\mathrm{IoU}_{\mathrm{px}} =
-\frac{|\hat{Y}_{\mathrm{field}}\cap Y_{\mathrm{field}}|}
-{|\hat{Y}_{\mathrm{field}}\cup Y_{\mathrm{field}}|},
-\end{equation}
-computed on raster masks before vectorization. Unlike the polygon metrics, pixel IoU has no notion of individual parcels.
-
-\paragraph{Aggregation.}
-Metrics are first pooled within each country: $\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ counts and matched IoUs are accumulated across patches before computing RQ, SQ, PQ, and $\mathrm{F1}_{[.5:.95]}$, while chamfer is averaged over that country's matched pairs. \Cref{tab:polygon_metrics} reports macro-averages over the ten dense-label held-out countries. If a configuration produces no matched polygons in a country, boundary error is undefined for that country and excluded from the boundary-error average; all other columns remain defined.
-
-\paragraph{Field-area breakdown.}
-For \Cref{tab:resolution_ablation}, ground-truth polygons are assigned by UTM area $A$ to \emph{small} ($A<0.5$\,ha), \emph{medium} ($0.5\le A<2$\,ha), or \emph{large} ($A\ge2$\,ha). The 2\,ha threshold follows the standard smallholder ceiling~\cite{lowder2016farms}, while 0.5\,ha separates the dominant sub-hectare fields in FTW. Matched true positives and false negatives are binned by ground-truth area; unmatched predictions are counted as false positives in the bin determined by their predicted area. PQ is reported per bin and macro-averaged over the ten dense-label held-out countries.
-
-
-\section{Upsampled Sentinel-2 Control}
-\label{app:upsampled_s2}
-
-This control separates output-grid resolution from image resolution. We give the Sentinel-2 model a finer 512-pixel prediction grid without adding new image information, either by upsampling at evaluation time or by training on bilinearly upsampled Sentinel-2 imagery. Both settings improve object-level polygon scores, but neither recovers the meter-scale boundary precision of native 3m PlanetScope imagery.
-
-\begin{table}[h]
-    \centering
-    \small
-    \setlength{\tabcolsep}{5pt}
-    \caption{\textbf{Upsampling Sentinel-2 improves object recovery but not boundary precision.} Results use B3 models on the dense held-out split with WS + TTA. Rows share the same upsampled-comparable scoring protocol.}
-    \label{tab:upsampled_s2_main}
-    \begin{tabular}{lcccc}
-    \toprule
-    Sentinel-2 grid & PQ & SQ & RQ & Bd.\ err (m) \\
-    \midrule
-    Native ($256$, $10$m)         & $23.8$ & $67.8$ & $30.8$ & $18.6$ \\
-    Upsampled at eval ($512$)     & $27.4$ & $75.8$ & $34.9$ & $31.3$ \\
-    Trained upsampled ($512$)     & $31.5$ & $77.5$ & $39.5$ & $28.0$ \\
-    \midrule
-    Planet ($512$, native $3$m)   & $\mathbf{36.0}$ & $\mathbf{77.9}$ & $\mathbf{45.2}$ & $\mathbf{7.4}$ \\
-    \bottomrule
-    \end{tabular}
-\end{table}
-
-\section{Dataset scope and per-tile UDM2 quality}
-\label{app:scope}
-\label{app:udm2_country}
-
-Per-region usable-patch rates (clear$\,\ge\,$95\%, unusable$\,\le\,$5\%) vary widely across the release; smallholder regions (e.g.\ India) have low \emph{coverage} per patch ($\sim$1\% field pixels) but high clear-sky fractions. The full per-region index ships with the release as a CSV.
-
-\begin{table}[h]
-\centering
-\begin{minipage}[t]{0.54\linewidth}
-\centering
-\captionof{table}{\textbf{Dataset scope.}
-FTP pairs FTW's 24 countries / 25 labeled regions with two seasonal PlanetScope windows per patch. \emph{Success rate} denotes the fraction of FTW patch-window targets with a successfully extracted PlanetScope image.}
-\label{tab:scope}
-\small
-\begin{tabular}{lr}
-\toprule
-\textbf{Property} & \textbf{Value} \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Geographic coverage}}\\
-Countries / regions / continents & 24\,/\,25\,/\,4 \\
-FTW patches                  & 70{,}484 \\
-(Patch, window) targets      & 140{,}968 \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Source imagery}}\\
-Unique PSScene COGs touched  & 6{,}113 \\
-Mean windows per scene       & 21.8 \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Released artifacts}}\\
-PlanetScope SR (4-band, uint16) & 133{,}168 \\
-Per-window UDM2 QA statistics   & 129{,}490 \\
-3-class labels (uint8, 1/patch) & 66{,}584 \\
-\midrule
-\multicolumn{2}{l}{\cellcolor{black!7}\textbf{Yield}}\\
-Successfully matched pairs      & 133{,}168 \\
-\textbf{Success rate}           & \textbf{94.5\%} \\
-Total dataset size              & 102\,GB \\
-\bottomrule
-\end{tabular}
-\end{minipage}\hfill
-\begin{minipage}[t]{0.43\linewidth}
-\centering
-\captionof{table}{\textbf{Per-tile UDM2 coverage.}
-Percentage of patch-window tiles whose UDM2 class coverage exceeds each threshold. Most tiles are clear ($95.9\%$ are $\ge 50\%$ clear); tiles with $\ge 50\%$ cloud, shadow, haze, or unusable pixels are resampling candidates.}
-\label{tab:udm2}
-\small
-\begin{tabular}{l S[table-format=2.1] S[table-format=2.1] S[table-format=2.1]}
-\toprule
-{Band} & {any (\textgreater0)} & {\bfseries $\ge 50\%$} & {$\ge 90\%$} \\
-\midrule
-\texttt{clear}      & 98.9 & \bfseries 95.9 & 91.1 \\
-\texttt{cloud}      &  9.0 & \bfseries  1.0 &  0.2 \\
-\texttt{shadow}     &  6.9 & \bfseries  0.2 &  0.0 \\
-\texttt{light\_haze}&  5.1 & \bfseries  2.0 &  1.1 \\
-\texttt{unusable}   & 11.3 & \bfseries  1.3 &  0.4 \\
-\bottomrule
-\end{tabular}
-\par\vspace{2pt}\footnotesize \% of (patch, window) tiles; each tile's class area as a fraction of the window.
-\end{minipage}
-\end{table}
-
-\section{Held-out post-processing sweep}
-\label{app:heldout_sweep}
-
-\Cref{tab:heldout} reports the full watershed/D4-TTA sweep for PRUE+ models on the ten-country dense held-out set. The released FTW-PRUE rows are included as external reference values from the original PRUE test split, not as held-out macro-averages.
-
-\paragraph{PRUE+ augmentation settings.}
-PRUE+ is implemented with Kornia~\cite{riba2020kornia}. It keeps the released PRUE preprocessing augmentations---\texttt{preprocess\_aug} with divisor sampled from $[5000,15000]$ and \texttt{RandomResizedCrop} with scale $0.3$--$0.9$, ratio $0.75$--$1.33$, and $p=0.5$---then adds seasonal-window swap and per-band gamma jitter ($\gamma\sim\mathcal{U}[0.8,1.2]$, $p=0.3$). The final geometry/noise bundle adds affine intensity jitter ($a\sim\mathcal{U}[0.9,1.1]$, $b\sim\mathcal{U}[-0.02,0.02]$, $p=0.3$), Gaussian blur ($3\times3$, $\sigma\sim\mathcal{U}[0.5,1.5]$, $p=0.3$), Gaussian noise ($\sigma=0.015$, $p=0.3$), single-window dropout ($p=0.15$), rotation ($\pm30^\circ$, $p=0.5$), shear ($\pm5^\circ$, $p=0.3$), and boundary-thickness jitter by random binary dilation of $0$--$2$ pixels ($p=0.5$).
-
-\begin{table*}[h]
-    \centering
-    \scriptsize
-    \caption{\textbf{Held-out post-processing sweep.}
-    Object F1 for B3/B7 PRUE+ models across watershed (WS) and D4 test-time augmentation (TTA) settings. Dense-label macro-averages exclude presence-only Kenya and retain Portugal; released FTW-PRUE rows are published PRUE reference values. Best per row is bolded.}
-    \label{tab:heldout}
-    \input{figs/heldout_results.tex}
-\end{table*}
-
-\begin{table}[h]
-    \centering
-    \footnotesize
-    \setlength{\tabcolsep}{3pt}
-    \caption{\textbf{Recipe ablation summary.}
-    Object-F1 changes on the ten-country dense held-out set, using WS + TTA unless noted. Checkmarks indicate components kept in FTP-PRUE+; $\times$ marks rejected variants.}
-    \label{tab:ablation_summary}
-    \begin{tabular}{@{}p{0.62\linewidth} @{\hspace{2pt}}c@{\hspace{2pt}} r@{}}
-    \toprule
-    \textbf{Lever} & \textbf{Use} & \textbf{$\Delta$ ObjF1} \\
-    \midrule
-    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Augmentation \& training}} \\
-    PRUE preprocess+resize aug.~\cite{muhawenayo2026prue} & \checkmark & {\color{earthDark}\bfseries +2.8} \\
-    \texttt{swap\_order} + per-band $\gamma$ & \checkmark & {\color{earthDark}\bfseries +1.0} \\
-    Geometry/noise bundle (PRUE+: affine, blur, noise, window dropout, rot, shear, jitter) & \checkmark & {\color{earthDark}\bfseries +4.5} \\
-    Backbone B3 $\to$ B7 (no gain, larger) & $\times$ & {\color{black!50}\bfseries $\sim$0} \\
-    Soft clDice~\cite{shit2021cldice} on boundary & $\times$ & {\color{earthSienna}\bfseries failed} \\
-    SDF auxiliary head~\cite{hayder2017bais,bischke2019buildings} (with PRUE+) & $\times$ & {\color{earthSienna}\bfseries -3.1} \\
-    Frame-field head~\cite{girard2021ffl} & $\times$ & {\color{earthSienna}\bfseries -1.7} \\
-    CutMix~\cite{yun2019cutmix} (2\,px ignore) & $\times$ & {\color{earthSienna}\bfseries -0.1} \\
-    \midrule
-    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Inference \& post-processing}} \\
-    Marker-controlled watershed & \checkmark & {\color{earthDark}\bfseries +0.5} \\
-    D4 8-way TTA (with PRUE+) & \checkmark & {\color{earthDark}\bfseries +0.9} \\
-    \midrule
-    \multicolumn{3}{@{}l}{\cellcolor{black!7}\textbf{Checkpoint selection}} \\
-    Last vs best-by-val checkpoint & either & {\color{black!50}\bfseries $\le0.3$} \\
-    \bottomrule
-    \end{tabular}
-\end{table}
 
 \end{document}

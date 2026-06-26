@@ -1,4 +1,4 @@
-.PHONY: install build watch clean
+.PHONY: install build build-main build-supp watch clean
 
 # CTAN packages required by main.tex / wacv.sty that are not vendored in this
 # folder and may be absent from a minimal TeX install (e.g. TinyTeX). wacv.sty
@@ -20,12 +20,24 @@ install:
 		sudo tlmgr install $(TEXPKGS); \
 	fi
 
+# main.tex and supplementary.tex cross-reference each other via xr-hyper, so
+# each needs the other's up-to-date .aux. Build main -> supp -> main -> supp so
+# the mutual \Cref numbers (Table/Appendix references) converge.
 build:
 	latexmk -pdf -interaction=nonstopmode main.tex
+	latexmk -pdf -interaction=nonstopmode supplementary.tex
+	latexmk -pdf -interaction=nonstopmode main.tex
+	latexmk -pdf -interaction=nonstopmode supplementary.tex
+
+build-main:
+	latexmk -pdf -interaction=nonstopmode main.tex
+
+build-supp:
+	latexmk -pdf -interaction=nonstopmode supplementary.tex
 
 watch:
 	latexmk -pdf -pvc -interaction=nonstopmode main.tex
 
 clean:
-	latexmk -C
+	latexmk -C main.tex supplementary.tex
 	rm -f *.bbl *.run.xml
