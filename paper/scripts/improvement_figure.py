@@ -304,7 +304,9 @@ def main() -> int:
     p.add_argument("--ckpt-s2", default="logs/best_checkpoints/s2_efnet7_best.ckpt")
     p.add_argument("--top-n", type=int, default=5)
     p.add_argument("--min-n-gt", type=int, default=8)
-    p.add_argument("--pool", type=int, default=150, help="Sample from the top-PQ pool of this size.")
+    p.add_argument(
+        "--pool", type=int, default=150, help="Sample from the top-PQ pool of this size."
+    )
     p.add_argument("--seed", type=int, default=0, help="Seed for the spaced-out pool sampling.")
     p.add_argument(
         "--exclude",
