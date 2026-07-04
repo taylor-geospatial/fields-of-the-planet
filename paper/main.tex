@@ -1,5 +1,5 @@
 \documentclass[10pt,twocolumn,letterpaper]{article}
-\usepackage[applications,review]{wacv}
+\usepackage[applications]{wacv}
 
 \usepackage{microtype}
 \usepackage{graphicx}
@@ -60,7 +60,7 @@ Paper ID \wacvPaperID}
 \vspace{15pt}
 }]
 \begin{abstract}
-Field-boundary maps support crop monitoring, irrigation planning, and yield estimation, but many smallholder parcels span only a few 10m Sentinel-2 pixels. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to Fields of The World (FTW) that pairs the same polygons, seasonal windows, and train/test splits with 133{,}168 co-registered PlanetScope patch-window targets across 24 countries. FTP evaluates field delineation as parcel recovery by vectorizing predictions before scoring panoptic quality (PQ), object F1, field-size performance, and meter-scale matched-boundary error. Under matched architectures and training recipes, 3m imagery raises PQ from 21.0 to 35.5, raises PQ on sub-$0.5$\,ha fields from 5.8 to 15.7, and cuts matched-boundary error from 18.6m to 7.4m.\footnote{Datasets and model checkpoints are available at \url{https://github.com/anon/anon} (anonymized) under CC-BY-NC 4.0 licensing.}
+Field-boundary maps support crop monitoring, irrigation planning, and yield estimation, but many smallholder parcels span only a few 10m Sentinel-2 pixels. We introduce \textbf{Fields of the Planet (FTP)}, a 3m PlanetScope companion to Fields of The World (FTW) that pairs the same polygons, seasonal windows, and train/test splits with 133{,}168 co-registered PlanetScope patch-window targets across 24 countries. FTP evaluates field delineation as parcel recovery by vectorizing predictions before scoring panoptic quality (PQ), object F1, field-size performance, and meter-scale matched-boundary error. Under matched architectures and training recipes, 3m imagery raises PQ from 21.0 to 35.5, raises PQ on sub-$0.5$\,ha fields from 5.8 to 15.7, and cuts matched-boundary error from 18.6m to 7.4m.\footnote{Datasets and model checkpoints are available at \url{https://github.com/taylor-geospatial/fields-of-the-planet} under CC-BY-NC 4.0 licensing.}
 \end{abstract}
 
 \section{Introduction}
