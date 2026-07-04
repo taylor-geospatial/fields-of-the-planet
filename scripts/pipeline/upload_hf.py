@@ -24,7 +24,7 @@ import os
 import time
 from pathlib import Path
 
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, RepoFile
 from huggingface_hub.errors import HfHubHTTPError
 
 
@@ -54,7 +54,9 @@ def _upload_with_retry(api: HfApi, tar: Path, dst: str, repo_id: str, attempts: 
             if status not in (409, 412) or attempt == attempts:
                 raise
             backoff = min(2**attempt, 30)
-            print(f"    commit conflict ({status}) on {tar.name}, retry {attempt}/{attempts} in {backoff}s")
+            print(
+                f"    commit conflict ({status}) on {tar.name}, retry {attempt}/{attempts} in {backoff}s"
+            )
             time.sleep(backoff)
         else:
             return
@@ -79,7 +81,7 @@ def main() -> int:
     remote = {
         f.path: f.size
         for f in api.list_repo_tree(args.repo_id, repo_type="dataset", recursive=True)
-        if f.path.startswith(prefix) and f.path.endswith(".tar")
+        if isinstance(f, RepoFile) and f.path.startswith(prefix) and f.path.endswith(".tar")
     }
 
     print(
