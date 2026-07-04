@@ -26,7 +26,6 @@ dependencies = [
   "geopandas",
   "lightning",
   "numpy",
-  "planet>=2",
   "pyarrow>=19",
   "python-dotenv",
   "rasterio",

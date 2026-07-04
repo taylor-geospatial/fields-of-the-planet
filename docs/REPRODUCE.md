@@ -2,7 +2,8 @@
 
 This guide reruns the Fields of the Planet (FTP) training and evaluation
 behind a single command line. It assumes a machine with one CUDA GPU and the
-dataset already present under `data/` (see [DATASET.md](DATASET.md)).
+dataset already present under `data/` (see the Dataset section in the
+[README](../README.md#dataset)).
 
 ## Install
 
@@ -56,8 +57,3 @@ ftw-planet reproduce \
   --train configs/prue/ftw_planet_efnet3_crop512_v3_augmax_full.yaml \
   --ckpt logs/prue/<run>/checkpoints/last.ckpt
 ```
-
-## HPC
-
-`hpc/` holds optional SLURM wrappers used on the RAILS cluster. They are not
-required; the `ftw-planet` CLI is the supported path on any single-GPU host.
