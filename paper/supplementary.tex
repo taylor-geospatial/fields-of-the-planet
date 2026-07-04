@@ -59,7 +59,7 @@
 \section{Polygon-metric definitions}
 \label{app:metrics}
 
-All object-level metrics are computed on vector geometries for the field-interior class. Predicted masks are vectorized into polygons and scored against the original FTW ground-truth polygons; pixel IoU is computed before vectorization and reported only for continuity with the released PRUE protocol.
+All object-level metrics are computed on vector geometries for the field-interior class. Predicted masks are vectorized into polygons and scored against the original FTW ground-truth polygons. Pixel IoU is computed before vectorization and reported only for continuity with the released PRUE protocol.
 
 \paragraph{Vectorization and matching.}
 For each patch, the post-processed field-interior prediction is converted into polygons $\mathcal{P}=\{p_1,\ldots,p_M\}$ and compared with the ground-truth polygons $\mathcal{G}=\{g_1,\ldots,g_N\}$. All intersections and unions use polygon areas from the vector geometries. At IoU threshold $\tau$, a predicted polygon and a ground-truth polygon are matched when
@@ -108,7 +108,7 @@ For continuity with PRUE~\cite{muhawenayo2026prue}, we also report the pixel-lev
 computed on raster masks before vectorization. Unlike the polygon metrics, pixel IoU has no notion of individual parcels.
 
 \paragraph{Aggregation.}
-Metrics are first pooled within each country: $\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ counts and matched IoUs are accumulated across patches before computing RQ, SQ, PQ, and $\mathrm{F1}_{[.5:.95]}$, while chamfer is averaged over that country's matched pairs. Main-paper Table~1 reports macro-averages over the ten dense-label held-out countries. If a configuration produces no matched polygons in a country, boundary error is undefined for that country and excluded from the boundary-error average; all other columns remain defined.
+Metrics are first pooled within each country: $\mathrm{TP}/\mathrm{FP}/\mathrm{FN}$ counts and matched IoUs are accumulated across patches before computing RQ, SQ, PQ, and $\mathrm{F1}_{[.5:.95]}$, while chamfer is averaged over that country's matched pairs. Main-paper Table~1 reports macro-averages over the ten dense-label held-out countries. If a configuration produces no matched polygons in a country, boundary error is undefined for that country and excluded from the boundary-error average. All other columns remain defined.
 
 \paragraph{Field-area breakdown.}
 For main-paper Table~3, ground-truth polygons are assigned by UTM area $A$ to \emph{small} ($A<0.5$\,ha), \emph{medium} ($0.5\le A<2$\,ha), or \emph{large} ($A\ge2$\,ha). The 2\,ha threshold follows the standard smallholder ceiling~\cite{lowder2016farms}, while 0.5\,ha separates the dominant sub-hectare fields in FTW. Matched true positives and false negatives are binned by ground-truth area; unmatched predictions are counted as false positives in the bin determined by their predicted area. PQ is reported per bin and macro-averaged over the ten dense-label held-out countries.
