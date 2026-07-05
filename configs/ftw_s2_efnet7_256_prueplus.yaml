@@ -1,0 +1,65 @@
+trainer:
+  max_epochs: 100
+  log_every_n_steps: 10
+  accelerator: gpu
+  precision: bf16-mixed
+  default_root_dir: logs/prue/ftw_s2-unet-efnet7-crop256-s2-v3-augmax-b7-full
+  devices: [0]
+  logger:
+    class_path: lightning.pytorch.loggers.WandbLogger
+    init_args:
+      entity: isaaccorley
+      project: ftw-s2
+      name: s2-prue-efnet7-crop256-v3-augmax-b7-full
+      save_dir: logs/prue/ftw_s2-unet-efnet7-crop256-s2-v3-augmax-b7-full
+      log_model: false
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        save_last: true
+        filename: "{epoch}-{val/loss:.2f}"
+model:
+  class_path: ftw_planet.trainers.FTWPlanetSegTask
+  init_args:
+    class_weights: [0.05, 0.2, 0.75]
+    loss: "logcoshdice"
+    model: "unet"
+    backbone: "efficientnet-b7"
+    weights: true
+    patch_weights: false
+    in_channels: 8
+    num_classes: 3
+    num_filters: 64
+    ignore_index: 3
+    lr: 1e-3
+    patience: 100
+data:
+  class_path: ftw_planet.datamodules.FTWPlanetDataModule
+  init_args:
+    batch_size: 16
+    num_workers: 20
+    crop_size: 256
+    load_boundaries: true
+    usable_only: true
+    preprocess_aug: true
+    resize_aug: true
+    swap_order: true
+    per_band_gamma_aug: true
+    per_band_affine_aug: true
+    gaussian_blur_aug: true
+    gaussian_noise_aug: true
+    single_window_dropout_p: 0.15
+    small_angle_rotation_aug: true
+    shear_aug: true
+    boundary_jitter_aug: true
+    # v2 split: new val_countries (in-dist + 2 held-out for OOD signal)
+    train_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
+    val_countries: [austria]
+    test_countries: [austria, belgium, brazil, cambodia, corsica, croatia, denmark, estonia, finland, france, germany, india, kenya, latvia, lithuania, luxembourg, netherlands, portugal, rwanda, slovakia, slovenia, south_africa, spain, sweden, vietnam]
+  dict_kwargs:
+    root: data/ftw
+    dataset_backend: s2
+seed_everything: 7

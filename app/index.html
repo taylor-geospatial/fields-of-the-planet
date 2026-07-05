@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fields of the Planet — Field Boundary Mapping Beyond 10m</title>
+<meta name="description" content="A 3 m PlanetScope companion to Fields of The World for high-resolution agricultural field-boundary delineation, evaluated with polygon-level metrics." />
+<meta property="og:title" content="Fields of the Planet" />
+<meta property="og:description" content="A 3 m PlanetScope companion to Fields of The World for high-resolution field-boundary delineation." />
+<meta property="og:image" content="assets/hero.png" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%23faf9f7'/%3E%3Cg fill='none' stroke='%23004747' stroke-width='1.6'%3E%3Cpath d='M2 9 L13 2 L22 8 L11 15 Z'/%3E%3Cpath d='M2 9 L11 15 L11 22'/%3E%3Cpath d='M13 2 L13 9 L22 8'/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/fonts/fonts.css" />
+<style>
+  :root {
+    --paper: #faf9f7;
+    --panel: #f3f1ec;
+    --ink: #16191a;
+    --text: #262b28;
+    --muted: #5c6360;
+    --faint: #8d9491;
+    --line: #e1e4e0;
+    --rule: #c9cdc8;
+    --accent: #004747;
+    --sora: "Sora", ui-sans-serif, system-ui, sans-serif;
+    --manrope: "Manrope", ui-sans-serif, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--paper); color: var(--text);
+    font-family: var(--manrope); font-size: 17px; line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 26px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  p { margin: 0 0 16px; }
+  b, strong { font-weight: 600; color: var(--ink); }
+
+  /* ---- boundary-tick rule: the page's one recurring motif ---- */
+  .hr {
+    height: 1px; border: 0; margin: 26px 0 16px;
+    background-image: repeating-linear-gradient(to right, var(--rule) 0 5px, transparent 5px 9px);
+  }
+  .hr.tight { margin: 10px 0 20px; }
+
+  /* ---- header ---- */
+  .head { padding: 64px 0 28px; text-align: center; }
+  .head .reslinks { display: flex; justify-content: center; flex-wrap: wrap; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0 0 18px; }
+  h1 { font-family: var(--sora); font-weight: 600; font-size: clamp(30px, 5vw, 42px); line-height: 1.12; letter-spacing: -0.01em; margin: 0 0 8px; color: var(--ink); }
+  .sub { font-size: clamp(17px, 2.2vw, 19px); color: var(--muted); font-weight: 400; margin: 0 0 24px; }
+  .authors { margin: 0 0 2px; font-size: 15px; }
+  .affil { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: 0.01em; margin: 0; }
+
+  .reslinks { font-family: var(--mono); font-size: 13px; line-height: 2; }
+  .reslinks a { white-space: nowrap; }
+  .reslinks .sep { color: var(--line); margin: 0 9px; }
+  .reslinks .ext { color: var(--faint); font-size: 11px; }
+
+  /* ---- figures ---- */
+  figure { margin: 30px 0; }
+  figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); background: #fff; }
+  figcaption { font-size: 14px; line-height: 1.55; color: var(--muted); margin-top: 10px; }
+
+  /* ---- sections ---- */
+  section { padding: 20px 0; }
+  h2 { font-family: var(--sora); font-weight: 600; font-size: 22px; letter-spacing: -0.005em; margin: 0 0 4px; color: var(--ink); }
+  .sec-kick { font-family: var(--mono); font-size: 11px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+
+  /* ---- booktabs table ---- */
+  .tbl-wrap { overflow-x: auto; margin: 8px 0 10px; }
+  table.book { border-collapse: collapse; margin: 0 auto; font-size: 15.5px; }
+  table.book caption { caption-side: bottom; font-size: 13px; color: var(--muted); text-align: left; padding-top: 10px; font-family: var(--mono); }
+  table.book th, table.book td { padding: 8px 20px; text-align: right; }
+  table.book th:first-child, table.book td:first-child { text-align: left; font-family: var(--manrope); }
+  table.book td.num, table.book th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 14px; }
+  table.book { border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+  table.book thead th { border-bottom: 1px solid var(--ink); font-weight: 600; padding-bottom: 7px; }
+  table.book thead th.num { font-family: var(--mono); font-weight: 500; font-size: 12.5px; letter-spacing: 0.02em; }
+  table.book tbody tr td { border: 0; }
+  .hi { color: var(--accent); font-weight: 600; }
+
+  dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 11px 26px; margin: 4px 0 0; }
+  dl.facts dt { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--faint); padding-top: 3px; }
+  dl.facts dd { margin: 0; }
+  @media (max-width: 620px) { dl.facts { grid-template-columns: 1fr; gap: 2px 0; } dl.facts dt { padding-top: 12px; } }
+  code { font-family: var(--mono); font-size: 0.85em; color: var(--ink); }
+
+  /* ---- citation ---- */
+  .cite { position: relative; }
+  pre.bib { font-family: var(--mono); font-size: 12.5px; line-height: 1.65; background: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 18px 18px; overflow-x: auto; margin: 6px 0 0; }
+  .copy { position: absolute; top: 10px; right: 10px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.03em; color: var(--muted); background: var(--paper); border: 1px solid var(--line); padding: 5px 9px; cursor: pointer; }
+  .copy:hover { color: var(--ink); border-color: var(--rule); }
+
+  footer { border-top: 1px solid var(--rule); margin-top: 30px; padding: 22px 0 60px; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+  footer .note { font-family: var(--mono); font-size: 11.5px; color: var(--muted); line-height: 1.7; }
+</style>
+</head>
+<body>
+<main>
+  <header class="head wrap">
+    <p class="kicker">Fields of The World · PlanetScope companion</p>
+    <h1>Fields of the Planet</h1>
+    <p class="sub">Field boundary mapping beyond 10 meters</p>
+    <p class="authors">Isaac Corley, Caleb Robinson, Jennifer Marcus, Hannah Kerner</p>
+    <p class="affil">Taylor Geospatial · 2026</p>
+    <hr class="hr" />
+    <nav class="reslinks">
+      <!-- TODO: replace with the real arXiv URL once the preprint is posted -->
+      <a href="https://arxiv.org/abs/0000.00000">Paper <span class="ext">(arXiv)</span></a><span class="sep">·</span>
+      <a href="https://github.com/taylor-geospatial/fields-of-the-planet">Code <span class="ext">(GitHub)</span></a><span class="sep">·</span>
+      <a href="https://huggingface.co/datasets/taylor-geospatial/ftw-planet">Dataset <span class="ext">(Hugging Face)</span></a><span class="sep">·</span>
+      <a href="https://huggingface.co/taylor-geospatial/ftp-b3">Model&nbsp;B3</a><span class="sep">·</span>
+      <a href="https://huggingface.co/taylor-geospatial/ftp-b7">Model&nbsp;B7</a>
+    </nav>
+  </header>
+
+  <div class="wrap">
+    <figure>
+      <img src="assets/hero.png" alt="Each row: a 10 m Sentinel-2 patch, the matched 3 m PlanetScope image, and the ground-truth FTW field boundaries." />
+      <figcaption><b>Fields of the Planet pairs each Fields of The World Sentinel-2 patch with a co-registered 3 m PlanetScope image and the original field-boundary labels.</b> Left to right: the FTW Sentinel-2 patch at 10 m, the matched PlanetScope surface-reflectance image at 3 m (4-band; RGB shown), and the ground-truth FTW vector polygons.</figcaption>
+    </figure>
+
+    <section>
+      <p class="sec-kick">Abstract</p>
+      <h2>A controlled test of resolution for field delineation</h2>
+      <hr class="hr tight" />
+      <p>Field-boundary maps support crop monitoring, irrigation planning, and yield estimation, but many smallholder parcels span only a few 10 m Sentinel-2 pixels. Roughly 510 million farms under 2 ha account for about 84% of the world's farms by count, and a 10 m grid resolves their boundaries worst.</p>
+      <p>Fields of the Planet (FTP) is a 3 m PlanetScope companion to Fields of The World (FTW). It keeps the same polygons, seasonal windows, and train/test splits, and pairs 133,168 patch-window targets across 24 countries with co-registered PlanetScope surface reflectance. This isolates the effect of spatial resolution, holding the labels and protocol fixed and changing only the imagery.</p>
+      <p>We evaluate delineation as parcel recovery. Predictions are vectorized and scored as polygon objects, using panoptic quality (PQ), object F1 over the COCO IoU grid, and meter-scale matched-boundary error. Pixel overlap alone understates the benefit of higher resolution, so we do not rely on it.</p>
+    </section>
+
+    <section>
+      <p class="sec-kick">Motivation</p>
+      <h2>The 10 m grid loses small fields before training begins</h2>
+      <hr class="hr tight" />
+      <p>The limit appears in the labels themselves. Rasterizing FTW's own polygons onto a 10 m grid merges adjacent parcels: only 7.5% of sub-0.5 ha fields remain separable as distinct polygons at 10 m, versus 88.3% at 3 m. A model trained on 10 m targets cannot recover fields the grid has already merged.</p>
+      <figure>
+        <img src="assets/qualitative.png" alt="Qualitative comparison showing PlanetScope resolving dense smallholder parcels that Sentinel-2 merges." />
+        <figcaption><b>PlanetScope resolves dense smallholder parcels that Sentinel-2 merges.</b> Held-out examples show the 3 m image, the 10 m image, ground truth, and model outputs as mask / vectorized-polygon pairs.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <p class="sec-kick">Results</p>
+      <h2>3 m imagery improves recovery and boundary localization</h2>
+      <hr class="hr tight" />
+      <p>We train matched U-Net models with an EfficientNet-B3 encoder on each sensor. Replacing 10 m Sentinel-2 with 3 m PlanetScope improves every polygon-level metric, with the largest relative gain on the smallholder fields a 10 m grid cannot resolve.</p>
+      <div class="tbl-wrap">
+        <table class="book">
+          <caption>Macro-averaged over the ten dense-label held-out countries. Better value in bold.</caption>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th class="num">Sentinel-2 (10&nbsp;m)</th>
+              <th class="num">PlanetScope (3&nbsp;m)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Panoptic quality (PQ)</td><td class="num">21.0</td><td class="num hi">35.5</td></tr>
+            <tr><td>PQ on fields &lt; 0.5 ha</td><td class="num">5.8</td><td class="num hi">15.7</td></tr>
+            <tr><td>Object F1 at IoU 0.5</td><td class="num">28.9</td><td class="num hi">46.2</td></tr>
+            <tr><td>Matched-boundary error (m)</td><td class="num">18.6</td><td class="num hi">7.4</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Matched boundaries are also localized more than twice as accurately. A finer output grid alone (upsampled Sentinel-2) does not close the gap, because it cannot recover edges the input never resolved.</p>
+      <figure>
+        <img src="assets/improvement.png" alt="Held-out patches with the largest FTW to FTP polygon-PQ improvement." />
+        <figcaption><b>Where 3 m helps most.</b> Held-out patches with the largest FTW→FTP polygon-PQ improvement. In dense smallholder scenes the Sentinel-2 model merges neighboring parcels or leaves gaps, while the PlanetScope model recovers more of the parcel structure.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <p class="sec-kick">Dataset</p>
+      <h2>What ships in the release</h2>
+      <hr class="hr tight" />
+      <dl class="facts">
+        <dt>Coverage</dt><dd>66,584 patches · 133,168 image-window pairs · 24 countries / 25 labeled regions</dd>
+        <dt>Imagery</dt><dd>PlanetScope <code>ortho_analytic_4b_sr</code> — 4 bands (B/G/R/NIR), ~3 m GSD, native UTM, <code>uint16</code></dd>
+        <dt>Windows</dt><dd>Two seasonal acquisitions per patch (planting and harvest)</dd>
+        <dt>Labels</dt><dd>3-class raster (background / interior / boundary) plus the original FTW vector polygons as GeoParquet</dd>
+        <dt>Format</dt><dd>One WebDataset tar per region (25 shards, ~94 GiB) and a GeoParquet index</dd>
+        <dt>License</dt><dd>CC-BY-NC 4.0 (inherits Planet's non-commercial terms); labels carry their per-region FTW licenses</dd>
+      </dl>
+    </section>
+
+    <section>
+      <p class="sec-kick">Citation</p>
+      <h2>BibTeX</h2>
+      <hr class="hr tight" />
+      <div class="cite">
+        <button class="copy" id="copyBtn">Copy</button>
+<pre class="bib" id="bib">@inproceedings{corley2026ftp,
+  title     = {Fields of the Planet: Field Boundary Mapping Beyond 10m},
+  author    = {Corley, Isaac and Robinson, Caleb and
+               Marcus, Jennifer and Kerner, Hannah},
+  year      = {2026}
+}</pre>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="note">Fields of the Planet · Taylor Geospatial<br/>Built on Fields of The World (FTW).</div>
+    <div class="note">Code: MIT · Data: CC-BY-NC 4.0<br/>Imagery © Planet Labs PBC.</div>
+  </div>
+</footer>
+
+<script>
+  const btn = document.getElementById("copyBtn");
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(document.getElementById("bib").innerText);
+      const t = btn.textContent; btn.textContent = "Copied"; setTimeout(() => (btn.textContent = t), 1400);
+    } catch (_) { /* clipboard unavailable */ }
+  });
+</script>
+</body>
+</html>
