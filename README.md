@@ -4,7 +4,7 @@
 
 **[Isaac Corley](https://isaac.earth)** · **[Caleb Robinson](https://calebrob.com/)** · **Jennifer Marcus** · **[Hannah Kerner](https://hannah-rae.github.io/)**
 
-<a href="https://arxiv.org/abs/0000.00000"><img src="https://img.shields.io/badge/arXiv-Fields%20of%20the%20Planet-red" alt="arXiv"></a>
+<a href="https://arxiv.org/abs/2607.04449"><img src="https://img.shields.io/badge/arXiv-2607.04449-red" alt="arXiv"></a>
 <a href="https://huggingface.co/datasets/taylor-geospatial/ftw-planet"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Dataset-yellow" alt="Dataset"></a>
 <a href="https://huggingface.co/taylor-geospatial/ftp-b3"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model%20B3-yellow" alt="Model B3"></a>
 <a href="https://huggingface.co/taylor-geospatial/ftp-b7"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model%20B7-yellow" alt="Model B7"></a>
@@ -131,10 +131,13 @@ layout.
 
 ```bibtex
 @inproceedings{corley2026ftp,
-  title     = {Fields of the Planet: Field Boundary Mapping Beyond 10m},
-  author    = {Corley, Isaac and Robinson, Caleb and
-               Marcus, Jennifer and Kerner, Hannah},
-  year      = {2026}
+  title         = {Fields of the Planet: Field Boundary Mapping Beyond 10m},
+  author        = {Corley, Isaac and Robinson, Caleb and
+                   Marcus, Jennifer and Kerner, Hannah},
+  year          = {2026},
+  eprint        = {2607.04449},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV}
 }
 ```
 
