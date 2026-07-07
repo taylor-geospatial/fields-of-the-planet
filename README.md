@@ -130,14 +130,14 @@ layout.
 ## Citation
 
 ```bibtex
-@inproceedings{corley2026ftp,
+@misc{corley2026fieldsplanetfieldboundary,
   title         = {Fields of the Planet: Field Boundary Mapping Beyond 10m},
-  author        = {Corley, Isaac and Robinson, Caleb and
-                   Marcus, Jennifer and Kerner, Hannah},
+  author        = {Isaac Corley and Caleb Robinson and Jennifer Marcus and Hannah Kerner},
   year          = {2026},
   eprint        = {2607.04449},
   archivePrefix = {arXiv},
-  primaryClass  = {cs.CV}
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2607.04449}
 }
 ```
 
